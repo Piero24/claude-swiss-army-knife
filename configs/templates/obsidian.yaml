@@ -1,0 +1,33 @@
+# Obsidian MCP — Permission Configuration Template
+# Copy to configs/obsidian.yaml and customize for your environment.
+#
+# Paths are relative to the vault root.
+
+server:
+  name: obsidian-mcp
+  log_level: INFO
+  audit_log: /var/log/mcp/audit.log
+
+permissions:
+  # Default: deny all paths
+  default_access: none
+
+  paths:
+    # Example: full access to personal vault area
+    - path: /personal/**
+      access: write
+      description: "Personal notes — full access"
+
+    # Example: read-only access to a shared work vault
+    - path: /work/**
+      access: read
+      description: "Work notes — read-only"
+
+    # Example: deny access to private subfolder (overrides /personal/**)
+    - path: /personal/private/**
+      access: none
+      description: "Private notes — always denied"
+
+  # Obsidian MCP has no commands
+  commands: []
+  default_command_access: none

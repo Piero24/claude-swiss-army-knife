@@ -1,6 +1,8 @@
-# Ubuntu Server MCP — Permission Configuration
-# Copy this to /etc/mcp/ubuntu-server.yaml (or wherever your config lives)
-# and customize for your environment.
+# Ubuntu Server MCP — Permission Configuration Template
+# Copy to configs/ubuntu-server.yaml and customize for your environment.
+#
+# Rules are evaluated with longest-match precedence.
+# Access levels: none (denied), read, write
 
 server:
   name: ubuntu-mcp
@@ -8,14 +10,14 @@ server:
   audit_log: /var/log/mcp/audit.log
 
 permissions:
-  # Default: deny all paths and commands
+  # Default: deny all paths
   default_access: none
 
   paths:
     # ---- Logs (read-only) ----
     - path: /var/log/**
       access: read
-      description: "System logs — read-only"
+      description: "System logs"
 
     - path: /var/log/nginx/**
       access: read
@@ -26,28 +28,28 @@ permissions:
       access: write
       description: "Web root — read + write"
 
-    # ---- Home directory (read-only by default) ----
+    # ---- Home directory (read-only) ----
     - path: /home/${UBUNTU_SERVER_USER:-user}/**
       access: read
-      description: "Home directory — read-only"
+      description: "Home directory"
 
     # ---- Explicitly deny SSH keys ----
     - path: /home/${UBUNTU_SERVER_USER:-user}/.ssh/**
       access: none
-      description: "SSH keys — explicitly denied"
+      description: "SSH keys — always denied"
 
     # ---- Nginx config management ----
     - path: /etc/nginx/sites-available/**
       access: write
-      description: "Nginx virtual host configs — read + write"
+      description: "Nginx virtual host configs"
 
     - path: /etc/nginx/sites-enabled/**
       access: write
-      description: "Nginx enabled sites — read + write"
+      description: "Nginx enabled sites"
 
     - path: /etc/nginx/nginx.conf
       access: write
-      description: "Main nginx config — read + write"
+      description: "Main nginx config"
 
   commands:
     # ---- Systemd: status checks (read) ----
@@ -99,5 +101,5 @@ permissions:
       access: read
       description: "Query systemd journal"
 
-    # Default: deny any command not explicitly listed
-    default_command_access: none
+  # Default: deny any command not explicitly listed
+  default_command_access: none
