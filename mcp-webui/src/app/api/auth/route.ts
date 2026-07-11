@@ -1,7 +1,12 @@
-/** Auth endpoints: POST login, DELETE logout. */
+/** Auth endpoints: GET session, POST login, DELETE logout. */
 
 import { NextResponse } from "next/server";
-import { getSession, validateApiKey } from "@/lib/auth";
+import { getSession, isAuthenticated, validateApiKey } from "@/lib/auth";
+
+export async function GET() {
+  const authed = await isAuthenticated();
+  return NextResponse.json({ authenticated: authed });
+}
 
 export async function POST(request: Request) {
   try {

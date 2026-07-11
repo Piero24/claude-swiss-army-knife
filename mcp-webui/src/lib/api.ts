@@ -9,6 +9,12 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: { "Content-Type": "application/json", ...options?.headers },
   });
+  if (res.status === 401) {
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new Error("Unauthorized");
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`API error ${res.status}: ${body}`);
@@ -79,6 +85,19 @@ export async function getAuditLog(server: ServerName, limit = 50, filter?: "allo
   const params = new URLSearchParams({ limit: String(limit) });
   if (filter) params.set("filter", filter);
   return fetchJSON<AuditEntry[]>(`${BASE}/audit/${server}?${params}`);
+}
+
+// ── Health ──────────────────────────────────────────
+
+export interface HealthStatus {
+  status: "healthy" | "idle" | "unconfigured" | "stopped" | "not-found" | "error";
+  container: string;
+  lastActivity: string | null;
+  detail: string;
+}
+
+export async function getHealth(server: ServerName): Promise<HealthStatus> {
+  return fetchJSON<HealthStatus>(`${BASE}/health/${server}`);
 }
 
 // ── Auth ───────────────────────────────────────────
