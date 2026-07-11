@@ -1,0 +1,103 @@
+# Ubuntu Server MCP — Permission Configuration
+# Copy this to /etc/mcp/ubuntu-server.yaml (or wherever your config lives)
+# and customize for your environment.
+
+server:
+  name: ubuntu-mcp
+  log_level: INFO
+  audit_log: /var/log/mcp/audit.log
+
+permissions:
+  # Default: deny all paths and commands
+  default_access: none
+
+  paths:
+    # ---- Logs (read-only) ----
+    - path: /var/log/**
+      access: read
+      description: "System logs — read-only"
+
+    - path: /var/log/nginx/**
+      access: read
+      description: "Nginx access and error logs"
+
+    # ---- Web root (full access) ----
+    - path: /var/www/**
+      access: write
+      description: "Web root — read + write"
+
+    # ---- Home directory (read-only by default) ----
+    - path: /home/${UBUNTU_SERVER_USER:-user}/**
+      access: read
+      description: "Home directory — read-only"
+
+    # ---- Explicitly deny SSH keys ----
+    - path: /home/${UBUNTU_SERVER_USER:-user}/.ssh/**
+      access: none
+      description: "SSH keys — explicitly denied"
+
+    # ---- Nginx config management ----
+    - path: /etc/nginx/sites-available/**
+      access: write
+      description: "Nginx virtual host configs — read + write"
+
+    - path: /etc/nginx/sites-enabled/**
+      access: write
+      description: "Nginx enabled sites — read + write"
+
+    - path: /etc/nginx/nginx.conf
+      access: write
+      description: "Main nginx config — read + write"
+
+  commands:
+    # ---- Systemd: status checks (read) ----
+    - pattern: "systemctl status *"
+      access: read
+      description: "Check any service status"
+
+    - pattern: "systemctl is-active *"
+      access: read
+      description: "Check if service is active"
+
+    - pattern: "systemctl is-enabled *"
+      access: read
+      description: "Check if service is enabled"
+
+    # ---- Systemd: service management (write) ----
+    - pattern: "systemctl restart nginx"
+      access: write
+      description: "Restart nginx"
+
+    - pattern: "systemctl reload nginx"
+      access: write
+      description: "Reload nginx config"
+
+    - pattern: "systemctl restart docker-*"
+      access: write
+      description: "Restart Docker Compose services"
+
+    # ---- Docker (read) ----
+    - pattern: "docker ps"
+      access: read
+      description: "List running containers"
+
+    - pattern: "docker ps -a"
+      access: read
+      description: "List all containers"
+
+    - pattern: "docker logs *"
+      access: read
+      description: "View container logs"
+
+    # ---- Docker (write) ----
+    - pattern: "docker restart *"
+      access: write
+      description: "Restart a container"
+
+    # ---- Journal (read) ----
+    - pattern: "journalctl *"
+      access: read
+      description: "Query systemd journal"
+
+    # Default: deny any command not explicitly listed
+    default_command_access: none

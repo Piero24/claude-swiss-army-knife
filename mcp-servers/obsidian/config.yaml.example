@@ -1,0 +1,28 @@
+# Obsidian MCP — Permission Configuration
+
+server:
+  name: obsidian-mcp
+  log_level: INFO
+  audit_log: /var/log/mcp/audit.log
+
+permissions:
+  default_access: none
+
+  paths:
+    # Personal vault — full access
+    - path: /personal/**
+      access: write
+      description: "Personal vault — read + write"
+
+    # Work vault — read-only
+    - path: /work/**
+      access: read
+      description: "Work vault — read-only"
+
+    # Explicitly deny any private subfolder
+    - path: /personal/private/**
+      access: none
+      description: "Private notes — denied"
+
+  commands: []
+  default_command_access: none
