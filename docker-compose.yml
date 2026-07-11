@@ -4,6 +4,7 @@
 #   cp .env.example .env
 #   # Edit .env with your values
 #   bash scripts/generate-api-key.sh
+#   bash scripts/setup-build.sh
 #   docker compose up -d --build
 
 services:
@@ -33,7 +34,7 @@ services:
     build:
       context: ./mcp-servers/ubuntu-server
       args:
-        PERMISSION_ENGINE_PATH: ../shared/mcp-permission-engine
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
     image: ubuntu-mcp:${UBUNTU_MCP_IMAGE_TAG:-latest}
     container_name: ${UBUNTU_MCP_CONTAINER:-ubuntu-mcp}
     volumes:
@@ -46,26 +47,28 @@ services:
       - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu:/var/log/mcp
     pid: "host"
     network_mode: "host"
+    stdin_open: true
     restart: unless-stopped
 
   obsidian-mcp:
     build:
       context: ./mcp-servers/obsidian
       args:
-        PERMISSION_ENGINE_PATH: ../shared/mcp-permission-engine
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
     image: obsidian-mcp:${OBSIDIAN_MCP_IMAGE_TAG:-latest}
     container_name: ${OBSIDIAN_MCP_CONTAINER:-obsidian-mcp}
     volumes:
       - ${OBSIDIAN_VAULT_PATH:-/DATA/obsidian-vaults}:/data/vaults:rw
       - ./configs/obsidian.yaml:/app/config.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/obsidian:/var/log/mcp
+    stdin_open: true
     restart: unless-stopped
 
   synology-mcp:
     build:
       context: ./mcp-servers/synology-nas
       args:
-        PERMISSION_ENGINE_PATH: ../shared/mcp-permission-engine
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
     image: synology-mcp:${SYNOLOGY_MCP_IMAGE_TAG:-latest}
     container_name: ${SYNOLOGY_MCP_CONTAINER:-synology-mcp}
     volumes:
@@ -76,6 +79,8 @@ services:
       - SYNOLOGY_NAS_PORT=${SYNOLOGY_NAS_PORT}
       - SYNOLOGY_NAS_USER=${SYNOLOGY_NAS_USER}
       - SYNOLOGY_NAS_PASSWORD=${SYNOLOGY_NAS_PASSWORD}
+      - SYNOLOGY_NAS_OTP_SECRET=${SYNOLOGY_NAS_OTP_SECRET:-}
+    stdin_open: true
     restart: unless-stopped
 
   # ============================================================
@@ -90,13 +95,14 @@ services:
     volumes:
       - ./configs:/app/configs:rw
       - ${MCP_LOG_DIR:-/var/log/mcp}:/var/log/mcp:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - WEBUI_API_KEY=${WEBUI_API_KEY}
       - WEBUI_AUTH_SECRET=${WEBUI_AUTH_SECRET}
       - CONFIGS_PATH=/app/configs
       - LOGS_PATH=/var/log/mcp
-    expose:
-      - "${WEBUI_PORT:-8280}"
+    ports:
+      - "${WEBUI_PORT:-8280}:8280"
     restart: unless-stopped
 
   # ============================================================
@@ -108,6 +114,6 @@ services:
       context: ./docs-site
     image: docs-site:${DOCS_IMAGE_TAG:-latest}
     container_name: docs-site
-    expose:
-      - "${DOCS_PORT:-3000}"
+    ports:
+      - "${DOCS_PORT:-3000}:3000"
     restart: unless-stopped

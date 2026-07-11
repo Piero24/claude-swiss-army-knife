@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build arg: relative path to shared permission engine
-ARG PERMISSION_ENGINE_PATH=../shared/mcp-permission-engine
+ARG PERMISSION_ENGINE_PATH=shared/mcp-permission-engine
 
 # Install shared permission engine
 COPY ${PERMISSION_ENGINE_PATH} /tmp/permission-engine
