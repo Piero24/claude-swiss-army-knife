@@ -38,7 +38,7 @@ const serverConfigSchema = z.object({
   }),
 });
 
-function getConfigPath(server: string): string {
+export function getConfigPath(server: string): string {
   // Validate server name to prevent path traversal
   const valid = ["ubuntu-server", "obsidian", "synology-nas"];
   if (!valid.includes(server)) {
