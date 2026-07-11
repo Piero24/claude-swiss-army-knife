@@ -13,7 +13,7 @@ dependencies = [
     "mcp-permission-engine",
     "pyyaml>=6.0",
     "structlog>=24.0",
-    "watchfiles>=0.24",
+    "watchfiles>=1.2.0",
 ]
 
 [project.optional-dependencies]
