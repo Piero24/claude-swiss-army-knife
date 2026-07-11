@@ -315,7 +315,9 @@ async def main() -> None:
         await _dsm_client.login()
         logger.info("Connected to Synology NAS at %s", base_url)
     except Exception as e:
-        logger.warning("DSM login failed at startup: %s — will retry on first use", e)
+        logger.warning(
+            "DSM login failed at startup: %s — will retry on first use", e
+        )
 
     # Start config watcher
     watch_task = asyncio.create_task(watch_config(config_path, reload_config))
