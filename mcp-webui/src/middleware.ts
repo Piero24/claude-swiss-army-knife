@@ -17,8 +17,8 @@ export async function middleware(request: NextRequest) {
   // Allow auth endpoint
   if (pathname === "/api/auth") return NextResponse.next();
 
-  // Allow health check
-  if (pathname === "/api/health") return NextResponse.next();
+  // Allow health check endpoints
+  if (pathname.startsWith("/api/health")) return NextResponse.next();
 
   // Protect all other /api/* routes
   if (pathname.startsWith("/api/")) {
