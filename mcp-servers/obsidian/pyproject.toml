@@ -11,7 +11,7 @@ license = {text = "MIT"}
 dependencies = [
     "mcp>=1.0",
     "mcp-permission-engine",
-    "pyyaml>=6.0",
+    "pyyaml>=6.0.3",
     "structlog>=24.0",
     "watchfiles>=0.24",
 ]
