@@ -9,6 +9,7 @@ const config: Config = {
   favicon: "img/favicon.ico",
   organizationName: "Piero24",
   projectName: "claude-swiss-army-knife",
+  onBrokenLinks: "warn",
 
   presets: [
     [

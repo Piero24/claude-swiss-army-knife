@@ -36,6 +36,7 @@ export interface AuditEntry {
   result: "allowed" | "denied";
   target_type?: string;
   target?: string;
+  command?: string;
   access?: string;
   reason?: string;
 }
