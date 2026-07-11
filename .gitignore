@@ -11,3 +11,8 @@ build/
 .pytest_cache/
 *.log
 /var/log/mcp/
+mcp-servers/*/shared/
+
+# Working configs — only templates go to GitHub
+/configs/*.yaml
+!/configs/templates/

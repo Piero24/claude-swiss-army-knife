@@ -1,0 +1,37 @@
+# Synology NAS MCP — Permission Configuration Template
+# Copy to configs/synology-nas.yaml and customize for your environment.
+#
+# Paths correspond to DSM shared folder names.
+# Run `docker exec synology-mcp python -c "..."` to discover yours.
+
+server:
+  name: synology-mcp
+  log_level: INFO
+  audit_log: /var/log/mcp/audit.log
+
+permissions:
+  # Default: deny all paths
+  default_access: none
+
+  paths:
+    # Example: full access to home folder
+    - path: /home/**
+      access: write
+      description: "Home shared folder"
+
+    # Example: read-only media
+    - path: /video/**
+      access: read
+      description: "Video library"
+
+    - path: /music/**
+      access: read
+      description: "Music library"
+
+    # Example: backup access
+    - path: /backups/**
+      access: write
+      description: "Backup folder"
+
+  commands: []
+  default_command_access: none
