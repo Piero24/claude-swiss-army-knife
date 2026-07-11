@@ -1,13 +1,27 @@
 """DSM 7.x API client — authentication, File Station, and System APIs."""
 
+import base64
+import hmac
 import logging
 import os
+import struct
+import time
 import urllib.parse
 from typing import Any, Optional
 
 import httpx
 
 logger = logging.getLogger("synology-mcp")
+
+
+def generate_totp(secret: str) -> str:
+    """Generate a TOTP code from a base32-encoded secret (RFC 6238)."""
+    key = base64.b32decode(secret.upper().replace(" ", ""), casefold=True)
+    counter = struct.pack(">Q", int(time.time() // 30))
+    h = hmac.new(key, counter, "sha1").digest()
+    offset = h[-1] & 0x0F
+    code = struct.unpack(">I", h[offset : offset + 4])[0] & 0x7FFFFFFF
+    return str(code % 1_000_000).zfill(6)
 
 # DSM API endpoints
 API_AUTH = "/webapi/auth.cgi"
@@ -49,6 +63,9 @@ class DSMClient:
     async def login(self) -> bool:
         """Authenticate with DSM and obtain a session ID (SID).
 
+        If the account has OTP enabled, reads SYNOLOGY_NAS_OTP_SECRET
+        from the environment and generates a TOTP code automatically.
+
         Returns:
             True if login succeeded.
         """
@@ -66,6 +83,30 @@ class DSMClient:
             params=params,
         )
         data = resp.json()
+
+        if (
+            not data.get("success")
+            and isinstance(data.get("error"), dict)
+            and data["error"].get("code") == 403
+        ):
+            errors = data["error"].get("errors", {})
+            types = errors.get("types", [])
+            if any(t.get("type") == "otp" for t in types):
+                otp_secret = os.environ.get("SYNOLOGY_NAS_OTP_SECRET", "")
+                if not otp_secret:
+                    raise RuntimeError(
+                        "DSM requires OTP but SYNOLOGY_NAS_OTP_SECRET is not set. "
+                        "Add your TOTP secret to .env or disable 2FA for this account."
+                    )
+                otp_code = generate_totp(otp_secret)
+                logger.info("OTP required — generated code automatically")
+                params["otp_code"] = otp_code
+                resp = await self._client.get(
+                    f"{self.base_url}{API_AUTH}",
+                    params=params,
+                )
+                data = resp.json()
+
         if not data.get("success"):
             error = data.get("error", {})
             raise RuntimeError(f"DSM login failed: {error}")
@@ -93,10 +134,10 @@ class DSMClient:
 
     # ── Internal helpers ────────────────────────────────────────
 
-    def _require_auth(self) -> str:
-        """Get the SID, raising if not authenticated."""
+    async def _require_auth(self) -> str:
+        """Get the SID, logging in automatically if needed."""
         if not self._sid:
-            raise RuntimeError("Not authenticated. Call login() first.")
+            await self.login()
         return self._sid
 
     async def _file_station_request(self, method: str, **params) -> dict:
@@ -109,7 +150,7 @@ class DSMClient:
         Returns:
             Parsed JSON response data.
         """
-        sid = self._require_auth()
+        sid = await self._require_auth()
         all_params = {
             "api": "SYNO.FileStation",
             "version": "2",
@@ -131,7 +172,7 @@ class DSMClient:
         self, api: str, method: str, version: str = "1", **params
     ) -> dict:
         """Make a generic DSM API request."""
-        sid = self._require_auth()
+        sid = await self._require_auth()
         all_params = {
             "api": api,
             "version": version,
@@ -189,7 +230,7 @@ class DSMClient:
         Returns:
             File contents as string.
         """
-        sid = self._require_auth()
+        sid = await self._require_auth()
         params = {
             "api": "SYNO.FileStation",
             "version": "2",
@@ -220,7 +261,7 @@ class DSMClient:
         Returns:
             Result dict with written status.
         """
-        sid = self._require_auth()
+        sid = await self._require_auth()
         # Use the upload method with file content
         files = {
             "file": (
@@ -262,7 +303,7 @@ class DSMClient:
         Returns:
             Result dict.
         """
-        await _file_station_request(
+        await self._file_station_request(
             "delete",
             path=f'"{file_path}"',
             recursive="true" if recursive else "false",
@@ -279,7 +320,7 @@ class DSMClient:
         Returns:
             Result dict.
         """
-        await _file_station_request(
+        await self._file_station_request(
             "rename", path=f'"{src_path}"', name=f'"{dst_path}"'
         )
         return {"moved": True, "src": src_path, "dst": dst_path}
