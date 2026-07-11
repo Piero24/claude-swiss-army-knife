@@ -166,6 +166,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Copy shared permission engine (MCP servers only)
+        if: matrix.service.name != 'mcp-webui'
+        run: cp -r ./mcp-servers/shared/mcp-permission-engine ${{ matrix.service.context }}/shared/mcp-permission-engine
+
       - name: Build ${{ matrix.service.name }} image
         uses: docker/build-push-action@v6
         with:
@@ -176,4 +180,4 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            PERMISSION_ENGINE_PATH=../shared/mcp-permission-engine
+            PERMISSION_ENGINE_PATH=shared/mcp-permission-engine
