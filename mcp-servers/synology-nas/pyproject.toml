@@ -13,7 +13,7 @@ dependencies = [
     "mcp-permission-engine",
     "httpx>=0.28",
     "structlog>=24.0",
-    "watchfiles>=0.24",
+    "watchfiles>=1.2.0",
 ]
 
 [project.optional-dependencies]
