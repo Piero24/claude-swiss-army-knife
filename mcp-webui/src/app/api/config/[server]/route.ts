@@ -2,11 +2,9 @@
 
 import { NextResponse } from "next/server";
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as yaml from "js-yaml";
 import { z } from "zod";
-
-const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
+import { getConfigPath } from "@/lib/config";
 
 const accessLevelSchema = z.enum(["none", "read", "write"]);
 
@@ -37,15 +35,6 @@ const serverConfigSchema = z.object({
     default_command_access: accessLevelSchema,
   }),
 });
-
-export function getConfigPath(server: string): string {
-  // Validate server name to prevent path traversal
-  const valid = ["ubuntu-server", "obsidian", "synology-nas"];
-  if (!valid.includes(server)) {
-    throw new Error(`Invalid server name: ${server}`);
-  }
-  return path.join(CONFIGS_PATH, `${server}.yaml`);
-}
 
 function ensureRuleIds(config: Record<string, unknown>): void {
   const perms = config.permissions as Record<string, unknown> | undefined;

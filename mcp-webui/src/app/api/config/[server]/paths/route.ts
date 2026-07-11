@@ -2,23 +2,15 @@
 
 import { NextResponse } from "next/server";
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as yaml from "js-yaml";
 import { z } from "zod";
-
-const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
+import { getConfigPath } from "@/lib/config";
 
 const addPathRuleSchema = z.object({
   path: z.string().min(1),
   access: z.enum(["none", "read", "write"]),
   description: z.string().optional(),
 });
-
-function getConfigPath(server: string): string {
-  const valid = ["ubuntu-server", "obsidian", "synology-nas"];
-  if (!valid.includes(server)) throw new Error(`Invalid server: ${server}`);
-  return path.join(CONFIGS_PATH, `${server}.yaml`);
-}
 
 export async function POST(
   request: Request,

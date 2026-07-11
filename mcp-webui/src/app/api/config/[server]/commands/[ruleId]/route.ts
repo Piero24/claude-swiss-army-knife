@@ -2,17 +2,9 @@
 
 import { NextResponse } from "next/server";
 import * as fs from "fs/promises";
-import * as path from "path";
 import * as yaml from "js-yaml";
 import { z } from "zod";
-
-const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
-
-function resolvePath(server: string): string {
-  const valid = ["ubuntu-server", "obsidian", "synology-nas"];
-  if (!valid.includes(server)) throw new Error("Invalid server");
-  return path.join(CONFIGS_PATH, `${server}.yaml`);
-}
+import { getConfigPath } from "@/lib/config";
 
 export async function PATCH(
   request: Request,
@@ -21,7 +13,7 @@ export async function PATCH(
   const { server, ruleId } = await params;
   try {
     const { access } = z.object({ access: z.enum(["none", "read", "write"]) }).parse(await request.json());
-    const filePath = resolvePath(server);
+    const filePath = getConfigPath(server);
     const raw = await fs.readFile(filePath, "utf-8");
     const config = yaml.load(raw) as Record<string, any>;
     const cmds = config.permissions.commands as Array<Record<string, unknown>>;
@@ -42,7 +34,7 @@ export async function DELETE(
 ) {
   const { server, ruleId } = await params;
   try {
-    const filePath = resolvePath(server);
+    const filePath = getConfigPath(server);
     const raw = await fs.readFile(filePath, "utf-8");
     const config = yaml.load(raw) as Record<string, any>;
     const cmds = config.permissions.commands as Array<Record<string, unknown>>;
