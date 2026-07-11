@@ -28,8 +28,13 @@ class DSMClient:
         await client.logout()
     """
 
-    def __init__(self, base_url: str, username: str, password: str,
-                 verify_ssl: bool = False):
+    def __init__(
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+        verify_ssl: bool = False,
+    ):
         self.base_url = base_url.rstrip("/")
         self.username = username
         self.password = password
@@ -122,8 +127,9 @@ class DSMClient:
             raise RuntimeError(f"File Station '{method}' failed: {error}")
         return data["data"]
 
-    async def _system_request(self, api: str, method: str, version: str = "1",
-                               **params) -> dict:
+    async def _system_request(
+        self, api: str, method: str, version: str = "1", **params
+    ) -> dict:
         """Make a generic DSM API request."""
         sid = self._require_auth()
         all_params = {
@@ -155,7 +161,9 @@ class DSMClient:
         Returns:
             List of file/directory entries with metadata.
         """
-        data = await self._file_station_request("list", folder_path=f'"{folder_path}"', limit=str(limit))
+        data = await self._file_station_request(
+            "list", folder_path=f'"{folder_path}"', limit=str(limit)
+        )
         files = data.get("files", [])
         return [
             {
@@ -163,7 +171,9 @@ class DSMClient:
                 "path": f["path"],
                 "is_dir": f["isdir"],
                 "size": f.get("additional", {}).get("size", 0),
-                "modified": f.get("additional", {}).get("time", {}).get("mtime", ""),
+                "modified": f.get("additional", {})
+                .get("time", {})
+                .get("mtime", ""),
             }
             for f in files
         ]
@@ -194,8 +204,9 @@ class DSMClient:
         )
         return resp.text
 
-    async def file_write(self, folder_path: str, filename: str,
-                         content: str) -> dict:
+    async def file_write(
+        self, folder_path: str, filename: str, content: str
+    ) -> dict:
         """Upload/write a file using the upload API.
 
         Note: The DSM File Station upload requires multipart form data.
@@ -211,7 +222,13 @@ class DSMClient:
         """
         sid = self._require_auth()
         # Use the upload method with file content
-        files = {"file": (filename, content.encode("utf-8"), "application/octet-stream")}
+        files = {
+            "file": (
+                filename,
+                content.encode("utf-8"),
+                "application/octet-stream",
+            )
+        }
         params = {
             "api": "SYNO.FileStation",
             "version": "2",
@@ -228,9 +245,14 @@ class DSMClient:
         data = resp.json()
         if not data.get("success"):
             raise RuntimeError(f"File upload failed: {data.get('error')}")
-        return {"written": True, "path": f"{folder_path.rstrip('/')}/{filename}"}
+        return {
+            "written": True,
+            "path": f"{folder_path.rstrip('/')}/{filename}",
+        }
 
-    async def file_delete(self, file_path: str, recursive: bool = False) -> dict:
+    async def file_delete(
+        self, file_path: str, recursive: bool = False
+    ) -> dict:
         """Delete a file or folder.
 
         Args:
@@ -240,8 +262,11 @@ class DSMClient:
         Returns:
             Result dict.
         """
-        await _file_station_request("delete", path=f'"{file_path}"',
-                                     recursive="true" if recursive else "false")
+        await _file_station_request(
+            "delete",
+            path=f'"{file_path}"',
+            recursive="true" if recursive else "false",
+        )
         return {"deleted": True, "path": file_path}
 
     async def file_move(self, src_path: str, dst_path: str) -> dict:
@@ -254,10 +279,14 @@ class DSMClient:
         Returns:
             Result dict.
         """
-        await _file_station_request("rename", path=f'"{src_path}"', name=f'"{dst_path}"')
+        await _file_station_request(
+            "rename", path=f'"{src_path}"', name=f'"{dst_path}"'
+        )
         return {"moved": True, "src": src_path, "dst": dst_path}
 
-    async def file_search(self, query: str, folder_path: str = "/") -> list[dict]:
+    async def file_search(
+        self, query: str, folder_path: str = "/"
+    ) -> list[dict]:
         """Search for files by name.
 
         Args:
@@ -267,8 +296,9 @@ class DSMClient:
         Returns:
             List of matching file entries.
         """
-        data = await self._file_station_request("list", folder_path=f'"{folder_path}"',
-                                            pattern=f'"{query}"')
+        data = await self._file_station_request(
+            "list", folder_path=f'"{folder_path}"', pattern=f'"{query}"'
+        )
         return [
             {"name": f["name"], "path": f["path"], "is_dir": f["isdir"]}
             for f in data.get("files", [])
@@ -278,7 +308,9 @@ class DSMClient:
 
     async def system_info(self) -> dict:
         """Get NAS system information: model, DSM version, CPU, RAM."""
-        data = await self._system_request("SYNO.Core.System", "info", version="1")
+        data = await self._system_request(
+            "SYNO.Core.System", "info", version="1"
+        )
         return {
             "model": data.get("model", "unknown"),
             "dsm_version": data.get("version_string", "unknown"),
@@ -291,13 +323,19 @@ class DSMClient:
 
     async def storage_info(self) -> list[dict]:
         """Get storage pool and volume information."""
-        data = await self._system_request("SYNO.Storage.CGI.Storage", "load_info", version="1")
+        data = await self._system_request(
+            "SYNO.Storage.CGI.Storage", "load_info", version="1"
+        )
         volumes = data.get("volumes", [])
         return [
             {
                 "name": v.get("display_name", v.get("uuid", "?")),
-                "size_gb": round(v.get("size", {}).get("total", 0) / (1024**3), 1),
-                "used_gb": round(v.get("size", {}).get("used", 0) / (1024**3), 1),
+                "size_gb": round(
+                    v.get("size", {}).get("total", 0) / (1024**3), 1
+                ),
+                "used_gb": round(
+                    v.get("size", {}).get("used", 0) / (1024**3), 1
+                ),
                 "status": v.get("status", "unknown"),
                 "file_system": v.get("fs_type", "unknown"),
             }

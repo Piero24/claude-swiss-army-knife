@@ -7,7 +7,9 @@ from datetime import datetime
 from permission_engine import PermissionEnforcer
 
 
-async def list_dir(args: dict, enforcer: PermissionEnforcer, mount_prefix: str) -> dict:
+async def list_dir(
+    args: dict, enforcer: PermissionEnforcer, mount_prefix: str
+) -> dict:
     """List directory contents with metadata.
 
     Args:
@@ -33,15 +35,22 @@ async def list_dir(args: dict, enforcer: PermissionEnforcer, mount_prefix: str) 
     try:
         for entry in sorted(container_path.iterdir()):
             stat = entry.stat()
-            entries.append({
-                "name": entry.name,
-                "is_dir": entry.is_dir(),
-                "is_symlink": entry.is_symlink(),
-                "size": stat.st_size if entry.is_file() else 0,
-                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-            })
+            entries.append(
+                {
+                    "name": entry.name,
+                    "is_dir": entry.is_dir(),
+                    "is_symlink": entry.is_symlink(),
+                    "size": stat.st_size if entry.is_file() else 0,
+                    "modified": datetime.fromtimestamp(
+                        stat.st_mtime
+                    ).isoformat(),
+                }
+            )
     except PermissionError:
-        return {"error": f"Permission denied listing: {requested}", "path": requested}
+        return {
+            "error": f"Permission denied listing: {requested}",
+            "path": requested,
+        }
 
     return {
         "path": requested,

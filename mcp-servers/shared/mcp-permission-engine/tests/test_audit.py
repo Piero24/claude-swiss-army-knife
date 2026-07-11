@@ -11,7 +11,9 @@ from permission_engine.audit import AuditLogger, read_audit_log
 @pytest.fixture
 def audit_logger():
     """Create an audit logger with a temp log file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".log", delete=False
+    ) as f:
         path = f.name
 
     logger = AuditLogger(path)
@@ -26,8 +28,13 @@ class TestAuditLogger:
     """Tests for audit logging."""
 
     def test_log_allowed(self, audit_logger):
-        audit_logger.allowed("test-mcp", "file", "/var/log/test.log",
-                             access="read", granted="read")
+        audit_logger.allowed(
+            "test-mcp",
+            "file",
+            "/var/log/test.log",
+            access="read",
+            granted="read",
+        )
         entries = read_audit_log(audit_logger._log_path)
         assert len(entries) == 1
         entry = entries[0]
@@ -37,8 +44,9 @@ class TestAuditLogger:
         assert entry["target"] == "/var/log/test.log"
 
     def test_log_denied(self, audit_logger):
-        audit_logger.denied("test-mcp", "file", "/etc/shadow",
-                            reason="no matching rule")
+        audit_logger.denied(
+            "test-mcp", "file", "/etc/shadow", reason="no matching rule"
+        )
         entries = read_audit_log(audit_logger._log_path)
         assert len(entries) == 1
         entry = entries[0]
@@ -48,38 +56,66 @@ class TestAuditLogger:
 
     def test_log_multiple_entries(self, audit_logger):
         for i in range(10):
-            audit_logger.allowed("test-mcp", "file", f"/path/to/file_{i}.txt",
-                                 access="read", granted="read")
+            audit_logger.allowed(
+                "test-mcp",
+                "file",
+                f"/path/to/file_{i}.txt",
+                access="read",
+                granted="read",
+            )
 
         entries = read_audit_log(audit_logger._log_path)
         assert len(entries) == 10
 
     def test_limit(self, audit_logger):
         for i in range(200):
-            audit_logger.allowed("test-mcp", "file", f"/path/to/file_{i}.txt",
-                                 access="read", granted="read")
+            audit_logger.allowed(
+                "test-mcp",
+                "file",
+                f"/path/to/file_{i}.txt",
+                access="read",
+                granted="read",
+            )
 
         entries = read_audit_log(audit_logger._log_path, limit=50)
         assert len(entries) == 50
 
     def test_most_recent_first(self, audit_logger):
         for i in range(5):
-            audit_logger.allowed("test-mcp", "file", f"/path/file_{i}.txt",
-                                 access="read", granted="read")
+            audit_logger.allowed(
+                "test-mcp",
+                "file",
+                f"/path/file_{i}.txt",
+                access="read",
+                granted="read",
+            )
 
         entries = read_audit_log(audit_logger._log_path)
         # Most recent first (file_4 is last written, first returned)
         assert "file_4" in entries[0]["target"]
 
     def test_result_filter(self, audit_logger):
-        audit_logger.allowed("test-mcp", "file", "/path/allowed.txt",
-                             access="read", granted="read")
-        audit_logger.denied("test-mcp", "file", "/path/denied.txt",
-                            reason="test")
-        audit_logger.allowed("test-mcp", "file", "/path/allowed2.txt",
-                             access="read", granted="read")
+        audit_logger.allowed(
+            "test-mcp",
+            "file",
+            "/path/allowed.txt",
+            access="read",
+            granted="read",
+        )
+        audit_logger.denied(
+            "test-mcp", "file", "/path/denied.txt", reason="test"
+        )
+        audit_logger.allowed(
+            "test-mcp",
+            "file",
+            "/path/allowed2.txt",
+            access="read",
+            granted="read",
+        )
 
-        allowed = read_audit_log(audit_logger._log_path, result_filter="allowed")
+        allowed = read_audit_log(
+            audit_logger._log_path, result_filter="allowed"
+        )
         assert len(allowed) == 2
         assert all(e["result"] == "allowed" for e in allowed)
 
@@ -111,8 +147,13 @@ class TestAuditLogger:
                     assert "result" in parsed
 
     def test_command_audit(self, audit_logger):
-        audit_logger.allowed("test-mcp", "command", "systemctl status nginx",
-                             access="execute", granted="read")
+        audit_logger.allowed(
+            "test-mcp",
+            "command",
+            "systemctl status nginx",
+            access="execute",
+            granted="read",
+        )
         entries = read_audit_log(audit_logger._log_path)
         assert entries[0]["target_type"] == "command"
         assert entries[0]["target"] == "systemctl status nginx"

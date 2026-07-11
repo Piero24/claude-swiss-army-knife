@@ -5,7 +5,9 @@ from pathlib import Path
 from permission_engine import PermissionEnforcer
 
 
-async def append_file(args: dict, enforcer: PermissionEnforcer, mount_prefix: str) -> dict:
+async def append_file(
+    args: dict, enforcer: PermissionEnforcer, mount_prefix: str
+) -> dict:
     """Append lines to a file on the host filesystem.
 
     Args:
@@ -28,7 +30,10 @@ async def append_file(args: dict, enforcer: PermissionEnforcer, mount_prefix: st
         with open(container_path, "a") as f:
             f.write(content)
     except PermissionError:
-        return {"error": f"Permission denied appending to: {requested}", "path": requested}
+        return {
+            "error": f"Permission denied appending to: {requested}",
+            "path": requested,
+        }
 
     return {
         "appended": True,

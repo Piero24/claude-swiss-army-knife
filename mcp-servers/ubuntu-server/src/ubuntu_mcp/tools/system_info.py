@@ -33,15 +33,15 @@ async def system_info(args: dict) -> dict:
             "cores_physical": cpu_cores_physical,
         },
         "memory": {
-            "total_gb": round(mem.total / (1024 ** 3), 1),
-            "used_gb": round(mem.used / (1024 ** 3), 1),
-            "available_gb": round(mem.available / (1024 ** 3), 1),
+            "total_gb": round(mem.total / (1024**3), 1),
+            "used_gb": round(mem.used / (1024**3), 1),
+            "available_gb": round(mem.available / (1024**3), 1),
             "percent": mem.percent,
         },
         "disk": {
-            "total_gb": round(disk.total / (1024 ** 3), 1),
-            "used_gb": round(disk.used / (1024 ** 3), 1),
-            "free_gb": round(disk.free / (1024 ** 3), 1),
+            "total_gb": round(disk.total / (1024**3), 1),
+            "used_gb": round(disk.used / (1024**3), 1),
+            "free_gb": round(disk.free / (1024**3), 1),
             "percent": disk.percent,
         },
         "load": {

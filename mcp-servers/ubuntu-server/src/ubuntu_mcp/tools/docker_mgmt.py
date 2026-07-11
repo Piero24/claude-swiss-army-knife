@@ -36,8 +36,11 @@ async def docker_ps(args: dict, enforcer: PermissionEnforcer) -> dict:
         {containers: [...]}
     """
     show_all = args.get("all", False)
-    cmd = "ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'" if show_all else \
-          "ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
+    cmd = (
+        "ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
+        if show_all
+        else "ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
+    )
     enforcer.check_command(f"docker {'ps -a' if show_all else 'ps'}")
 
     result = await _docker_cmd(cmd)
@@ -49,12 +52,14 @@ async def docker_ps(args: dict, enforcer: PermissionEnforcer) -> dict:
         if line.strip():
             parts = line.split("\t")
             if len(parts) >= 3:
-                containers.append({
-                    "name": parts[0],
-                    "image": parts[1],
-                    "status": parts[2],
-                    "ports": parts[3] if len(parts) > 3 else "",
-                })
+                containers.append(
+                    {
+                        "name": parts[0],
+                        "image": parts[1],
+                        "status": parts[2],
+                        "ports": parts[3] if len(parts) > 3 else "",
+                    }
+                )
 
     return {"containers": containers, "count": len(containers)}
 
@@ -99,5 +104,6 @@ async def docker_restart(args: dict, enforcer: PermissionEnforcer) -> dict:
     return {
         "container": container,
         "restarted": success,
-        "output": result.get("stdout", "").strip() or result.get("stderr", "").strip(),
+        "output": result.get("stdout", "").strip()
+        or result.get("stderr", "").strip(),
     }

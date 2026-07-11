@@ -32,7 +32,7 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
         return {}, content
 
     fm_text = content[3:end_idx].strip()
-    body = content[end_idx + 3:].lstrip()
+    body = content[end_idx + 3 :].lstrip()
 
     if not fm_text:
         return {}, body
@@ -95,5 +95,7 @@ def build_frontmatter(fm: dict) -> str:
     """
     if not fm:
         return ""
-    fm_yaml = yaml.dump(fm, default_flow_style=False, sort_keys=False, allow_unicode=True).strip()
+    fm_yaml = yaml.dump(
+        fm, default_flow_style=False, sort_keys=False, allow_unicode=True
+    ).strip()
     return f"---\n{fm_yaml}\n---\n"

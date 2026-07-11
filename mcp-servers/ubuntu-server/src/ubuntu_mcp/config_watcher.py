@@ -10,7 +10,9 @@ from watchfiles import awatch
 logger = logging.getLogger(__name__)
 
 
-async def watch_config(config_path: str | Path, reload_callback: Callable[[], None]) -> None:
+async def watch_config(
+    config_path: str | Path, reload_callback: Callable[[], None]
+) -> None:
     """Watch a config file for changes and call reload_callback on modification.
 
     Uses watchfiles for efficient file system monitoring.
