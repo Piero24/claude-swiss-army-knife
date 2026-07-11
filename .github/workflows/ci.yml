@@ -168,7 +168,9 @@ jobs:
 
       - name: Copy shared permission engine (MCP servers only)
         if: matrix.service.name != 'mcp-webui'
-        run: cp -r ./mcp-servers/shared/mcp-permission-engine ${{ matrix.service.context }}/shared/mcp-permission-engine
+        run: |
+          mkdir -p ${{ matrix.service.context }}/shared
+          cp -r ./mcp-servers/shared/mcp-permission-engine ${{ matrix.service.context }}/shared/mcp-permission-engine
 
       - name: Build ${{ matrix.service.name }} image
         uses: docker/build-push-action@v6
