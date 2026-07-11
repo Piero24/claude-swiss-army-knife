@@ -1,0 +1,32 @@
+# Synology NAS MCP — Permission Configuration
+
+server:
+  name: synology-mcp
+  log_level: INFO
+  audit_log: /var/log/mcp/audit.log
+
+permissions:
+  default_access: none
+
+  paths:
+    # Personal shared folder — full access
+    - path: /home/**
+      access: write
+      description: "Home shared folder — read + write"
+
+    # Media — read-only
+    - path: /video/**
+      access: read
+      description: "Video library — read-only"
+
+    - path: /music/**
+      access: read
+      description: "Music library — read-only"
+
+    # Backups — full access
+    - path: /backups/**
+      access: write
+      description: "Backup folder — read + write"
+
+  commands: []
+  default_command_access: none

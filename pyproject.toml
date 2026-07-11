@@ -1,0 +1,18 @@
+[tool.pyink]
+line-length = 80
+target-version = ["py312"]
+
+[tool.pylint.main]
+ignore = ["tests", ".venv"]
+
+[tool.pylint.format]
+max-line-length = 80
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0801",  # duplicate-code
+]

@@ -1,0 +1,50 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/mcp-servers/shared/mcp-permission-engine"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(permission-engine)"
+
+  - package-ecosystem: "pip"
+    directory: "/mcp-servers/ubuntu-server"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(ubuntu-server)"
+
+  - package-ecosystem: "pip"
+    directory: "/mcp-servers/obsidian"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(obsidian)"
+
+  - package-ecosystem: "pip"
+    directory: "/mcp-servers/synology-nas"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(synology-nas)"
+
+  - package-ecosystem: "npm"
+    directory: "/mcp-webui"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(webui)"
+
+  - package-ecosystem: "npm"
+    directory: "/docs-site"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(docs)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(actions)"
