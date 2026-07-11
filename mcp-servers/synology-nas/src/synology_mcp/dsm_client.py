@@ -23,6 +23,7 @@ def generate_totp(secret: str) -> str:
     code = struct.unpack(">I", h[offset : offset + 4])[0] & 0x7FFFFFFF
     return str(code % 1_000_000).zfill(6)
 
+
 # DSM API endpoints
 API_AUTH = "/webapi/auth.cgi"
 API_FILE_STATION = "/webapi/entry.cgi"
