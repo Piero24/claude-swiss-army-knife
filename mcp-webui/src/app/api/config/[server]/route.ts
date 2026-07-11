@@ -36,15 +36,17 @@ const serverConfigSchema = z.object({
   }),
 });
 
-function ensureRuleIds(config: Record<string, unknown>): void {
+function ensureRuleIds(config: Record<string, unknown>): boolean {
   const perms = config.permissions as Record<string, unknown> | undefined;
-  if (!perms) return;
+  if (!perms) return false;
 
+  let changed = false;
   const paths = perms.paths as Array<Record<string, unknown>> | undefined;
   if (paths) {
     for (let i = 0; i < paths.length; i++) {
       if (!paths[i].id) {
-        paths[i].id = `path_${i}_${Date.now().toString(36)}`;
+        paths[i].id = `path_${i}_${simpleHash(String(paths[i].path || i))}`;
+        changed = true;
       }
     }
   }
@@ -53,10 +55,21 @@ function ensureRuleIds(config: Record<string, unknown>): void {
   if (commands) {
     for (let i = 0; i < commands.length; i++) {
       if (!commands[i].id) {
-        commands[i].id = `cmd_${i}_${Date.now().toString(36)}`;
+        commands[i].id = `cmd_${i}_${simpleHash(String(commands[i].pattern || i))}`;
+        changed = true;
       }
     }
   }
+
+  return changed;
+}
+
+function simpleHash(s: string): string {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h).toString(36);
 }
 
 export async function GET(
@@ -68,7 +81,10 @@ export async function GET(
     const filePath = getConfigPath(server);
     const raw = await fs.readFile(filePath, "utf-8");
     const config = yaml.load(raw) as Record<string, unknown>;
-    ensureRuleIds(config);
+    if (ensureRuleIds(config)) {
+      const yamlStr = yaml.dump(config, { noRefs: true, lineWidth: -1 });
+      await fs.writeFile(filePath, yamlStr, "utf-8");
+    }
     return NextResponse.json(config);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
