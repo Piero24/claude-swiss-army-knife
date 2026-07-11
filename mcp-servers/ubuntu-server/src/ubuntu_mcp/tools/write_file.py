@@ -5,7 +5,9 @@ from pathlib import Path
 from permission_engine import ForbiddenError, PermissionEnforcer
 
 
-async def write_file(args: dict, enforcer: PermissionEnforcer, mount_prefix: str) -> dict:
+async def write_file(
+    args: dict, enforcer: PermissionEnforcer, mount_prefix: str
+) -> dict:
     """Write (overwrite) a file on the host filesystem.
 
     Args:
@@ -28,7 +30,10 @@ async def write_file(args: dict, enforcer: PermissionEnforcer, mount_prefix: str
     try:
         container_path.write_text(content, encoding="utf-8")
     except PermissionError:
-        return {"error": f"Permission denied writing: {requested}", "path": requested}
+        return {
+            "error": f"Permission denied writing: {requested}",
+            "path": requested,
+        }
 
     return {
         "written": True,

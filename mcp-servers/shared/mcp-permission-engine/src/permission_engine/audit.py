@@ -20,8 +20,14 @@ class AuditLogger:
     def __init__(self, log_path: str):
         self._log_path = Path(log_path).resolve()
 
-    def allowed(self, server: str, target_type: str, target: str,
-                access: str = "", granted: str = "") -> None:
+    def allowed(
+        self,
+        server: str,
+        target_type: str,
+        target: str,
+        access: str = "",
+        granted: str = "",
+    ) -> None:
         """Log an allowed access."""
         self._write_entry(
             result="allowed",
@@ -32,9 +38,15 @@ class AuditLogger:
             granted=granted,
         )
 
-    def denied(self, server: str, target_type: str, target: str,
-               reason: str = "", required_access: str = "",
-               granted_access: str = "") -> None:
+    def denied(
+        self,
+        server: str,
+        target_type: str,
+        target: str,
+        reason: str = "",
+        required_access: str = "",
+        granted_access: str = "",
+    ) -> None:
         """Log a denied access."""
         self._write_entry(
             result="denied",
@@ -49,22 +61,28 @@ class AuditLogger:
     def _write_entry(self, **fields: object) -> None:
         """Write a single JSON log entry to the audit file."""
         entry = {
-            "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+            "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[
+                :-3
+            ]
+            + "Z",
             **fields,
         }
 
         # Ensure parent directory exists
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        line = json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n"
+        line = (
+            json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n"
+        )
 
         # Append atomically (rename-based would be safer but JSON Lines is append-friendly)
         with open(self._log_path, "a") as f:
             f.write(line)
 
 
-def read_audit_log(log_path: str, limit: int = 100,
-                   result_filter: Optional[str] = None) -> list[dict]:
+def read_audit_log(
+    log_path: str, limit: int = 100, result_filter: Optional[str] = None
+) -> list[dict]:
     """Read recent entries from an audit log.
 
     Args:

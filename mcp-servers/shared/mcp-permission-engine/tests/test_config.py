@@ -71,7 +71,9 @@ class TestConfigLoader:
     """Tests for ConfigLoader."""
 
     def test_load_valid_config(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(VALID_CONFIG_YAML)
             f.flush()
             path = f.name
@@ -99,7 +101,9 @@ class TestConfigLoader:
             loader.load()
 
     def test_load_empty_file(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write("")
             f.flush()
             path = f.name
@@ -112,7 +116,9 @@ class TestConfigLoader:
             Path(path).unlink()
 
     def test_load_invalid_yaml(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write("{{{ invalid yaml {{{")
             f.flush()
             path = f.name
@@ -125,13 +131,17 @@ class TestConfigLoader:
             Path(path).unlink()
 
     def test_load_invalid_schema(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
+            f.write(
+                """
 server:
   name: test
 permissions:
   default_access: invalid_value
-""")
+"""
+            )
             f.flush()
             path = f.name
 
@@ -144,7 +154,9 @@ permissions:
 
     def test_dump_and_reload(self):
         """Dump a config to YAML and verify it can be loaded back."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(VALID_CONFIG_YAML)
             f.flush()
             path = f.name
@@ -184,7 +196,9 @@ permissions:
   commands: []
   default_command_access: none
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(yaml_content)
             f.flush()
             path = f.name
@@ -198,7 +212,9 @@ permissions:
             Path(path).unlink()
 
     def test_convenience_function(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(VALID_CONFIG_YAML)
             f.flush()
             path = f.name

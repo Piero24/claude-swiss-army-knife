@@ -5,7 +5,9 @@ from pathlib import Path
 from permission_engine import ForbiddenError, PermissionEnforcer
 
 
-async def read_file(args: dict, enforcer: PermissionEnforcer, mount_prefix: str) -> dict:
+async def read_file(
+    args: dict, enforcer: PermissionEnforcer, mount_prefix: str
+) -> dict:
     """Read a file from the host filesystem.
 
     Args:
@@ -34,9 +36,15 @@ async def read_file(args: dict, enforcer: PermissionEnforcer, mount_prefix: str)
         try:
             content = container_path.read_text(encoding="latin-1")
         except Exception:
-            return {"error": f"Cannot read file as text: {requested}", "path": requested}
+            return {
+                "error": f"Cannot read file as text: {requested}",
+                "path": requested,
+            }
     except PermissionError:
-        return {"error": f"Permission denied reading: {requested}", "path": requested}
+        return {
+            "error": f"Permission denied reading: {requested}",
+            "path": requested,
+        }
 
     return {
         "content": content,

@@ -52,9 +52,11 @@ def reload_config() -> None:
     global _enforcer
     if _enforcer is not None:
         _enforcer.reload()
-        logger.info("Permission config reloaded — %d path rules, %d command rules",
-                     len(_enforcer.config.permissions.paths),
-                     len(_enforcer.config.permissions.commands))
+        logger.info(
+            "Permission config reloaded — %d path rules, %d command rules",
+            len(_enforcer.config.permissions.paths),
+            len(_enforcer.config.permissions.commands),
+        )
 
 
 def create_server() -> Server:
@@ -71,7 +73,10 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Absolute path to the file on the host."},
+                        "path": {
+                            "type": "string",
+                            "description": "Absolute path to the file on the host.",
+                        },
                     },
                     "required": ["path"],
                 },
@@ -82,8 +87,14 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Absolute path to the file on the host."},
-                        "content": {"type": "string", "description": "Content to write to the file."},
+                        "path": {
+                            "type": "string",
+                            "description": "Absolute path to the file on the host.",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Content to write to the file.",
+                        },
                     },
                     "required": ["path", "content"],
                 },
@@ -94,8 +105,14 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Absolute path to the file on the host."},
-                        "content": {"type": "string", "description": "Content to append."},
+                        "path": {
+                            "type": "string",
+                            "description": "Absolute path to the file on the host.",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Content to append.",
+                        },
                     },
                     "required": ["path", "content"],
                 },
@@ -106,8 +123,14 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Absolute path to the directory."},
-                        "recursive": {"type": "boolean", "description": "Whether to list recursively (default: false)."},
+                        "path": {
+                            "type": "string",
+                            "description": "Absolute path to the directory.",
+                        },
+                        "recursive": {
+                            "type": "boolean",
+                            "description": "Whether to list recursively (default: false).",
+                        },
                     },
                     "required": ["path"],
                 },
@@ -118,8 +141,14 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "command": {"type": "string", "description": "The shell command to execute."},
-                        "timeout": {"type": "integer", "description": "Timeout in seconds (default: 30)."},
+                        "command": {
+                            "type": "string",
+                            "description": "The shell command to execute.",
+                        },
+                        "timeout": {
+                            "type": "integer",
+                            "description": "Timeout in seconds (default: 30).",
+                        },
                     },
                     "required": ["command"],
                 },
@@ -138,7 +167,10 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "service": {"type": "string", "description": "Name of the systemd service."},
+                        "service": {
+                            "type": "string",
+                            "description": "Name of the systemd service.",
+                        },
                     },
                     "required": ["service"],
                 },
@@ -149,7 +181,10 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "service": {"type": "string", "description": "Name of the systemd service."},
+                        "service": {
+                            "type": "string",
+                            "description": "Name of the systemd service.",
+                        },
                         "action": {
                             "type": "string",
                             "enum": ["start", "stop", "restart", "reload"],
@@ -165,7 +200,10 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "all": {"type": "boolean", "description": "Show all containers including stopped (default: false)."},
+                        "all": {
+                            "type": "boolean",
+                            "description": "Show all containers including stopped (default: false).",
+                        },
                     },
                 },
             ),
@@ -175,8 +213,14 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "container": {"type": "string", "description": "Name of the container."},
-                        "tail": {"type": "integer", "description": "Number of lines to retrieve (default: 100)."},
+                        "container": {
+                            "type": "string",
+                            "description": "Name of the container.",
+                        },
+                        "tail": {
+                            "type": "integer",
+                            "description": "Number of lines to retrieve (default: 100).",
+                        },
                     },
                     "required": ["container"],
                 },
@@ -187,7 +231,10 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "container": {"type": "string", "description": "Name of the container to restart."},
+                        "container": {
+                            "type": "string",
+                            "description": "Name of the container to restart.",
+                        },
                     },
                     "required": ["container"],
                 },
@@ -198,9 +245,18 @@ def create_server() -> Server:
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "unit": {"type": "string", "description": "Filter by systemd unit name."},
-                        "lines": {"type": "integer", "description": "Number of lines (default: 50)."},
-                        "since": {"type": "string", "description": "Show entries since (e.g., '1 hour ago', 'today')."},
+                        "unit": {
+                            "type": "string",
+                            "description": "Filter by systemd unit name.",
+                        },
+                        "lines": {
+                            "type": "integer",
+                            "description": "Number of lines (default: 50).",
+                        },
+                        "since": {
+                            "type": "string",
+                            "description": "Show entries since (e.g., '1 hour ago', 'today').",
+                        },
                     },
                 },
             ),
@@ -213,13 +269,21 @@ def create_server() -> Server:
         try:
             match name:
                 case "ubuntu_read_file":
-                    result = await read_file.read_file(arguments, enforcer, MOUNT_PREFIX)
+                    result = await read_file.read_file(
+                        arguments, enforcer, MOUNT_PREFIX
+                    )
                 case "ubuntu_write_file":
-                    result = await write_file.write_file(arguments, enforcer, MOUNT_PREFIX)
+                    result = await write_file.write_file(
+                        arguments, enforcer, MOUNT_PREFIX
+                    )
                 case "ubuntu_append_file":
-                    result = await append_file.append_file(arguments, enforcer, MOUNT_PREFIX)
+                    result = await append_file.append_file(
+                        arguments, enforcer, MOUNT_PREFIX
+                    )
                 case "ubuntu_list_dir":
-                    result = await list_dir.list_dir(arguments, enforcer, MOUNT_PREFIX)
+                    result = await list_dir.list_dir(
+                        arguments, enforcer, MOUNT_PREFIX
+                    )
                 case "ubuntu_exec":
                     result = await execute.execute(arguments, enforcer)
                 case "ubuntu_system_info":
@@ -233,18 +297,33 @@ def create_server() -> Server:
                 case "ubuntu_docker_logs":
                     result = await docker_mgmt.docker_logs(arguments, enforcer)
                 case "ubuntu_docker_restart":
-                    result = await docker_mgmt.docker_restart(arguments, enforcer)
+                    result = await docker_mgmt.docker_restart(
+                        arguments, enforcer
+                    )
                 case "ubuntu_journalctl":
                     result = await _journalctl(arguments, enforcer)
                 case _:
-                    return [TextContent(type="text", text=f"Unknown tool: {name}")]
+                    return [
+                        TextContent(type="text", text=f"Unknown tool: {name}")
+                    ]
 
             import json
-            return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
+
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2, ensure_ascii=False),
+                )
+            ]
 
         except Exception as e:
             import json
-            return [TextContent(type="text", text=json.dumps({"error": str(e)}, indent=2))]
+
+            return [
+                TextContent(
+                    type="text", text=json.dumps({"error": str(e)}, indent=2)
+                )
+            ]
 
     return server
 
@@ -275,7 +354,9 @@ async def _journalctl(args: dict, enforcer: PermissionEnforcer) -> dict:
 async def main() -> None:
     """Entry point: parse args, load config, start MCP server with hot-reload."""
     parser = argparse.ArgumentParser(description="Ubuntu Server MCP")
-    parser.add_argument("--config", default="/app/config.yaml", help="Path to config YAML file")
+    parser.add_argument(
+        "--config", default="/app/config.yaml", help="Path to config YAML file"
+    )
     args = parser.parse_args()
 
     # Initialize permission enforcer
@@ -283,9 +364,11 @@ async def main() -> None:
     config_path = Path(args.config).resolve()
     logger.info("Loading config from: %s", config_path)
     _enforcer = PermissionEnforcer(str(config_path))
-    logger.info("Loaded %d path rules, %d command rules",
-                 len(_enforcer.config.permissions.paths),
-                 len(_enforcer.config.permissions.commands))
+    logger.info(
+        "Loaded %d path rules, %d command rules",
+        len(_enforcer.config.permissions.paths),
+        len(_enforcer.config.permissions.commands),
+    )
 
     # Start config file watcher (background task)
     watch_task = asyncio.create_task(watch_config(config_path, reload_config))
@@ -294,7 +377,9 @@ async def main() -> None:
     server = create_server()
     async with stdio_server() as (read_stream, write_stream):
         logger.info("Ubuntu MCP server running (stdio mode)")
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+        await server.run(
+            read_stream, write_stream, server.create_initialization_options()
+        )
 
     # Cleanup
     watch_task.cancel()
@@ -305,5 +390,8 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    )
     asyncio.run(main())

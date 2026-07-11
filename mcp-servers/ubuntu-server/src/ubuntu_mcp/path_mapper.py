@@ -56,6 +56,7 @@ class PathMapper:
         if not self._mount_prefix.exists():
             return []
         return [
-            d.name for d in self._mount_prefix.iterdir()
+            d.name
+            for d in self._mount_prefix.iterdir()
             if d.is_dir() or d.is_symlink()
         ]

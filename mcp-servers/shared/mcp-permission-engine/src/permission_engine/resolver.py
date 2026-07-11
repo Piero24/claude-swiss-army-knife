@@ -15,7 +15,11 @@ class PathResolver:
     4. Default applies if no rule matches
     """
 
-    def __init__(self, rules: list[PathRule], default_access: AccessLevel = AccessLevel.NONE):
+    def __init__(
+        self,
+        rules: list[PathRule],
+        default_access: AccessLevel = AccessLevel.NONE,
+    ):
         # Sort rules: exact matches first, then by path length descending (longest match wins)
         # None (deny) rules are separated to check them first
         deny_rules = [r for r in rules if r.access == AccessLevel.NONE]
@@ -58,7 +62,9 @@ class PathResolver:
         self._cache_result(clean_path, self._default_access)
         return self._default_access
 
-    def resolve_with_rule(self, requested_path: str) -> tuple[AccessLevel, PathRule | None]:
+    def resolve_with_rule(
+        self, requested_path: str
+    ) -> tuple[AccessLevel, PathRule | None]:
         """Resolve access level and return the matching rule (if any).
 
         Args:

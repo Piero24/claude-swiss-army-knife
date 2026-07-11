@@ -23,7 +23,11 @@ async def _run_nsenter(command: str, timeout: int = 15) -> dict:
             "exit_code": process.returncode,
         }
     except asyncio.TimeoutError:
-        return {"error": f"Command timed out after {timeout}s", "stdout": "", "stderr": ""}
+        return {
+            "error": f"Command timed out after {timeout}s",
+            "stdout": "",
+            "stderr": "",
+        }
 
 
 async def service_status(args: dict, enforcer: PermissionEnforcer) -> dict:
@@ -38,7 +42,9 @@ async def service_status(args: dict, enforcer: PermissionEnforcer) -> dict:
     """
     service = args["service"]
     enforcer.check_command(f"systemctl status {service}")
-    result = await _run_nsenter(f"systemctl is-active {service} && systemctl is-enabled {service} || true")
+    result = await _run_nsenter(
+        f"systemctl is-active {service} && systemctl is-enabled {service} || true"
+    )
     lines = result["stdout"].strip().split("\n")
     return {
         "service": service,
@@ -61,7 +67,9 @@ async def service_manage(args: dict, enforcer: PermissionEnforcer) -> dict:
     action = args["action"]
     valid_actions = {"start", "stop", "restart", "reload"}
     if action not in valid_actions:
-        return {"error": f"Invalid action: {action}. Must be one of {valid_actions}"}
+        return {
+            "error": f"Invalid action: {action}. Must be one of {valid_actions}"
+        }
 
     enforcer.check_command(f"systemctl {action} {service}")
     result = await _run_nsenter(f"systemctl {action} {service}")

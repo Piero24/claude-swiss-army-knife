@@ -18,7 +18,9 @@ class Vault:
         if not self.root.exists():
             raise FileNotFoundError(f"Vault not found: {self.root}")
         if not self.root.is_dir():
-            raise NotADirectoryError(f"Vault path is not a directory: {self.root}")
+            raise NotADirectoryError(
+                f"Vault path is not a directory: {self.root}"
+            )
 
     def resolve_path(self, relative_path: str) -> Path:
         """Safely resolve a relative path within the vault.
@@ -120,9 +122,17 @@ class Vault:
         # Avoid overwriting existing trash files
         if trash_path.exists():
             stem = path.stem
-            trash_path = trash_dir / f"{stem}_{datetime.now().strftime('%Y%m%d%H%M%S')}.md"
+            trash_path = (
+                trash_dir
+                / f"{stem}_{datetime.now().strftime('%Y%m%d%H%M%S')}.md"
+            )
         path.rename(trash_path)
-        return {"deleted": True, "path": relative_path, "trashed": True, "trash_path": str(trash_path.relative_to(self.root))}
+        return {
+            "deleted": True,
+            "path": relative_path,
+            "trashed": True,
+            "trash_path": str(trash_path.relative_to(self.root)),
+        }
 
     def list_vault(self, subfolder: str = "", depth: int = 3) -> list[dict]:
         """List the vault directory structure.
@@ -142,7 +152,9 @@ class Vault:
         self._walk(base, entries, max_depth=depth, current_depth=1)
         return entries
 
-    def _walk(self, directory: Path, entries: list, max_depth: int, current_depth: int) -> None:
+    def _walk(
+        self, directory: Path, entries: list, max_depth: int, current_depth: int
+    ) -> None:
         """Recursively walk a directory up to max_depth."""
         if current_depth > max_depth:
             return
@@ -152,13 +164,17 @@ class Vault:
                 if entry.name.startswith(".") and entry.name != ".trash":
                     continue
                 stat = entry.stat()
-                entries.append({
-                    "name": entry.name,
-                    "path": str(entry.relative_to(self.root)),
-                    "is_dir": entry.is_dir(),
-                    "size": stat.st_size if entry.is_file() else 0,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                })
+                entries.append(
+                    {
+                        "name": entry.name,
+                        "path": str(entry.relative_to(self.root)),
+                        "is_dir": entry.is_dir(),
+                        "size": stat.st_size if entry.is_file() else 0,
+                        "modified": datetime.fromtimestamp(
+                            stat.st_mtime
+                        ).isoformat(),
+                    }
+                )
                 if entry.is_dir() and current_depth < max_depth:
                     self._walk(entry, entries, max_depth, current_depth + 1)
         except PermissionError:

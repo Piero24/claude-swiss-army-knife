@@ -51,7 +51,9 @@ def find_backlinks(vault_root: Path, target_note: str) -> list[dict]:
 
             # Search for [[target]] references
             pattern = re.compile(
-                r"\[\[" + re.escape(target_name) + r"(?:#[^\]]*)?(?:\|[^\]]*)?\]\]"
+                r"\[\["
+                + re.escape(target_name)
+                + r"(?:#[^\]]*)?(?:\|[^\]]*)?\]\]"
             )
             matches = pattern.finditer(content)
             for match in matches:
@@ -64,11 +66,13 @@ def find_backlinks(vault_root: Path, target_note: str) -> list[dict]:
                 if end < len(content):
                     context = context + "..."
 
-                backlinks.append({
-                    "path": str(filepath.relative_to(vault_root)),
-                    "title": _get_title_from_content(content, f),
-                    "context": context,
-                })
+                backlinks.append(
+                    {
+                        "path": str(filepath.relative_to(vault_root)),
+                        "title": _get_title_from_content(content, f),
+                        "context": context,
+                    }
+                )
 
     return backlinks
 
@@ -79,6 +83,7 @@ def _get_title_from_content(content: str, filename: str) -> str:
         end = content.find("---", 3)
         if end != -1:
             import yaml
+
             try:
                 fm = yaml.safe_load(content[3:end])
                 if fm and "title" in fm:

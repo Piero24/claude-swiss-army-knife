@@ -18,7 +18,12 @@ _SHELL_METACHARS = re.compile(r"[;&|`$(){}\]\[<>!\\'\"]")
 class ForbiddenError(Exception):
     """Raised when an operation is denied by the permission engine."""
 
-    def __init__(self, message: str, path: Optional[str] = None, command: Optional[str] = None):
+    def __init__(
+        self,
+        message: str,
+        path: Optional[str] = None,
+        command: Optional[str] = None,
+    ):
         super().__init__(message)
         self.path = path
         self.command = command
@@ -74,17 +79,27 @@ class PermissionEnforcer:
         granted = self._path_resolver.resolve(path)
 
         if not granted.grants(required):
-            self._audit.denied(self._config.server.name, "file", path,
-                               required_access=required.value, granted_access=granted.value,
-                               reason=f"path not in config or insufficient access (have {granted.value}, need {required.value})")
+            self._audit.denied(
+                self._config.server.name,
+                "file",
+                path,
+                required_access=required.value,
+                granted_access=granted.value,
+                reason=f"path not in config or insufficient access (have {granted.value}, need {required.value})",
+            )
             raise ForbiddenError(
                 f"Access denied: '{path}' has {granted.value} access, "
                 f"but {required.value} is required",
                 path=path,
             )
 
-        self._audit.allowed(self._config.server.name, "file", path,
-                            access=required.value, granted=granted.value)
+        self._audit.allowed(
+            self._config.server.name,
+            "file",
+            path,
+            access=required.value,
+            granted=granted.value,
+        )
         return True
 
     def check_command(self, command: str) -> bool:
@@ -101,8 +116,12 @@ class PermissionEnforcer:
         """
         # 1. Block shell metacharacters (command injection prevention)
         if _SHELL_METACHARS.search(command):
-            self._audit.denied(self._config.server.name, "command", command,
-                               reason="command contains forbidden shell metacharacters")
+            self._audit.denied(
+                self._config.server.name,
+                "command",
+                command,
+                reason="command contains forbidden shell metacharacters",
+            )
             raise ForbiddenError(
                 f"Command denied: contains forbidden shell metacharacters",
                 command=command,
@@ -126,19 +145,29 @@ class PermissionEnforcer:
 
         # For commands, any non-none access allows execution
         if granted == AccessLevel.NONE:
-            self._audit.denied(self._config.server.name, "command", command,
-                               reason="command not in allowlist or explicitly denied")
+            self._audit.denied(
+                self._config.server.name,
+                "command",
+                command,
+                reason="command not in allowlist or explicitly denied",
+            )
             raise ForbiddenError(
                 f"Command denied: '{command}' is not in the allowlist",
                 command=command,
             )
 
-        self._audit.allowed(self._config.server.name, "command", command,
-                            access="execute", granted=granted.value)
+        self._audit.allowed(
+            self._config.server.name,
+            "command",
+            command,
+            access="execute",
+            granted=granted.value,
+        )
         return True
 
-    def safe_resolve_path(self, requested_path: str, mount_prefix: str,
-                          allowed_bases: list[str]) -> Path:
+    def safe_resolve_path(
+        self, requested_path: str, mount_prefix: str, allowed_bases: list[str]
+    ) -> Path:
         """Safely resolve a requested path within allowed base directories.
 
         This prevents path traversal attacks by:
@@ -159,7 +188,9 @@ class PermissionEnforcer:
         """
         # Reject null bytes and control characters
         if any(ord(c) < 32 for c in requested_path):
-            raise ForbiddenError("Path contains invalid characters", path=requested_path)
+            raise ForbiddenError(
+                "Path contains invalid characters", path=requested_path
+            )
 
         # Normalize
         clean = requested_path.lstrip("/")

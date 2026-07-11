@@ -49,7 +49,9 @@ permissions:
 @pytest.fixture
 def enforcer():
     """Create an enforcer with a temp config file."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False
+    ) as f:
         f.write(CONFIG_YAML)
         f.flush()
         path = f.name
@@ -150,22 +152,30 @@ class TestCommandAccess:
 
     def test_command_with_semicolon_blocked(self, enforcer):
         """Semicolon injection should be blocked."""
-        with pytest.raises(ForbiddenError, match="forbidden shell metacharacters"):
+        with pytest.raises(
+            ForbiddenError, match="forbidden shell metacharacters"
+        ):
             enforcer.check_command("systemctl status nginx; rm -rf /")
 
     def test_command_with_pipe_blocked(self, enforcer):
         """Pipe injection should be blocked."""
-        with pytest.raises(ForbiddenError, match="forbidden shell metacharacters"):
+        with pytest.raises(
+            ForbiddenError, match="forbidden shell metacharacters"
+        ):
             enforcer.check_command("systemctl status nginx | cat /etc/shadow")
 
     def test_command_with_backtick_blocked(self, enforcer):
         """Backtick injection should be blocked."""
-        with pytest.raises(ForbiddenError, match="forbidden shell metacharacters"):
+        with pytest.raises(
+            ForbiddenError, match="forbidden shell metacharacters"
+        ):
             enforcer.check_command("echo `cat /etc/shadow`")
 
     def test_command_with_dollar_blocked(self, enforcer):
         """Dollar-sign substitution should be blocked."""
-        with pytest.raises(ForbiddenError, match="forbidden shell metacharacters"):
+        with pytest.raises(
+            ForbiddenError, match="forbidden shell metacharacters"
+        ):
             enforcer.check_command("echo $(id)")
 
     def test_journalctl_allowed(self, enforcer):
