@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     && rm -rf /var/lib/apt/lists/*
 
-ARG PERMISSION_ENGINE_PATH=../shared/mcp-permission-engine
+ARG PERMISSION_ENGINE_PATH=shared/mcp-permission-engine
 
 COPY ${PERMISSION_ENGINE_PATH} /tmp/permission-engine
 RUN pip install --no-cache-dir /tmp/permission-engine && \

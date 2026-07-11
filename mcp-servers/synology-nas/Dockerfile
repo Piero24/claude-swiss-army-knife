@@ -1,6 +1,6 @@
 FROM python:3.12-slim AS base
 
-ARG PERMISSION_ENGINE_PATH=../shared/mcp-permission-engine
+ARG PERMISSION_ENGINE_PATH=shared/mcp-permission-engine
 
 # Install shared permission engine
 COPY ${PERMISSION_ENGINE_PATH} /tmp/permission-engine
