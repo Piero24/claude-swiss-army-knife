@@ -16,15 +16,11 @@ RUN pip install --no-cache-dir /tmp/permission-engine && \
 
 WORKDIR /app
 
-# Install app dependencies
-COPY pyproject.toml .
-RUN pip install --no-cache-dir . && \
-    pip uninstall -y ubuntu-mcp 2>/dev/null || true
-
 # Install psutil (for system_info)
 RUN pip install --no-cache-dir psutil
 
 # Copy source
+COPY pyproject.toml .
 COPY src/ ./src/
 
 # Install the package in development mode so it can be run
