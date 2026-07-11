@@ -4,15 +4,7 @@ import { NextResponse } from "next/server";
 import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { z } from "zod";
-import { getConfigPath } from "../../route"; // reuse helper
-
-// Can't import from parent easily, redefine:
-const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
-function resolvePath(server: string): string {
-  const valid = ["ubuntu-server", "obsidian", "synology-nas"];
-  if (!valid.includes(server)) throw new Error(`Invalid server: ${server}`);
-  return require("path").join(CONFIGS_PATH, `${server}.yaml`);
-}
+import { getConfigPath } from "@/lib/config";
 
 const patchSchema = z.object({ access: z.enum(["none", "read", "write"]) });
 
@@ -24,7 +16,7 @@ export async function PATCH(
   try {
     const body = await request.json();
     const { access } = patchSchema.parse(body);
-    const filePath = resolvePath(server);
+    const filePath = getConfigPath(server);
 
     const raw = await fs.readFile(filePath, "utf-8");
     const config = yaml.load(raw) as Record<string, any>;
@@ -54,7 +46,7 @@ export async function DELETE(
 ) {
   const { server, ruleId } = await params;
   try {
-    const filePath = resolvePath(server);
+    const filePath = getConfigPath(server);
     const raw = await fs.readFile(filePath, "utf-8");
     const config = yaml.load(raw) as Record<string, any>;
 
