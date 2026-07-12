@@ -241,7 +241,9 @@ def create_server() -> Server:
                     ]
 
                 case "syno_file_search":
-                    enforcer.check("read", arguments.get("folder_path", "/", name))
+                    enforcer.check(
+                        "read", arguments.get("folder_path", "/", name)
+                    )
                     result = await dsm.file_search(
                         arguments["query"], arguments.get("folder_path", "/")
                     )

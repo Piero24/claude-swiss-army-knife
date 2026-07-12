@@ -30,7 +30,9 @@ async def _run_nsenter(command: str, timeout: int = 15) -> dict:
         }
 
 
-async def service_status(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
+async def service_status(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """Check the status of a systemd service.
 
     Args:
@@ -53,7 +55,9 @@ async def service_status(args: dict, enforcer: PermissionEnforcer, name: str = "
     }
 
 
-async def service_manage(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
+async def service_manage(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """Start, stop, restart, or reload a systemd service.
 
     Args:
