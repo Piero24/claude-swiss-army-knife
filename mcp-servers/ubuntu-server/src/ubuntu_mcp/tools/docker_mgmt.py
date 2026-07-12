@@ -25,7 +25,9 @@ async def _docker_cmd(command: str, timeout: int = 30) -> dict:
         return {"error": f"Command timed out after {timeout}s"}
 
 
-async def docker_ps(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
+async def docker_ps(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """List Docker containers.
 
     Args:
@@ -64,7 +66,9 @@ async def docker_ps(args: dict, enforcer: PermissionEnforcer, name: str = "") ->
     return {"containers": containers, "count": len(containers)}
 
 
-async def docker_logs(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
+async def docker_logs(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """Get logs from a Docker container.
 
     Args:
@@ -85,7 +89,9 @@ async def docker_logs(args: dict, enforcer: PermissionEnforcer, name: str = "") 
     }
 
 
-async def docker_restart(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
+async def docker_restart(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """Restart a Docker container.
 
     Args:

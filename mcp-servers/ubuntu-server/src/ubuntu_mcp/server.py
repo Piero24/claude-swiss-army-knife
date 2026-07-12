@@ -289,13 +289,21 @@ def create_server() -> Server:
                 case "ubuntu_system_info":
                     result = await system_info.system_info(arguments)
                 case "ubuntu_service_status":
-                    result = await service.service_status(arguments, enforcer, name)
+                    result = await service.service_status(
+                        arguments, enforcer, name
+                    )
                 case "ubuntu_service_manage":
-                    result = await service.service_manage(arguments, enforcer, name)
+                    result = await service.service_manage(
+                        arguments, enforcer, name
+                    )
                 case "ubuntu_docker_ps":
-                    result = await docker_mgmt.docker_ps(arguments, enforcer, name)
+                    result = await docker_mgmt.docker_ps(
+                        arguments, enforcer, name
+                    )
                 case "ubuntu_docker_logs":
-                    result = await docker_mgmt.docker_logs(arguments, enforcer, name)
+                    result = await docker_mgmt.docker_logs(
+                        arguments, enforcer, name
+                    )
                 case "ubuntu_docker_restart":
                     result = await docker_mgmt.docker_restart(
                         arguments, enforcer, name
@@ -328,7 +336,9 @@ def create_server() -> Server:
     return server
 
 
-async def _journalctl(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
+async def _journalctl(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """Query systemd journal."""
     import asyncio
 
@@ -344,7 +354,9 @@ async def _journalctl(args: dict, enforcer: PermissionEnforcer, name: str = "") 
     cmd += f" -n {lines} --no-pager"
 
     enforcer.check_command("journalctl *", name)
-    result = await execute.execute({"command": cmd, "timeout": 15}, enforcer, name)
+    result = await execute.execute(
+        {"command": cmd, "timeout": 15}, enforcer, name
+    )
     return {
         "query": cmd,
         "output": result.get("stdout", ""),

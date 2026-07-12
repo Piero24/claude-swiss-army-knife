@@ -6,7 +6,9 @@ import shlex
 from permission_engine import ForbiddenError, PermissionEnforcer
 
 
-async def execute(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
+async def execute(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """Execute a shell command on the host.
 
     Args:
