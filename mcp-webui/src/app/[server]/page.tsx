@@ -5,7 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AccessLevel, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
-import { getConfig, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, scanServer } from "@/lib/api";
+import { getConfig, getFolders, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, scanServer } from "@/lib/api";
+import type { FolderNode } from "@/lib/api";
+import FolderTree from "@/components/FolderTree";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react";
 
@@ -24,14 +26,17 @@ export default function ServerDetailPage() {
   const [logSearch, setLogSearch] = useState("");
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
+  const [folders, setFolders] = useState<FolderNode[]>([]);
 
   const loadData = useCallback(async () => {
     try {
-      const [cfg, audit] = await Promise.all([
+      const [cfg, audit, tree] = await Promise.all([
         getConfig(server),
         getAuditLog(server, 50),
+        getFolders(server).catch(() => ({ folders: [], server: "", count: 0 })),
       ]);
       setConfig(cfg);
+      setFolders(tree.folders || []);
       setAuditLog(audit);
     } catch {
       toast.error("Failed to load data");
@@ -52,6 +57,8 @@ export default function ServerDetailPage() {
     try {
       await updatePathRule(server, ruleId, access);
       toast.success(`Path access set to ${access}`);
+      // Refresh folder tree to reflect changes
+      getFolders(server).then((t) => setFolders(t.folders || [])).catch(() => {});
     } catch {
       setConfig(prev);
       toast.error("Failed to update");
@@ -121,6 +128,7 @@ export default function ServerDetailPage() {
       toast.success(`All ${type} set to ${access}`);
       setBulkConfirm(null);
       loadData();
+      getFolders(server).then((t) => setFolders(t.folders || [])).catch(() => {});
     } catch {
       toast.error("Failed to update");
     }
@@ -174,7 +182,7 @@ export default function ServerDetailPage() {
         {lastScan && <span className="text-xs text-gray-500">Last: {lastScan}</span>}
       </div>
 
-      {/* Path Rules */}
+      {/* Path Permissions — Tree View */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Path Permissions</h2>
@@ -196,47 +204,76 @@ export default function ServerDetailPage() {
         </div>
         <input
           type="text"
-          placeholder="Filter paths…"
+          placeholder="Filter folders…"
           value={pathSearch}
           onChange={(e) => setPathSearch(e.target.value)}
           className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <div className="rounded-lg border border-gray-800 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-900 text-gray-400 text-left">
-                <th className="px-4 py-2">Path</th>
-                <th className="px-4 py-2 w-32">Access</th>
-                <th className="px-4 py-2 hidden md:table-cell">Description</th>
-                <th className="px-4 py-2 w-12"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {config.permissions.paths
-                .filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))
-                .map((rule) => (
-                <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
-                  <td className="px-4 py-2 font-mono text-xs">{rule.path}</td>
-                  <td className="px-4 py-2">
-                    <AccessToggles
-                      value={rule.access}
-                      onChange={(a) => handleTogglePath(rule.id, a)}
-                    />
-                  </td>
-                  <td className="px-4 py-2 text-gray-500 text-xs hidden md:table-cell">{rule.description || ""}</td>
-                  <td className="px-4 py-2">
-                    <button onClick={() => handleDeletePath(rule.id)} className="text-gray-600 hover:text-red-400">
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
+        {folders.length > 0 ? (
+          <FolderTree
+            folders={pathSearch ? folders.filter((f) => f.name.toLowerCase().includes(pathSearch.toLowerCase()) || f.path.toLowerCase().includes(pathSearch.toLowerCase())) : folders}
+            onToggle={(folderPath, access) => {
+              // Find matching rule
+              const cleanPath = folderPath.replace(/\/\*\*$/, "");
+              const rule = config?.permissions.paths.find(
+                (r) => r.path.replace(/\/\*\*$/, "") === cleanPath
+              );
+              if (!rule) return;
+              handleTogglePath(rule.id, access);
+
+              // Cascade to children if parent becomes more restrictive
+              if (access === "none" || access === "read") {
+                const prefix = cleanPath + "/";
+                config?.permissions.paths.forEach((childRule) => {
+                  if (childRule.id === rule.id) return;
+                  const childPath = childRule.path.replace(/\/\*\*$/, "");
+                  if (childPath.startsWith(prefix)) {
+                    const newChildAccess = access === "none" ? "none" : (
+                      childRule.access === "write" ? "read" : childRule.access
+                    );
+                    if (childRule.access !== newChildAccess) {
+                      handleTogglePath(childRule.id, newChildAccess as AccessLevel);
+                    }
+                  }
+                });
+              }
+            }}
+          />
+        ) : (
+          <div className="rounded-lg border border-gray-800 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 text-left">
+                  <th className="px-4 py-2">Path</th>
+                  <th className="px-4 py-2 w-32">Access</th>
+                  <th className="px-4 py-2 hidden md:table-cell">Description</th>
+                  <th className="px-4 py-2 w-12"></th>
                 </tr>
-              ))}
-              {config.permissions.paths.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No path rules. Default: {config.permissions.default_access}</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {config.permissions.paths
+                  .filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))
+                  .map((rule) => (
+                  <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
+                    <td className="px-4 py-2 font-mono text-xs">{rule.path}</td>
+                    <td className="px-4 py-2">
+                      <AccessToggles value={rule.access} onChange={(a) => handleTogglePath(rule.id, a)} />
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 text-xs hidden md:table-cell">{rule.description || ""}</td>
+                    <td className="px-4 py-2">
+                      <button onClick={() => handleDeletePath(rule.id)} className="text-gray-600 hover:text-red-400">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {config.permissions.paths.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No path rules. Default: {config.permissions.default_access}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {/* Command Rules — only for Ubuntu server */}

@@ -166,11 +166,12 @@ async function scanSynology(): Promise<string[]> {
   const shares = ((shareResp as { data: { shares: Array<{ name: string }> } }).data.shares || [])
     .map((s) => `/${s.name}`);
 
-  // Recursive subfolder scan (depth 3)
+  // Recursive subfolder scan (full depth, exclusion patterns prevent noise)
+  const MAX_DEPTH = 20;
   const allFolders: string[] = [];
   for (const share of shares) {
     if (isExcluded(share)) continue;
-    const tree = await scanRecursive(base, sid, share, 1, 3);
+    const tree = await scanRecursive(base, sid, share, 1, MAX_DEPTH);
     allFolders.push(...tree);
   }
 
