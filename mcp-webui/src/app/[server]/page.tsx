@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AccessLevel, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
-import { getConfig, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog } from "@/lib/api";
+import { getConfig, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
@@ -19,6 +19,7 @@ export default function ServerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showAddPath, setShowAddPath] = useState(false);
   const [showAddCmd, setShowAddCmd] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -109,6 +110,18 @@ export default function ServerDetailPage() {
     }
   }
 
+  async function handleBulkSet(access: AccessLevel, type: "paths" | "commands") {
+    if (!config) return;
+    try {
+      await bulkSetAccess(server, access, type);
+      toast.success(`All ${type} set to ${access}`);
+      setBulkConfirm(null);
+      loadData();
+    } catch {
+      toast.error("Failed to update");
+    }
+  }
+
   async function handleAddCommand(data: { pattern: string; access: AccessLevel; description?: string }) {
     try {
       await addCommandRule(server, data);
@@ -134,9 +147,21 @@ export default function ServerDetailPage() {
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Path Permissions</h2>
-          <button onClick={() => setShowAddPath(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
-            <Plus size={16} /> Add Path Rule
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 mr-1">Set all:</span>
+            {(["none", "read", "write"] as AccessLevel[]).map((level) => (
+              <button
+                key={level}
+                onClick={() => setBulkConfirm({ access: level, type: "paths" })}
+                className="px-2 py-0.5 text-xs rounded border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white transition-colors"
+              >
+                {level}
+              </button>
+            ))}
+            <button onClick={() => setShowAddPath(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 ml-3">
+              <Plus size={16} /> Add
+            </button>
+          </div>
         </div>
         <div className="rounded-lg border border-gray-800 overflow-hidden">
           <table className="w-full text-sm">
@@ -269,6 +294,35 @@ export default function ServerDetailPage() {
           onSave={(data) => handleAddCommand(data as { pattern: string; access: AccessLevel; description?: string })}
           onClose={() => setShowAddCmd(false)}
         />
+      )}
+
+      {/* Bulk Confirm Dialog */}
+      {bulkConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setBulkConfirm(null)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2">Set all {bulkConfirm.type}?</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              This will change{' '}
+              <span className="text-white font-semibold">
+                {bulkConfirm.type === "paths" ? config!.permissions.paths.length : config!.permissions.commands.length}
+              </span>{' '}
+              {bulkConfirm.type} to{' '}
+              <span className="text-white font-semibold">{bulkConfirm.access}</span>.
+              This cannot be undone in one click.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBulkConfirm(null)} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700">
+                Cancel
+              </button>
+              <button
+                onClick={() => handleBulkSet(bulkConfirm.access, bulkConfirm.type)}
+                className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500"
+              >
+                Yes, set all
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
