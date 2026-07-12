@@ -179,15 +179,7 @@ export default function ServerDetailPage() {
         {lastScan && <span className="text-xs text-gray-500">Last: {lastScan}</span>}
       </div>
 
-      {/* Folder Tree */}
-      {folders.length > 0 && (
-        <section className="mb-6">
-          <h2 className="text-lg font-semibold mb-2">Folder Tree</h2>
-          <FolderTree folders={folders} />
-        </section>
-      )}
-
-      {/* Path Rules */}
+      {/* Path Permissions — Tree View */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Path Permissions</h2>
@@ -207,49 +199,51 @@ export default function ServerDetailPage() {
             </button>
           </div>
         </div>
-        <input
-          type="text"
-          placeholder="Filter paths…"
-          value={pathSearch}
-          onChange={(e) => setPathSearch(e.target.value)}
-          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <div className="rounded-lg border border-gray-800 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-900 text-gray-400 text-left">
-                <th className="px-4 py-2">Path</th>
-                <th className="px-4 py-2 w-32">Access</th>
-                <th className="px-4 py-2 hidden md:table-cell">Description</th>
-                <th className="px-4 py-2 w-12"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {config.permissions.paths
-                .filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))
-                .map((rule) => (
-                <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
-                  <td className="px-4 py-2 font-mono text-xs">{rule.path}</td>
-                  <td className="px-4 py-2">
-                    <AccessToggles
-                      value={rule.access}
-                      onChange={(a) => handleTogglePath(rule.id, a)}
-                    />
-                  </td>
-                  <td className="px-4 py-2 text-gray-500 text-xs hidden md:table-cell">{rule.description || ""}</td>
-                  <td className="px-4 py-2">
-                    <button onClick={() => handleDeletePath(rule.id)} className="text-gray-600 hover:text-red-400">
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
+        {folders.length > 0 ? (
+          <FolderTree
+            folders={folders}
+            onToggle={(folderPath, access) => {
+              const rule = config?.permissions.paths.find(
+                (r) => r.path.replace(/\/\*\*$/, "") === folderPath.replace(/\/\*\*$/, "")
+              );
+              if (rule) handleTogglePath(rule.id, access);
+            }}
+          />
+        ) : (
+          <div className="rounded-lg border border-gray-800 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-900 text-gray-400 text-left">
+                  <th className="px-4 py-2">Path</th>
+                  <th className="px-4 py-2 w-32">Access</th>
+                  <th className="px-4 py-2 hidden md:table-cell">Description</th>
+                  <th className="px-4 py-2 w-12"></th>
                 </tr>
-              ))}
-              {config.permissions.paths.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No path rules. Default: {config.permissions.default_access}</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {config.permissions.paths
+                  .filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))
+                  .map((rule) => (
+                  <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
+                    <td className="px-4 py-2 font-mono text-xs">{rule.path}</td>
+                    <td className="px-4 py-2">
+                      <AccessToggles value={rule.access} onChange={(a) => handleTogglePath(rule.id, a)} />
+                    </td>
+                    <td className="px-4 py-2 text-gray-500 text-xs hidden md:table-cell">{rule.description || ""}</td>
+                    <td className="px-4 py-2">
+                      <button onClick={() => handleDeletePath(rule.id)} className="text-gray-600 hover:text-red-400">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {config.permissions.paths.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No path rules. Default: {config.permissions.default_access}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {/* Command Rules — only for Ubuntu server */}
