@@ -1,11 +1,34 @@
 /** POST scan — discover new folders and merge with YAML config. */
 
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import https from "https";
 import http from "http";
 import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
+
+function totp(secret: string): string {
+  const key = base32Decode(secret.toUpperCase().replace(/\s/g, ""));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
+  const h = crypto.createHmac("sha1", key).update(counter).digest();
+  const offset = h[h.length - 1] & 0x0f;
+  const code = (h.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
+  return String(code).padStart(6, "0");
+}
+
+function base32Decode(s: string): Buffer {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0, value = 0;
+  const output: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    value = (value << 5) | alphabet.indexOf(s[i]);
+    bits += 5;
+    if (bits >= 8) { output.push((value >>> (bits - 8)) & 0xff); bits -= 8; }
+  }
+  return Buffer.from(output);
+}
 
 const EXCLUDE_PATTERNS = [
   ".venv", "venv", "__pycache__", ".git", "node_modules",
@@ -78,8 +101,31 @@ async function scanSynology(): Promise<string[]> {
   });
 
   if (!(loginResp as { success?: boolean }).success) {
-    const err = (loginResp as { error?: unknown }).error;
-    throw new Error(`DSM login failed: ${JSON.stringify(err)}. If OTP is enabled, run scan from Claude Code instead.`);
+    const err = (loginResp as { error?: { code?: number } }).error;
+    // If OTP required, retry with TOTP
+    if (err?.code === 403) {
+      const otpSecret = env.get("SYNOLOGY_NAS_OTP_SECRET") || "";
+      if (!otpSecret) {
+        throw new Error("DSM requires OTP but SYNOLOGY_NAS_OTP_SECRET is not set");
+      }
+      const otpResp = await dsmGet(`${base}/webapi/auth.cgi`, {
+        api: "SYNO.API.Auth", version: "7", method: "login",
+        account: user, passwd: pass, session: "FileStation", format: "cookie",
+        otp_code: totp(otpSecret),
+      });
+      if (!(otpResp as { success?: boolean }).success) {
+        throw new Error(`DSM login with OTP failed: ${JSON.stringify((otpResp as { error?: unknown }).error)}`);
+      }
+      const otpSid = (otpResp as { data: { sid: string } }).data.sid;
+      const listResp2 = await dsmGet(`${base}/webapi/entry.cgi`, {
+        api: "SYNO.FileStation.List", version: "2", method: "list_share", _sid: otpSid,
+      });
+      if (!(listResp2 as { success?: boolean }).success) {
+        throw new Error(`list_share failed: ${JSON.stringify((listResp2 as { error?: unknown }).error)}`);
+      }
+      return ((listResp2 as { data: { shares: Array<{ name: string }> } }).data.shares || []).map((s) => `/${s.name}`);
+    }
+    throw new Error(`DSM login failed: ${JSON.stringify(err)}`);
   }
 
   const sid = (loginResp as { data: { sid: string } }).data.sid;
