@@ -128,6 +128,12 @@ class PathResolver:
                 except (ValueError, TypeError):
                     continue
 
+        # If pattern ends with /**, the folder itself matches (e.g. /Google Drive/** matches /Google Drive)
+        if pattern.endswith("/**"):
+            folder = pattern[:-3]  # strip /**
+            if path == folder or path == folder.rstrip("/"):
+                return True
+
         return False
 
     def _cache_result(self, path: str, access: AccessLevel) -> None:
