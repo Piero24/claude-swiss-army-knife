@@ -163,6 +163,11 @@ def create_server() -> Server:
                 description="Get Synology NAS storage: volumes, usage, disk health.",
                 inputSchema={"type": "object", "properties": {}},
             ),
+            Tool(
+                name="syno_list_shares",
+                description="List all shared folders on the Synology NAS.",
+                inputSchema={"type": "object", "properties": {}},
+            ),
         ]
 
     @server.call_tool()
@@ -173,7 +178,7 @@ def create_server() -> Server:
         try:
             match name:
                 case "syno_file_list":
-                    enforcer.check("read", arguments["folder_path"])
+                    enforcer.check("read", arguments["folder_path"], name)
                     result = await dsm.file_list(
                         arguments["folder_path"], arguments.get("limit", 500)
                     )
@@ -188,7 +193,7 @@ def create_server() -> Server:
                     ]
 
                 case "syno_file_read":
-                    enforcer.check("read", arguments["file_path"])
+                    enforcer.check("read", arguments["file_path"], name)
                     content = await dsm.file_read(arguments["file_path"])
                     return [
                         TextContent(
@@ -204,7 +209,7 @@ def create_server() -> Server:
                     ]
 
                 case "syno_file_write":
-                    enforcer.check("write", arguments["folder_path"])
+                    enforcer.check("write", arguments["folder_path"], name)
                     result = await dsm.file_write(
                         arguments["folder_path"],
                         arguments["filename"],
@@ -217,7 +222,7 @@ def create_server() -> Server:
                     ]
 
                 case "syno_file_delete":
-                    enforcer.check("write", arguments["file_path"])
+                    enforcer.check("write", arguments["file_path"], name)
                     result = await dsm.file_delete(
                         arguments["file_path"],
                         arguments.get("recursive", False),
@@ -229,8 +234,8 @@ def create_server() -> Server:
                     ]
 
                 case "syno_file_move":
-                    enforcer.check("write", arguments["src_path"])
-                    enforcer.check("write", arguments["dst_path"])
+                    enforcer.check("write", arguments["src_path"], name)
+                    enforcer.check("write", arguments["dst_path"], name)
                     result = await dsm.file_move(
                         arguments["src_path"], arguments["dst_path"]
                     )
@@ -241,7 +246,9 @@ def create_server() -> Server:
                     ]
 
                 case "syno_file_search":
-                    enforcer.check("read", arguments.get("folder_path", "/"))
+                    enforcer.check(
+                        "read", arguments.get("folder_path", "/", name)
+                    )
                     result = await dsm.file_search(
                         arguments["query"], arguments.get("folder_path", "/")
                     )
@@ -269,6 +276,18 @@ def create_server() -> Server:
                         TextContent(
                             type="text",
                             text=json.dumps({"volumes": result}, indent=2),
+                        )
+                    ]
+
+                case "syno_list_shares":
+                    result = await dsm.list_share()
+                    return [
+                        TextContent(
+                            type="text",
+                            text=json.dumps(
+                                {"shares": result, "count": len(result)},
+                                indent=2,
+                            ),
                         )
                     ]
 

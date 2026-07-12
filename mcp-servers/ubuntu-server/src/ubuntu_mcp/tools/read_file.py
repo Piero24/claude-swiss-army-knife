@@ -6,7 +6,7 @@ from permission_engine import ForbiddenError, PermissionEnforcer
 
 
 async def read_file(
-    args: dict, enforcer: PermissionEnforcer, mount_prefix: str
+    args: dict, enforcer: PermissionEnforcer, mount_prefix: str, name: str = ""
 ) -> dict:
     """Read a file from the host filesystem.
 
@@ -19,7 +19,7 @@ async def read_file(
         {"content": str, "path": str, "size": int}
     """
     requested = args["path"]
-    enforcer.check("read", requested)
+    enforcer.check("read", requested, tool=name)
 
     container_path = (Path(mount_prefix) / requested.lstrip("/")).resolve()
 

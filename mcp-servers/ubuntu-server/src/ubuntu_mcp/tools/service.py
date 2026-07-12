@@ -30,7 +30,9 @@ async def _run_nsenter(command: str, timeout: int = 15) -> dict:
         }
 
 
-async def service_status(args: dict, enforcer: PermissionEnforcer) -> dict:
+async def service_status(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """Check the status of a systemd service.
 
     Args:
@@ -41,7 +43,7 @@ async def service_status(args: dict, enforcer: PermissionEnforcer) -> dict:
         {service, status}
     """
     service = args["service"]
-    enforcer.check_command(f"systemctl status {service}")
+    enforcer.check_command(f"systemctl status {service}", tool=name)
     result = await _run_nsenter(
         f"systemctl is-active {service} && systemctl is-enabled {service} || true"
     )
@@ -53,7 +55,9 @@ async def service_status(args: dict, enforcer: PermissionEnforcer) -> dict:
     }
 
 
-async def service_manage(args: dict, enforcer: PermissionEnforcer) -> dict:
+async def service_manage(
+    args: dict, enforcer: PermissionEnforcer, name: str = ""
+) -> dict:
     """Start, stop, restart, or reload a systemd service.
 
     Args:
@@ -71,7 +75,7 @@ async def service_manage(args: dict, enforcer: PermissionEnforcer) -> dict:
             "error": f"Invalid action: {action}. Must be one of {valid_actions}"
         }
 
-    enforcer.check_command(f"systemctl {action} {service}")
+    enforcer.check_command(f"systemctl {action} {service}", tool=name)
     result = await _run_nsenter(f"systemctl {action} {service}")
     return {
         "service": service,

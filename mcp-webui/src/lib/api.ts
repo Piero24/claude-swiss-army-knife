@@ -87,6 +87,25 @@ export async function getAuditLog(server: ServerName, limit = 50, filter?: "allo
   return fetchJSON<AuditEntry[]>(`${BASE}/audit/${server}?${params}`);
 }
 
+// ── Bulk ────────────────────────────────────────────
+
+export async function bulkSetAccess(
+  server: ServerName,
+  access: AccessLevel,
+  type: "paths" | "commands" = "paths"
+): Promise<{ updated: number; access: string; type: string }> {
+  return fetchJSON(`${BASE}/config/${server}/bulk`, {
+    method: "PATCH",
+    body: JSON.stringify({ access, type }),
+  });
+}
+
+// ── Scan ────────────────────────────────────────────
+
+export async function scanServer(server: ServerName): Promise<{ scanned: boolean; discovered: number; added: number; total: number; message?: string }> {
+  return fetchJSON(`${BASE}/scan/${server}`, { method: "POST" });
+}
+
 // ── Health ──────────────────────────────────────────
 
 export interface HealthStatus {

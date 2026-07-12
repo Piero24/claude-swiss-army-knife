@@ -6,7 +6,7 @@ from permission_engine import PermissionEnforcer
 
 
 async def append_file(
-    args: dict, enforcer: PermissionEnforcer, mount_prefix: str
+    args: dict, enforcer: PermissionEnforcer, mount_prefix: str, name: str = ""
 ) -> dict:
     """Append lines to a file on the host filesystem.
 
@@ -20,7 +20,7 @@ async def append_file(
     """
     requested = args["path"]
     content = args["content"]
-    enforcer.check("write", requested)
+    enforcer.check("write", requested, tool=name)
 
     container_path = (Path(mount_prefix) / requested.lstrip("/")).resolve()
 
