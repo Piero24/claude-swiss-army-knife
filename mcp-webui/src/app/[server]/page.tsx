@@ -25,7 +25,10 @@ export default function ServerDetailPage() {
   const [pathSearch, setPathSearch] = useState("");
   const [logSearch, setLogSearch] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [lastScan, setLastScan] = useState<string | null>(null);
+  const [lastScan, setLastScan] = useState<string | null>(() => {
+    if (typeof window !== "undefined") return localStorage.getItem(`lastScan_${server}`) || null;
+    return null;
+  });
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [collapseKey, setCollapseKey] = useState(0);
 
@@ -39,7 +42,7 @@ export default function ServerDetailPage() {
       setConfig(cfg);
       setFolders(tree.folders || []);
       setAuditLog(audit);
-    } catch {
+    } catch (err) {
       toast.error("Failed to load data");
     } finally {
       setLoading(false);
@@ -60,7 +63,7 @@ export default function ServerDetailPage() {
       toast.success(`Path access set to ${access}`);
       // Refresh folder tree to reflect changes
       getFolders(server).then((t) => setFolders(t.folders || [])).catch(() => {});
-    } catch {
+    } catch (err) {
       setConfig(prev);
       toast.error("Failed to update");
     }
@@ -74,7 +77,7 @@ export default function ServerDetailPage() {
     try {
       await deletePathRule(server, ruleId);
       toast.success("Path rule removed");
-    } catch {
+    } catch (err) {
       config.permissions.paths = prev;
       setConfig({ ...config });
       toast.error("Failed to delete");
@@ -87,7 +90,7 @@ export default function ServerDetailPage() {
       toast.success("Path rule added");
       setShowAddPath(false);
       loadData();
-    } catch {
+    } catch (err) {
       toast.error("Failed to add rule");
     }
   }
@@ -101,7 +104,7 @@ export default function ServerDetailPage() {
     try {
       await updateCommandRule(server, ruleId, access);
       toast.success(`Command access set to ${access}`);
-    } catch {
+    } catch (err) {
       setConfig(prev);
       toast.error("Failed to update");
     }
@@ -115,7 +118,7 @@ export default function ServerDetailPage() {
     try {
       await deleteCommandRule(server, ruleId);
       toast.success("Command rule removed");
-    } catch {
+    } catch (err) {
       config.permissions.commands = prev;
       setConfig({ ...config });
       toast.error("Failed to delete");
@@ -130,7 +133,7 @@ export default function ServerDetailPage() {
       setBulkConfirm(null);
       loadData();
       getFolders(server).then((t) => setFolders(t.folders || [])).catch(() => {});
-    } catch {
+    } catch (err) {
       toast.error("Failed to update");
     }
   }
@@ -150,11 +153,22 @@ export default function ServerDetailPage() {
       } else {
         toast.success(`Scan complete — ${res.total} folders, no new ones (${dur})`);
       }
-      setLastScan(`${new Date().toLocaleTimeString()} (${dur})`);
-    } catch {
-      toast.error("Scan failed");
+      const label = `${new Date().toLocaleTimeString()} (${dur})`;
+      setLastScan(label);
+      if (typeof window !== "undefined") localStorage.setItem(`lastScan_${server}`, label);
+    } catch (err) {
+      if (err instanceof Error && err.message !== "Unauthorized") toast.error(err.message || "Scan failed");
     } finally {
       setScanning(false);
+    }
+  }
+
+  async function handleCancelScan() {
+    try {
+      await fetch(`/api/scan/${server}/cancel`, { method: "POST" });
+      toast.success("Scan cancelled");
+    } catch (err) {
+      // ignore
     }
   }
 
@@ -164,7 +178,7 @@ export default function ServerDetailPage() {
       toast.success("Command rule added");
       setShowAddCmd(false);
       loadData();
-    } catch {
+    } catch (err) {
       toast.error("Failed to add rule");
     }
   }
@@ -185,7 +199,12 @@ export default function ServerDetailPage() {
           <RefreshCw size={16} className={scanning ? "animate-spin" : ""} />
           {scanning ? "Scanning…" : "Scan folders"}
         </button>
-        {lastScan && <span className="text-xs text-gray-500">Last: {lastScan}</span>}
+        {scanning && (
+          <button onClick={handleCancelScan} className="text-sm text-red-400 hover:text-red-300">
+            Cancel
+          </button>
+        )}
+        {lastScan && <span className="text-xs text-gray-500">{lastScan}</span>}
       </div>
 
       {/* Path Permissions — Tree View */}

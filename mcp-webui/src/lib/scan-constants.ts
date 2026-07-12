@@ -9,7 +9,7 @@ import path from "path";
 export const DEFAULT_EXCLUDES: readonly string[] = [
   ".venv", "venv", "__pycache__", ".git", "node_modules",
   ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
-  "lost+found", ".Trash", "#recycle", "@eaDir",
+  "lost+found", ".Trash", "#recycle", "@eaDir", ".env",
   // macOS bundles / packages (treated as files, not folders)
   "*.app", "*.pkg", "*.bundle", "*.framework",
   "*.xcodeproj", "*.xcworkspace", "*.kext",
