@@ -5,9 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AccessLevel, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
-import { getConfig, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess } from "@/lib/api";
+import { getConfig, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, scanServer } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 export default function ServerDetailPage() {
   const params = useParams();
@@ -22,6 +22,8 @@ export default function ServerDetailPage() {
   const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
   const [pathSearch, setPathSearch] = useState("");
   const [logSearch, setLogSearch] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [lastScan, setLastScan] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -124,6 +126,24 @@ export default function ServerDetailPage() {
     }
   }
 
+  async function handleScan() {
+    setScanning(true);
+    try {
+      const res = await scanServer(server);
+      if (res.added > 0) {
+        toast.success(`Found ${res.added} new folder${res.added > 1 ? "s" : ""}`);
+        loadData();
+      } else {
+        toast.success(`Scan complete — ${res.total} folders, no new ones`);
+      }
+      setLastScan(new Date().toLocaleTimeString());
+    } catch {
+      toast.error("Scan failed");
+    } finally {
+      setScanning(false);
+    }
+  }
+
   async function handleAddCommand(data: { pattern: string; access: AccessLevel; description?: string }) {
     try {
       await addCommandRule(server, data);
@@ -143,6 +163,15 @@ export default function ServerDetailPage() {
       <div className="flex items-center gap-3 mb-6">
         <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
         <h1 className="text-2xl font-bold">{SERVER_LABELS[server]}</h1>
+        <button
+          onClick={handleScan}
+          disabled={scanning}
+          className="flex items-center gap-1 ml-auto text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
+        >
+          <RefreshCw size={16} className={scanning ? "animate-spin" : ""} />
+          {scanning ? "Scanning…" : "Scan folders"}
+        </button>
+        {lastScan && <span className="text-xs text-gray-500">Last: {lastScan}</span>}
       </div>
 
       {/* Path Rules */}
