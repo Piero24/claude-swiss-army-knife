@@ -199,7 +199,7 @@ def create_server() -> Server:
             match name:
                 case "obsidian_list_vault":
                     subfolder = arguments.get("subfolder", "")
-                    enforcer.check("read", subfolder or "/")
+                    enforcer.check("read", subfolder or "/", name)
                     entries = vault.list_vault(
                         subfolder, arguments.get("depth", 3)
                     )
@@ -214,7 +214,7 @@ def create_server() -> Server:
                     ]
 
                 case "obsidian_read_note":
-                    enforcer.check("read", arguments["path"])
+                    enforcer.check("read", arguments["path"], name)
                     content = vault.read_note(arguments["path"])
                     fm, body = parse_frontmatter(content)
                     return [
@@ -233,7 +233,7 @@ def create_server() -> Server:
                     ]
 
                 case "obsidian_write_note":
-                    enforcer.check("write", arguments["path"])
+                    enforcer.check("write", arguments["path"], name)
                     body = arguments["content"]
                     user_fm = arguments.get("frontmatter", {})
                     if user_fm:
@@ -255,7 +255,7 @@ def create_server() -> Server:
                     ]
 
                 case "obsidian_delete_note":
-                    enforcer.check("write", arguments["path"])
+                    enforcer.check("write", arguments["path"], name)
                     result = vault.delete_note(
                         arguments["path"], arguments.get("permanent", False)
                     )
@@ -266,7 +266,7 @@ def create_server() -> Server:
                     ]
 
                 case "obsidian_search_notes":
-                    enforcer.check("read", "/")
+                    enforcer.check("read", "/", name)
                     query = arguments["query"]
                     max_results = arguments.get("max_results", 20)
                     regex = arguments.get("regex", False)
@@ -285,7 +285,7 @@ def create_server() -> Server:
                     ]
 
                 case "obsidian_search_by_tag":
-                    enforcer.check("read", "/")
+                    enforcer.check("read", "/", name)
                     tag = arguments["tag"]
                     results = _search_by_tag(vault, tag)
                     return [
@@ -303,7 +303,7 @@ def create_server() -> Server:
                     ]
 
                 case "obsidian_get_backlinks":
-                    enforcer.check("read", arguments["path"])
+                    enforcer.check("read", arguments["path"], name)
                     backlinks = find_backlinks(vault.root, arguments["path"])
                     return [
                         TextContent(
@@ -320,7 +320,7 @@ def create_server() -> Server:
                     ]
 
                 case "obsidian_get_tags":
-                    enforcer.check("read", "/")
+                    enforcer.check("read", "/", name)
                     all_tags = _get_all_tags(vault)
                     return [
                         TextContent(
@@ -330,7 +330,7 @@ def create_server() -> Server:
                     ]
 
                 case "obsidian_get_frontmatter":
-                    enforcer.check("read", arguments["path"])
+                    enforcer.check("read", arguments["path"], name)
                     content = vault.read_note(arguments["path"])
                     fm, _ = parse_frontmatter(content)
                     return [

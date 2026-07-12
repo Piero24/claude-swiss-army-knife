@@ -62,12 +62,13 @@ class PermissionEnforcer:
             raise RuntimeError("Config not loaded")
         return self._config
 
-    def check(self, required_access: str, path: str) -> bool:
+    def check(self, required_access: str, path: str, tool: str = "") -> bool:
         """Check if the given access level is allowed for a filesystem path.
 
         Args:
             required_access: The access level needed ("read" or "write").
             path: The filesystem path to access.
+            tool: The MCP tool name making the request (for audit logging).
 
         Returns:
             True if access is granted.
@@ -86,6 +87,7 @@ class PermissionEnforcer:
                 required_access=required.value,
                 granted_access=granted.value,
                 reason=f"path not in config or insufficient access (have {granted.value}, need {required.value})",
+                tool=tool,
             )
             raise ForbiddenError(
                 f"Access denied: '{path}' has {granted.value} access, "
@@ -99,10 +101,11 @@ class PermissionEnforcer:
             path,
             access=required.value,
             granted=granted.value,
+            tool=tool,
         )
         return True
 
-    def check_command(self, command: str) -> bool:
+    def check_command(self, command: str, tool: str = "") -> bool:
         """Check if a shell command is allowed.
 
         Args:
@@ -121,6 +124,7 @@ class PermissionEnforcer:
                 "command",
                 command,
                 reason="command contains forbidden shell metacharacters",
+                tool=tool,
             )
             raise ForbiddenError(
                 f"Command denied: contains forbidden shell metacharacters",
@@ -150,6 +154,7 @@ class PermissionEnforcer:
                 "command",
                 command,
                 reason="command not in allowlist or explicitly denied",
+                tool=tool,
             )
             raise ForbiddenError(
                 f"Command denied: '{command}' is not in the allowlist",
@@ -162,6 +167,7 @@ class PermissionEnforcer:
             command,
             access="execute",
             granted=granted.value,
+            tool=tool,
         )
         return True
 
