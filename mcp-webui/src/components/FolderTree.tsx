@@ -14,7 +14,6 @@ interface FolderNode {
 
 const LEVEL_ORDER: AccessLevel[] = ["none", "read", "write"];
 
-/** Max access a child can have given its parent's access. */
 function maxChildAccess(parentAccess: string): AccessLevel {
   if (parentAccess === "none") return "none";
   if (parentAccess === "read") return "read";
@@ -23,6 +22,20 @@ function maxChildAccess(parentAccess: string): AccessLevel {
 
 function levelIndex(level: string): number {
   return LEVEL_ORDER.indexOf(level as AccessLevel);
+}
+
+/** Count total nodes in the tree (including root). */
+function countNodes(folders: FolderNode[]): number {
+  let n = 0;
+  for (const f of folders) { n += 1 + countNodes(f.children); }
+  return n;
+}
+
+/** Count all descendants recursively. */
+function countDescendants(node: FolderNode): number {
+  let n = node.children.length;
+  for (const c of node.children) n += countDescendants(c);
+  return n;
 }
 
 function AccessToggles({
@@ -75,6 +88,7 @@ function TreeNode({
 }) {
   const [open, setOpen] = useState(false);
   const hasChildren = node.children.length > 0;
+  const childCount = countDescendants(node);
   const maxAccess = maxChildAccess(parentAccess);
   const restricted = levelIndex(node.access) > levelIndex(maxAccess);
 
@@ -91,10 +105,13 @@ function TreeNode({
         ) : (
           <span className="w-4 shrink-0" />
         )}
-        <span className="text-gray-300 flex-1 truncate font-mono text-sm">{node.name}</span>
-        {restricted && (
-          <Lock size={12} className="text-gray-600 shrink-0" />
-        )}
+        <span className="text-gray-300 flex-1 truncate font-mono text-sm">
+          {node.name}
+          {childCount > 0 && (
+            <span className="text-gray-600 ml-1 text-xs">({childCount})</span>
+          )}
+        </span>
+        {restricted && <Lock size={12} className="text-gray-600 shrink-0" />}
         <AccessToggles
           value={node.access}
           maxLevel={maxChildAccess(parentAccess)}
@@ -123,14 +140,25 @@ export default function FolderTree({
   folders: FolderNode[];
   onToggle?: (path: string, access: AccessLevel) => void;
 }) {
+  const total = countNodes(folders);
+
   if (folders.length === 0) {
     return <p className="px-4 py-4 text-gray-500 text-sm text-center">No folders</p>;
   }
   return (
-    <div className="rounded-lg border border-gray-800 overflow-hidden max-h-[65vh] overflow-y-auto">
-      {folders.map((f) => (
-        <TreeNode key={f.path} node={f} depth={0} parentAccess="write" onToggle={onToggle} />
-      ))}
+    <div>
+      <p className="text-xs text-gray-500 mb-1">{total} folder{total !== 1 ? "s" : ""}</p>
+      <div className="rounded-lg border border-gray-800 overflow-hidden max-h-[65vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center gap-2 py-1.5 px-2 bg-gray-900 text-xs text-gray-400 font-medium border-b border-gray-700 sticky top-0 z-10">
+          <span className="w-4 shrink-0" />
+          <span className="flex-1">Path</span>
+          <span className="w-30 shrink-0">Access</span>
+        </div>
+        {folders.map((f) => (
+          <TreeNode key={f.path} node={f} depth={0} parentAccess="write" onToggle={onToggle} />
+        ))}
+      </div>
     </div>
   );
 }
