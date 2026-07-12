@@ -193,7 +193,7 @@ export async function POST(
 
     let discovered: string[] = [];
     if (server === "synology-nas") {
-      startScan();
+      startScan("synology-nas");
       discovered = await scanSynology();
       endScan();
       if (discovered.includes("__CANCELLED__")) {
