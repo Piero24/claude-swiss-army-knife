@@ -284,7 +284,10 @@ def create_server() -> Server:
                     return [
                         TextContent(
                             type="text",
-                            text=json.dumps({"shares": result, "count": len(result)}, indent=2),
+                            text=json.dumps(
+                                {"shares": result, "count": len(result)},
+                                indent=2,
+                            ),
                         )
                     ]
 
