@@ -69,13 +69,47 @@ export async function PUT(request: Request) {
 
     await fs.writeFile(SETTINGS_PATH, JSON.stringify(toSave, null, 2), "utf-8");
 
+    // Remove excluded folders from all server configs
+    let cleaned = 0;
+    const configsDir = process.env.CONFIGS_PATH || "/app/configs";
+    const servers = ["ubuntu-server", "obsidian", "synology-nas"];
+    const { default: yaml } = await import("js-yaml");
+
+    for (const server of servers) {
+      try {
+        const configPath = path.join(configsDir, `${server}.yaml`);
+        const raw = await fs.readFile(configPath, "utf-8");
+        const config = yaml.load(raw) as Record<string, unknown>;
+        const perms = config.permissions as Record<string, unknown>;
+        const paths = (perms?.paths || []) as Array<{ path: string; description?: string }>;
+        const before = paths.length;
+
+        const filtered = paths.filter((r) => {
+          const segments = r.path.replace(/\/\*\*$/, "").split("/").filter(Boolean);
+          // Check every segment against exclude patterns (exact + wildcard)
+          return !segments.some((seg) =>
+            mergedExcludes.some((p) => {
+              if (p.startsWith("*.")) return seg.endsWith(p.slice(1));
+              return seg === p;
+            })
+          );
+        });
+        cleaned += before - filtered.length;
+
+        if (filtered.length !== before) {
+          (perms as Record<string, unknown>).paths = filtered;
+          await fs.writeFile(configPath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
+        }
+      } catch { /* skip */ }
+    }
+
     // Reload scheduler with new interval
     try {
       const { setScanInterval } = await import("@/instrumentation");
       setScanInterval(validated.scan.intervalMinutes);
     } catch { /* scheduler not started yet */ }
 
-    return NextResponse.json({ saved: true });
+    return NextResponse.json({ saved: true, cleaned });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: "Validation failed", details: err.errors }, { status: 400 });

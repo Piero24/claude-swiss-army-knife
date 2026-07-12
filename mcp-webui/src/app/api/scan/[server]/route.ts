@@ -219,7 +219,15 @@ export async function POST(
       }
     }
 
-    if (added > 0) {
+    // Remove paths matching current exclude patterns
+    const cleaned = existing.filter((r) => {
+      const segments = r.path.replace(/\/\*\*$/, "").split("/").filter(Boolean);
+      return !segments.some((seg) => isExcluded(`/${seg}`));
+    });
+    const removed = existing.length - cleaned.length;
+    if (removed > 0) (perms as Record<string, unknown>).paths = cleaned;
+
+    if (added > 0 || removed > 0) {
       const yamlStr = yaml.dump(config, { noRefs: true, lineWidth: -1 });
       await fs.writeFile(filePath, yamlStr, "utf-8");
     }
@@ -228,7 +236,8 @@ export async function POST(
       scanned: true,
       discovered: discovered.length,
       added,
-      total: existing.length,
+      removed,
+      total: cleaned.length,
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
