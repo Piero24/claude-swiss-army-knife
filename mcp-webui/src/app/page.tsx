@@ -8,7 +8,7 @@ import { SERVER_ICONS, SERVER_LABELS } from "@/lib/types";
 import { getConfig, getHealth } from "@/lib/api";
 import { logout } from "@/lib/api";
 import type { HealthStatus } from "@/lib/api";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 
 const SERVERS: ServerName[] = ["ubuntu-server", "obsidian", "synology-nas"];
 
@@ -65,6 +65,9 @@ export default function DashboardPage() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold">🔐 MCP Permissions Manager</h1>
+        <Link href="/settings" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
+          <Settings size={16} /> Settings
+        </Link>
         <button onClick={handleLogout} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
           <LogOut size={16} /> Logout
         </button>
