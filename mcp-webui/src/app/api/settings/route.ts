@@ -11,7 +11,7 @@ const SETTINGS_PATH = process.env.CONFIGS_PATH
 
 const settingsSchema = z.object({
   scan: z.object({
-    intervalMinutes: z.number().min(1).max(1440).default(5),
+    intervalMinutes: z.number().min(1).max(1440).default(60),
     excludePatterns: z.array(z.string()).default([]),
   }),
 });
@@ -20,7 +20,7 @@ export type AppSettings = z.infer<typeof settingsSchema>;
 
 const DEFAULTS: AppSettings = {
   scan: {
-    intervalMinutes: 5,
+    intervalMinutes: 60,
     excludePatterns: [
       ".venv", "venv", "__pycache__", ".git", "node_modules",
       ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",

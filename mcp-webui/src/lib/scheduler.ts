@@ -7,7 +7,7 @@ const PORT = process.env.PORT || "8280";
 const API_KEY = process.env.WEBUI_API_KEY || "";
 
 let _started = false;
-let _intervalMs = 5 * 60 * 1000;
+let _intervalMs = 60 * 60 * 1000;
 let _timer: ReturnType<typeof setInterval> | null = null;
 
 async function runScan() {
