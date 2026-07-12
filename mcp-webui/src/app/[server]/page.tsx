@@ -25,7 +25,10 @@ export default function ServerDetailPage() {
   const [pathSearch, setPathSearch] = useState("");
   const [logSearch, setLogSearch] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [lastScan, setLastScan] = useState<string | null>(null);
+  const [lastScan, setLastScan] = useState<string | null>(() => {
+    if (typeof window !== "undefined") return localStorage.getItem(`lastScan_${server}`) || null;
+    return null;
+  });
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [collapseKey, setCollapseKey] = useState(0);
 
@@ -150,11 +153,22 @@ export default function ServerDetailPage() {
       } else {
         toast.success(`Scan complete — ${res.total} folders, no new ones (${dur})`);
       }
-      setLastScan(`${new Date().toLocaleTimeString()} (${dur})`);
+      const label = `${new Date().toLocaleTimeString()} (${dur})`;
+      setLastScan(label);
+      if (typeof window !== "undefined") localStorage.setItem(`lastScan_${server}`, label);
     } catch {
-      toast.error("Scan failed");
+      if (err instanceof Error && err.message !== "Unauthorized") toast.error(err.message || "Scan failed");
     } finally {
       setScanning(false);
+    }
+  }
+
+  async function handleCancelScan() {
+    try {
+      await fetch(`/api/scan/${server}/cancel`, { method: "POST" });
+      toast.success("Scan cancelled");
+    } catch {
+      // ignore
     }
   }
 
@@ -185,7 +199,12 @@ export default function ServerDetailPage() {
           <RefreshCw size={16} className={scanning ? "animate-spin" : ""} />
           {scanning ? "Scanning…" : "Scan folders"}
         </button>
-        {lastScan && <span className="text-xs text-gray-500">Last: {lastScan}</span>}
+        {scanning && (
+          <button onClick={handleCancelScan} className="text-sm text-red-400 hover:text-red-300">
+            Cancel
+          </button>
+        )}
+        {lastScan && <span className="text-xs text-gray-500">{lastScan}</span>}
       </div>
 
       {/* Path Permissions — Tree View */}

@@ -97,7 +97,7 @@ export default function SettingsPage() {
                 <span className="text-xs text-gray-500">No patterns</span>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <input
                 type="text"
                 placeholder="e.g. .venv"
@@ -107,6 +107,22 @@ export default function SettingsPage() {
                 className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button onClick={addExclude} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700"><Plus size={16} /></button>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Bulk paste (one per line):</p>
+              <textarea
+                rows={4}
+                placeholder={"env\nsite-packages\nlib\nsrc"}
+                onChange={(e) => {
+                  const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
+                  if (lines.length > 0) {
+                    const merged = [...new Set([...settings.scan.excludePatterns, ...lines])];
+                    setSettings({ ...settings, scan: { ...settings.scan, excludePatterns: merged } });
+                    e.target.value = "";
+                  }
+                }}
+                className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+              />
             </div>
           </div>
         </div>

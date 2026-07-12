@@ -9,6 +9,7 @@ import http from "http";
 import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
+import { cancelScan, endScan, isCancelled, startScan } from "@/lib/scan-status";
 import {
   isExcluded,
   SCAN_CONCURRENCY,
@@ -134,6 +135,7 @@ async function scanSynology(): Promise<string[]> {
     let depth = 1;
 
     while (currentLevel.length > 0 && depth < SCAN_MAX_DEPTH) {
+      if (isCancelled()) { allFolders.push("__CANCELLED__"); return allFolders; }
       // Explore only non-excluded folders that we've already seen
       const toExplore = currentLevel.filter(
         (f) => !isExcluded(f) && visited.has(f),
@@ -190,7 +192,12 @@ export async function POST(
 
     let discovered: string[] = [];
     if (server === "synology-nas") {
+      startScan();
       discovered = await scanSynology();
+      endScan();
+      if (discovered.includes("__CANCELLED__")) {
+        return NextResponse.json({ cancelled: true });
+      }
     } else {
       return NextResponse.json({
         scanned: true,
