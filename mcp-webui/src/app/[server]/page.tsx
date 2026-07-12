@@ -137,15 +137,20 @@ export default function ServerDetailPage() {
 
   async function handleScan() {
     setScanning(true);
+    const started = Date.now();
     try {
       const res = await scanServer(server);
+      const elapsed = Date.now() - started;
+      const dur = elapsed < 60000
+        ? `${(elapsed / 1000).toFixed(0)}s`
+        : `${Math.floor(elapsed / 60000)}m ${Math.round((elapsed % 60000) / 1000)}s`;
       if (res.added > 0) {
-        toast.success(`Found ${res.added} new folder${res.added > 1 ? "s" : ""}`);
+        toast.success(`Found ${res.added} folder${res.added > 1 ? "s" : ""} in ${dur}`);
         loadData();
       } else {
-        toast.success(`Scan complete — ${res.total} folders, no new ones`);
+        toast.success(`Scan complete — ${res.total} folders, no new ones (${dur})`);
       }
-      setLastScan(new Date().toLocaleTimeString());
+      setLastScan(`${new Date().toLocaleTimeString()} (${dur})`);
     } catch {
       toast.error("Scan failed");
     } finally {
