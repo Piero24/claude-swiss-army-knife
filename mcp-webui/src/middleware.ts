@@ -22,6 +22,12 @@ export async function middleware(request: NextRequest) {
 
   // Protect all other /api/* routes
   if (pathname.startsWith("/api/")) {
+    // Allow internal callers with the API key in a header (scheduler, etc.)
+    const apiKey = request.headers.get("x-api-key");
+    if (apiKey && apiKey === (process.env.WEBUI_API_KEY || "")) {
+      return NextResponse.next();
+    }
+
     const cookieStore = await cookies();
     const session = await getIronSession<{ authenticated?: boolean }>(cookieStore, sessionOptions);
     if (!session.authenticated) {

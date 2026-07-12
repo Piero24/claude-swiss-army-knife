@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import http from "http";
 import fs from "fs/promises";
 import path from "path";
+import { ensureScheduler } from "@/instrumentation";
+
+ensureScheduler();
 
 const CONTAINER_MAP: Record<string, string> = {
   "ubuntu-server": process.env.UBUNTU_MCP_CONTAINER || "ubuntu-mcp",
