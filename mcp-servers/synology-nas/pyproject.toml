@@ -11,7 +11,7 @@ license = {text = "MIT"}
 dependencies = [
     "mcp>=1.0",
     "mcp-permission-engine",
-    "httpx>=0.28",
+    "httpx>=0.28.1",
     "structlog>=24.0",
     "watchfiles>=0.24",
 ]
