@@ -24,14 +24,22 @@ const HEALTH_BADGE: Record<HealthStatus["status"], { icon: string; color: string
 export default function DashboardPage() {
   const [configs, setConfigs] = useState<Partial<Record<ServerName, ServerConfig>>>({});
   const [health, setHealth] = useState<Partial<Record<ServerName, HealthStatus>>>({});
+  const [isScanning, setIsScanning] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
-    const [c, h] = await Promise.all([loadConfigs(), loadHealth()]);
+    const [c, h] = await Promise.all([loadConfigs(), loadHealth(), loadScanStatus()]);
     setConfigs(c); setHealth(h); setLoading(false);
+  }
+  async function loadScanStatus() {
+    try {
+      const res = await fetch("/api/scan-status");
+      const data = await res.json();
+      setIsScanning(data.scanning);
+    } catch { /* */ }
   }
   async function loadConfigs() {
     const r: Partial<Record<ServerName, ServerConfig>> = {};
@@ -65,6 +73,7 @@ export default function DashboardPage() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold">🔐 MCP Permissions Manager</h1>
+        {isScanning && <span className="text-xs text-blue-400 animate-pulse">🔄 Scanning…</span>}
         <Link href="/settings" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
           <Settings size={16} /> Settings
         </Link>

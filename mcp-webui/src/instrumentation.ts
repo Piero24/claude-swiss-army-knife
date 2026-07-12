@@ -1,7 +1,7 @@
 /** Starts the background scan scheduler on first server-side import. */
 import "server-only";
 
-import { startScheduler, setScanInterval } from "@/lib/scheduler";
+import { startScheduler, resetScanTimer, setScanInterval } from "@/lib/scheduler";
 
 let _started = false;
 
@@ -12,4 +12,4 @@ export function ensureScheduler() {
   }
 }
 
-export { setScanInterval };
+export { resetScanTimer, setScanInterval };
