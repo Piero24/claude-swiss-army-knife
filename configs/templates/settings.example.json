@@ -1,0 +1,20 @@
+{
+  "scan": {
+    "intervalMinutes": 5,
+    "excludePatterns": [
+      ".venv",
+      "venv",
+      "__pycache__",
+      ".git",
+      "node_modules",
+      ".next",
+      ".DS_Store",
+      ".pytest_cache",
+      ".mypy_cache",
+      "lost+found",
+      ".Trash",
+      "#recycle",
+      "@eaDir"
+    ]
+  }
+}
