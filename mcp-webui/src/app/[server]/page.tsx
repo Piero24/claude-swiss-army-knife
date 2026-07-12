@@ -203,10 +203,30 @@ export default function ServerDetailPage() {
           <FolderTree
             folders={folders}
             onToggle={(folderPath, access) => {
+              // Find matching rule
+              const cleanPath = folderPath.replace(/\/\*\*$/, "");
               const rule = config?.permissions.paths.find(
-                (r) => r.path.replace(/\/\*\*$/, "") === folderPath.replace(/\/\*\*$/, "")
+                (r) => r.path.replace(/\/\*\*$/, "") === cleanPath
               );
-              if (rule) handleTogglePath(rule.id, access);
+              if (!rule) return;
+              handleTogglePath(rule.id, access);
+
+              // Cascade to children if parent becomes more restrictive
+              if (access === "none" || access === "read") {
+                const prefix = cleanPath + "/";
+                config?.permissions.paths.forEach((childRule) => {
+                  if (childRule.id === rule.id) return;
+                  const childPath = childRule.path.replace(/\/\*\*$/, "");
+                  if (childPath.startsWith(prefix)) {
+                    const newChildAccess = access === "none" ? "none" : (
+                      childRule.access === "write" ? "read" : childRule.access
+                    );
+                    if (childRule.access !== newChildAccess) {
+                      handleTogglePath(childRule.id, newChildAccess as AccessLevel);
+                    }
+                  }
+                });
+              }
             }}
           />
         ) : (
