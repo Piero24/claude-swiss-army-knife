@@ -383,3 +383,31 @@ class DSMClient:
             }
             for v in volumes
         ]
+
+    # ── Share Discovery ─────────────────────────────────────────
+
+    async def list_share(self) -> list[dict]:
+        """List all shared folders on the NAS.
+
+        Returns:
+            List of shared folder dicts with name, description, and path.
+        """
+        sid = await self._require_auth()
+        params = {
+            "api": "SYNO.FileStation.List",
+            "version": "2",
+            "method": "list_share",
+            "_sid": sid,
+        }
+        resp = await self._client.get(
+            f"{self.base_url}{API_FILE_STATION}",
+            params=params,
+        )
+        data = resp.json()
+        if not data.get("success"):
+            error = data.get("error", {})
+            raise RuntimeError(f"list_share failed: {error}")
+        return [
+            {"name": s["name"], "path": f"/{s['name']}"}
+            for s in data["data"].get("shares", [])
+        ]
