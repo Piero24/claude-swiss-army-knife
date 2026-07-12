@@ -9,7 +9,7 @@ import { getConfig, getFolders, updatePathRule, updateCommandRule, deletePathRul
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Folders, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 export default function ServerDetailPage() {
   const params = useParams();
@@ -27,6 +27,7 @@ export default function ServerDetailPage() {
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
   const [folders, setFolders] = useState<FolderNode[]>([]);
+  const [collapseKey, setCollapseKey] = useState(0);
 
   const loadData = useCallback(async () => {
     try {
@@ -200,6 +201,9 @@ export default function ServerDetailPage() {
             <button onClick={() => setShowAddPath(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 ml-3">
               <Plus size={16} /> Add
             </button>
+            <button onClick={() => setCollapseKey((k) => k + 1)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white ml-2" title="Collapse all folders">
+              <Folders size={16} />
+            </button>
           </div>
         </div>
         <input
@@ -211,6 +215,7 @@ export default function ServerDetailPage() {
         />
         {folders.length > 0 ? (
           <FolderTree
+            key={collapseKey}
             folders={pathSearch ? folders.filter((f) => f.name.toLowerCase().includes(pathSearch.toLowerCase()) || f.path.toLowerCase().includes(pathSearch.toLowerCase())) : folders}
             onToggle={(folderPath, access) => {
               // Find matching rule
