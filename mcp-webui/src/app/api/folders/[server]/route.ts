@@ -5,6 +5,17 @@ import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
 
+/** Patterns excluded from folder trees (glob-style, matches folder name). */
+const EXCLUDE_PATTERNS = [
+  ".venv", "venv", "__pycache__", ".git", "node_modules",
+  ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
+  "lost+found", ".Trash",
+];
+
+function isExcluded(name: string): boolean {
+  return EXCLUDE_PATTERNS.some((p) => name === p);
+}
+
 interface FolderNode {
   name: string;
   path: string;
@@ -17,11 +28,11 @@ function buildTree(paths: Array<{ path: string; access: string; description?: st
   const root: Record<string, FolderNode> = {};
 
   for (const rule of paths) {
-    // Normalize: strip leading / and trailing /**
     const clean = rule.path.replace(/^\/+/, "").replace(/\/\*\*$/, "");
     const segments = clean.split("/");
 
     if (segments.length === 0 || segments[0] === "") continue;
+    if (isExcluded(segments[0])) continue;
 
     const topName = segments[0];
     if (!root[topName]) {

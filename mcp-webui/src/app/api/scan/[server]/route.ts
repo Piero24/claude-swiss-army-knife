@@ -7,6 +7,17 @@ import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
 
+const EXCLUDE_PATTERNS = [
+  ".venv", "venv", "__pycache__", ".git", "node_modules",
+  ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
+  "lost+found", ".Trash",
+];
+
+function isExcluded(path: string): boolean {
+  const name = path.split("/").filter(Boolean).pop() || path;
+  return EXCLUDE_PATTERNS.some((p) => name === p);
+}
+
 function dockerRequest(path: string): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -108,6 +119,7 @@ export async function POST(
     const existingPaths = new Set(existing.map((r) => r.path.replace(/\/\*\*$/, "")));
     let added = 0;
     for (const folderPath of discovered) {
+      if (isExcluded(folderPath)) continue;
       const normalized = folderPath.replace(/\/$/, "");
       if (!existingPaths.has(normalized)) {
         existing.push({ path: `${normalized}/**`, access: "read", description: "Auto-discovered" });
