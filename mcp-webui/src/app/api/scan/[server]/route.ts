@@ -30,15 +30,26 @@ function base32Decode(s: string): Buffer {
   return Buffer.from(output);
 }
 
-const EXCLUDE_PATTERNS = [
+const DEFAULT_EXCLUDES = [
   ".venv", "venv", "__pycache__", ".git", "node_modules",
   ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
   "lost+found", ".Trash", "#recycle", "@eaDir",
 ];
 
+function getExcludePatterns(): string[] {
+  try {
+    const settingsDir = process.env.CONFIGS_PATH || "/app/configs";
+    const raw = require("fs").readFileSync(`${settingsDir}/settings.json`, "utf-8");
+    const settings = JSON.parse(raw);
+    return settings.scan?.excludePatterns || DEFAULT_EXCLUDES;
+  } catch {
+    return DEFAULT_EXCLUDES;
+  }
+}
+
 function isExcluded(path: string): boolean {
   const name = path.split("/").filter(Boolean).pop() || path;
-  return EXCLUDE_PATTERNS.some((p) => name === p);
+  return getExcludePatterns().some((p) => name === p);
 }
 
 function dockerRequest(path: string): Promise<Record<string, unknown>> {

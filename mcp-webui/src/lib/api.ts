@@ -106,6 +106,26 @@ export async function scanServer(server: ServerName): Promise<{ scanned: boolean
   return fetchJSON(`${BASE}/scan/${server}`, { method: "POST" });
 }
 
+// ── Settings ────────────────────────────────────────
+
+export interface AppSettings {
+  scan: {
+    intervalMinutes: number;
+    excludePatterns: string[];
+  };
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  return fetchJSON(`${BASE}/settings`);
+}
+
+export async function updateSettings(settings: AppSettings): Promise<{ saved: boolean }> {
+  return fetchJSON(`${BASE}/settings`, {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
 // ── Folders ─────────────────────────────────────────
 
 export interface FolderNode {
