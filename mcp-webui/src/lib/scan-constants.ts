@@ -10,6 +10,9 @@ export const DEFAULT_EXCLUDES: readonly string[] = [
   ".venv", "venv", "__pycache__", ".git", "node_modules",
   ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
   "lost+found", ".Trash", "#recycle", "@eaDir",
+  // macOS bundles / packages (treated as files, not folders)
+  "*.app", "*.pkg", "*.bundle", "*.framework",
+  "*.xcodeproj", "*.xcworkspace", "*.kext",
 ];
 
 /** Maximum concurrent DSM API calls during a scan. */
@@ -40,8 +43,13 @@ export function getExcludePatterns(): string[] {
   return [...DEFAULT_EXCLUDES];
 }
 
-/** Check whether a path should be excluded (exact match on last component). */
+/** Check whether a path should be excluded. Supports exact name match and wildcard suffix (e.g. *.app). */
 export function isExcluded(p: string): boolean {
   const name = p.split("/").filter(Boolean).pop() || p;
-  return getExcludePatterns().some((pattern) => name === pattern);
+  return getExcludePatterns().some((pattern) => {
+    if (pattern.startsWith("*.")) {
+      return name.endsWith(pattern.slice(1)); // *.app matches Foo.app
+    }
+    return name === pattern; // exact folder name match
+  });
 }

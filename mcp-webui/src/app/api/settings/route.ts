@@ -25,6 +25,8 @@ const DEFAULTS: AppSettings = {
       ".venv", "venv", "__pycache__", ".git", "node_modules",
       ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
       "lost+found", ".Trash", "#recycle", "@eaDir",
+      "*.app", "*.pkg", "*.bundle", "*.framework",
+      "*.xcodeproj", "*.xcworkspace", "*.kext",
     ],
   },
 };
