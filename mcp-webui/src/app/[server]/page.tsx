@@ -57,6 +57,8 @@ export default function ServerDetailPage() {
     try {
       await updatePathRule(server, ruleId, access);
       toast.success(`Path access set to ${access}`);
+      // Refresh folder tree to reflect changes
+      getFolders(server).then((t) => setFolders(t.folders || [])).catch(() => {});
     } catch {
       setConfig(prev);
       toast.error("Failed to update");
@@ -126,6 +128,7 @@ export default function ServerDetailPage() {
       toast.success(`All ${type} set to ${access}`);
       setBulkConfirm(null);
       loadData();
+      getFolders(server).then((t) => setFolders(t.folders || [])).catch(() => {});
     } catch {
       toast.error("Failed to update");
     }
@@ -199,9 +202,16 @@ export default function ServerDetailPage() {
             </button>
           </div>
         </div>
+        <input
+          type="text"
+          placeholder="Filter folders…"
+          value={pathSearch}
+          onChange={(e) => setPathSearch(e.target.value)}
+          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
         {folders.length > 0 ? (
           <FolderTree
-            folders={folders}
+            folders={pathSearch ? folders.filter((f) => f.name.toLowerCase().includes(pathSearch.toLowerCase()) || f.path.toLowerCase().includes(pathSearch.toLowerCase())) : folders}
             onToggle={(folderPath, access) => {
               // Find matching rule
               const cleanPath = folderPath.replace(/\/\*\*$/, "");
