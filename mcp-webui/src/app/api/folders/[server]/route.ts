@@ -5,16 +5,7 @@ import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
 
-/** Patterns excluded from folder trees (glob-style, matches folder name). */
-const EXCLUDE_PATTERNS = [
-  ".venv", "venv", "__pycache__", ".git", "node_modules",
-  ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
-  "lost+found", ".Trash",
-];
-
-function isExcluded(name: string): boolean {
-  return EXCLUDE_PATTERNS.some((p) => name === p);
-}
+import { isExcluded } from "@/lib/scan-constants";
 
 interface FolderNode {
   name: string;
