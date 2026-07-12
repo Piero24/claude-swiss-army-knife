@@ -20,6 +20,8 @@ export default function ServerDetailPage() {
   const [showAddPath, setShowAddPath] = useState(false);
   const [showAddCmd, setShowAddCmd] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
+  const [pathSearch, setPathSearch] = useState("");
+  const [logSearch, setLogSearch] = useState("");
 
   const loadData = useCallback(async () => {
     try {
@@ -163,6 +165,13 @@ export default function ServerDetailPage() {
             </button>
           </div>
         </div>
+        <input
+          type="text"
+          placeholder="Filter paths…"
+          value={pathSearch}
+          onChange={(e) => setPathSearch(e.target.value)}
+          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
         <div className="rounded-lg border border-gray-800 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -174,7 +183,9 @@ export default function ServerDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {config.permissions.paths.map((rule) => (
+              {config.permissions.paths
+                .filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))
+                .map((rule) => (
                 <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
                   <td className="px-4 py-2 font-mono text-xs">{rule.path}</td>
                   <td className="px-4 py-2">
@@ -245,6 +256,13 @@ export default function ServerDetailPage() {
       {/* Audit Log */}
       <section>
         <h2 className="text-lg font-semibold mb-3">Audit Log (last 50)</h2>
+        <input
+          type="text"
+          placeholder="Filter log…"
+          value={logSearch}
+          onChange={(e) => setLogSearch(e.target.value)}
+          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
         <div className="rounded-lg border border-gray-800 overflow-hidden max-h-80 overflow-y-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-gray-900 text-gray-400 text-left">
@@ -256,7 +274,13 @@ export default function ServerDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {auditLog.map((entry, i) => (
+              {auditLog
+                .filter((e) => {
+                  if (!logSearch) return true;
+                  const q = logSearch.toLowerCase();
+                  return (e.target||"").toLowerCase().includes(q) || (e.command||"").toLowerCase().includes(q) || (e.result||"").toLowerCase().includes(q) || (e.reason||"").toLowerCase().includes(q);
+                })
+                .map((entry, i) => (
                 <tr key={i} className="border-t border-gray-800">
                   <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap">{entry.ts?.slice(11, 19) || ""}</td>
                   <td className="px-3 py-1.5 font-mono truncate max-w-60">{entry.target || entry.command || entry.target_type || ""}</td>
