@@ -18,6 +18,9 @@ export const DEFAULT_EXCLUDES: readonly string[] = [
 /** Maximum concurrent DSM API calls during a scan. */
 export const SCAN_CONCURRENCY = 2;
 
+/** Delay between DSM requests (ms) to avoid overwhelming the NAS. */
+export const SCAN_DELAY_MS = 100;
+
 /** Maximum folder depth for recursive scan (safety limit). */
 export const SCAN_MAX_DEPTH = 20;
 

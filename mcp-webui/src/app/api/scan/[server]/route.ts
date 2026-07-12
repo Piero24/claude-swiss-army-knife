@@ -141,10 +141,13 @@ async function scanSynology(): Promise<string[]> {
 
       if (toExplore.length === 0) break;
 
-      // List subdirectories of all folders at this level concurrently
+      // List subdirectories with a small delay between requests
       const childrenPerFolder = await mapConcurrent(
         toExplore,
-        (folder) => listSubfoldersPaginated(base, sid, folder).catch(() => [] as string[]),
+        async (folder) => {
+          if (SCAN_DELAY_MS > 0) await new Promise((r) => setTimeout(r, SCAN_DELAY_MS));
+          return listSubfoldersPaginated(base, sid, folder).catch(() => [] as string[]);
+        },
         SCAN_CONCURRENCY,
       );
 
