@@ -12,7 +12,7 @@ import { getConfigPath } from "@/lib/config";
 import {
   isExcluded,
   SCAN_CONCURRENCY,
-  SCAN_MAX_DEPTH,
+  SCAN_DELAY_MS,
 } from "@/lib/scan-constants";
 import {
   dsmLogin,
@@ -131,9 +131,8 @@ async function scanSynology(): Promise<string[]> {
 
     // BFS: expand one level at a time, listing children in parallel
     let currentLevel = [share];
-    let depth = 1;
 
-    while (currentLevel.length > 0 && depth < SCAN_MAX_DEPTH) {
+    while (currentLevel.length > 0) {
       // Explore only non-excluded folders that we've already seen
       const toExplore = currentLevel.filter(
         (f) => !isExcluded(f) && visited.has(f),
@@ -144,7 +143,10 @@ async function scanSynology(): Promise<string[]> {
       // List subdirectories of all folders at this level concurrently
       const childrenPerFolder = await mapConcurrent(
         toExplore,
-        (folder) => listSubfoldersPaginated(base, sid, folder).catch(() => [] as string[]),
+        async (folder) => {
+          if (SCAN_DELAY_MS > 0) await new Promise((r) => setTimeout(r, SCAN_DELAY_MS));
+          return listSubfoldersPaginated(base, sid, folder).catch(() => [] as string[]);
+        },
         SCAN_CONCURRENCY,
       );
 
@@ -161,7 +163,6 @@ async function scanSynology(): Promise<string[]> {
       }
 
       currentLevel = nextLevel;
-      depth++;
     }
   }
 
