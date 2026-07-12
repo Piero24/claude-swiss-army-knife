@@ -25,7 +25,7 @@ async def _docker_cmd(command: str, timeout: int = 30) -> dict:
         return {"error": f"Command timed out after {timeout}s"}
 
 
-async def docker_ps(args: dict, enforcer: PermissionEnforcer) -> dict:
+async def docker_ps(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
     """List Docker containers.
 
     Args:
@@ -41,7 +41,7 @@ async def docker_ps(args: dict, enforcer: PermissionEnforcer) -> dict:
         if show_all
         else "ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
     )
-    enforcer.check_command(f"docker {'ps -a' if show_all else 'ps'}")
+    enforcer.check_command(f"docker {'ps -a' if show_all else 'ps'}", tool=name)
 
     result = await _docker_cmd(cmd)
     if result.get("error"):
@@ -64,7 +64,7 @@ async def docker_ps(args: dict, enforcer: PermissionEnforcer) -> dict:
     return {"containers": containers, "count": len(containers)}
 
 
-async def docker_logs(args: dict, enforcer: PermissionEnforcer) -> dict:
+async def docker_logs(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
     """Get logs from a Docker container.
 
     Args:
@@ -76,7 +76,7 @@ async def docker_logs(args: dict, enforcer: PermissionEnforcer) -> dict:
     """
     container = args["container"]
     tail = args.get("tail", 100)
-    enforcer.check_command(f"docker logs {container}")
+    enforcer.check_command(f"docker logs {container}", tool=name)
 
     result = await _docker_cmd(f"logs --tail {tail} {container}")
     return {
@@ -85,7 +85,7 @@ async def docker_logs(args: dict, enforcer: PermissionEnforcer) -> dict:
     }
 
 
-async def docker_restart(args: dict, enforcer: PermissionEnforcer) -> dict:
+async def docker_restart(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
     """Restart a Docker container.
 
     Args:
@@ -96,7 +96,7 @@ async def docker_restart(args: dict, enforcer: PermissionEnforcer) -> dict:
         {container, restarted}
     """
     container = args["container"]
-    enforcer.check_command(f"docker restart {container}")
+    enforcer.check_command(f"docker restart {container}", tool=name)
 
     result = await _docker_cmd(f"restart {container}")
     success = result.get("exit_code") == 0

@@ -8,7 +8,7 @@ from permission_engine import PermissionEnforcer
 
 
 async def list_dir(
-    args: dict, enforcer: PermissionEnforcer, mount_prefix: str
+    args: dict, enforcer: PermissionEnforcer, mount_prefix: str, name: str = ""
 ) -> dict:
     """List directory contents with metadata.
 
@@ -22,7 +22,7 @@ async def list_dir(
     """
     requested = args["path"]
     recursive = args.get("recursive", False)
-    enforcer.check("read", requested)
+    enforcer.check("read", requested, tool=name)
 
     container_path = (Path(mount_prefix) / requested.lstrip("/")).resolve()
 

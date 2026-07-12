@@ -270,38 +270,38 @@ def create_server() -> Server:
             match name:
                 case "ubuntu_read_file":
                     result = await read_file.read_file(
-                        arguments, enforcer, MOUNT_PREFIX
+                        arguments, enforcer, MOUNT_PREFIX, name
                     )
                 case "ubuntu_write_file":
                     result = await write_file.write_file(
-                        arguments, enforcer, MOUNT_PREFIX
+                        arguments, enforcer, MOUNT_PREFIX, name
                     )
                 case "ubuntu_append_file":
                     result = await append_file.append_file(
-                        arguments, enforcer, MOUNT_PREFIX
+                        arguments, enforcer, MOUNT_PREFIX, name
                     )
                 case "ubuntu_list_dir":
                     result = await list_dir.list_dir(
-                        arguments, enforcer, MOUNT_PREFIX
+                        arguments, enforcer, MOUNT_PREFIX, name
                     )
                 case "ubuntu_exec":
-                    result = await execute.execute(arguments, enforcer)
+                    result = await execute.execute(arguments, enforcer, name)
                 case "ubuntu_system_info":
                     result = await system_info.system_info(arguments)
                 case "ubuntu_service_status":
-                    result = await service.service_status(arguments, enforcer)
+                    result = await service.service_status(arguments, enforcer, name)
                 case "ubuntu_service_manage":
-                    result = await service.service_manage(arguments, enforcer)
+                    result = await service.service_manage(arguments, enforcer, name)
                 case "ubuntu_docker_ps":
-                    result = await docker_mgmt.docker_ps(arguments, enforcer)
+                    result = await docker_mgmt.docker_ps(arguments, enforcer, name)
                 case "ubuntu_docker_logs":
-                    result = await docker_mgmt.docker_logs(arguments, enforcer)
+                    result = await docker_mgmt.docker_logs(arguments, enforcer, name)
                 case "ubuntu_docker_restart":
                     result = await docker_mgmt.docker_restart(
-                        arguments, enforcer
+                        arguments, enforcer, name
                     )
                 case "ubuntu_journalctl":
-                    result = await _journalctl(arguments, enforcer)
+                    result = await _journalctl(arguments, enforcer, name)
                 case _:
                     return [
                         TextContent(type="text", text=f"Unknown tool: {name}")
@@ -328,7 +328,7 @@ def create_server() -> Server:
     return server
 
 
-async def _journalctl(args: dict, enforcer: PermissionEnforcer) -> dict:
+async def _journalctl(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
     """Query systemd journal."""
     import asyncio
 
@@ -343,8 +343,8 @@ async def _journalctl(args: dict, enforcer: PermissionEnforcer) -> dict:
         cmd += f" --since='{since}'"
     cmd += f" -n {lines} --no-pager"
 
-    enforcer.check_command("journalctl *")
-    result = await execute.execute({"command": cmd, "timeout": 15}, enforcer)
+    enforcer.check_command("journalctl *", name)
+    result = await execute.execute({"command": cmd, "timeout": 15}, enforcer, name)
     return {
         "query": cmd,
         "output": result.get("stdout", ""),

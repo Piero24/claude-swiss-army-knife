@@ -6,7 +6,7 @@ import shlex
 from permission_engine import ForbiddenError, PermissionEnforcer
 
 
-async def execute(args: dict, enforcer: PermissionEnforcer) -> dict:
+async def execute(args: dict, enforcer: PermissionEnforcer, name: str = "") -> dict:
     """Execute a shell command on the host.
 
     Args:
@@ -20,7 +20,7 @@ async def execute(args: dict, enforcer: PermissionEnforcer) -> dict:
     timeout = args.get("timeout", 30)
 
     # Validate against command allowlist
-    enforcer.check_command(command)
+    enforcer.check_command(command, tool=name)
 
     try:
         process = await asyncio.create_subprocess_shell(
