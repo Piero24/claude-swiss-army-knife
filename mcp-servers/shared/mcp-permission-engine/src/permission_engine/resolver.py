@@ -45,8 +45,8 @@ class PathResolver:
         Returns:
             The AccessLevel that applies to this path.
         """
-        # Normalize path for matching
-        clean_path = requested_path.rstrip("/") or "/"
+        # Normalize path for matching: ensure leading / and no trailing /
+        clean_path = ("/" + requested_path.lstrip("/")).rstrip("/") or "/"
 
         # Check cache
         if clean_path in self._rule_cache:
@@ -73,7 +73,7 @@ class PathResolver:
         Returns:
             Tuple of (access_level, matching_rule_or_None).
         """
-        clean_path = requested_path.rstrip("/") or "/"
+        clean_path = ("/" + requested_path.lstrip("/")).rstrip("/") or "/"
 
         for rule in self._rules:
             if self._path_matches(clean_path, rule.path):
