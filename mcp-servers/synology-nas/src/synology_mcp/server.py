@@ -163,6 +163,11 @@ def create_server() -> Server:
                 description="Get Synology NAS storage: volumes, usage, disk health.",
                 inputSchema={"type": "object", "properties": {}},
             ),
+            Tool(
+                name="syno_list_shares",
+                description="List all shared folders on the Synology NAS.",
+                inputSchema={"type": "object", "properties": {}},
+            ),
         ]
 
     @server.call_tool()
@@ -271,6 +276,18 @@ def create_server() -> Server:
                         TextContent(
                             type="text",
                             text=json.dumps({"volumes": result}, indent=2),
+                        )
+                    ]
+
+                case "syno_list_shares":
+                    result = await dsm.list_share()
+                    return [
+                        TextContent(
+                            type="text",
+                            text=json.dumps(
+                                {"shares": result, "count": len(result)},
+                                indent=2,
+                            ),
                         )
                     ]
 
