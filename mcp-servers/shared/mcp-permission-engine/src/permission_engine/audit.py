@@ -27,6 +27,7 @@ class AuditLogger:
         target: str,
         access: str = "",
         granted: str = "",
+        tool: str = "",
     ) -> None:
         """Log an allowed access."""
         self._write_entry(
@@ -36,6 +37,7 @@ class AuditLogger:
             target=target,
             access=access,
             granted=granted,
+            tool=tool,
         )
 
     def denied(
@@ -46,6 +48,7 @@ class AuditLogger:
         reason: str = "",
         required_access: str = "",
         granted_access: str = "",
+        tool: str = "",
     ) -> None:
         """Log a denied access."""
         self._write_entry(
@@ -56,6 +59,7 @@ class AuditLogger:
             access=required_access,
             granted=granted_access,
             reason=reason,
+            tool=tool,
         )
 
     def _write_entry(self, **fields: object) -> None:
