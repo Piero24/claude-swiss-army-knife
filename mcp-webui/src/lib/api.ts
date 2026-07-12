@@ -106,6 +106,20 @@ export async function scanServer(server: ServerName): Promise<{ scanned: boolean
   return fetchJSON(`${BASE}/scan/${server}`, { method: "POST" });
 }
 
+// ── Folders ─────────────────────────────────────────
+
+export interface FolderNode {
+  name: string;
+  path: string;
+  access: string;
+  description: string;
+  children: FolderNode[];
+}
+
+export async function getFolders(server: ServerName): Promise<{ server: string; folders: FolderNode[]; count: number }> {
+  return fetchJSON(`${BASE}/folders/${server}`);
+}
+
 // ── Health ──────────────────────────────────────────
 
 export interface HealthStatus {

@@ -5,7 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AccessLevel, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
-import { getConfig, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, scanServer } from "@/lib/api";
+import { getConfig, getFolders, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, scanServer } from "@/lib/api";
+import type { FolderNode } from "@/lib/api";
+import FolderTree from "@/components/FolderTree";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react";
 
@@ -24,14 +26,17 @@ export default function ServerDetailPage() {
   const [logSearch, setLogSearch] = useState("");
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(null);
+  const [folders, setFolders] = useState<FolderNode[]>([]);
 
   const loadData = useCallback(async () => {
     try {
-      const [cfg, audit] = await Promise.all([
+      const [cfg, audit, tree] = await Promise.all([
         getConfig(server),
         getAuditLog(server, 50),
+        getFolders(server).catch(() => ({ folders: [], server: "", count: 0 })),
       ]);
       setConfig(cfg);
+      setFolders(tree.folders || []);
       setAuditLog(audit);
     } catch {
       toast.error("Failed to load data");
@@ -173,6 +178,14 @@ export default function ServerDetailPage() {
         </button>
         {lastScan && <span className="text-xs text-gray-500">Last: {lastScan}</span>}
       </div>
+
+      {/* Folder Tree */}
+      {folders.length > 0 && (
+        <section className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Folder Tree</h2>
+          <FolderTree folders={folders} />
+        </section>
+      )}
 
       {/* Path Rules */}
       <section className="mb-8">
