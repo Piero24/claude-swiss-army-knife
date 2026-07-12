@@ -1,66 +1,42 @@
-/** POST scan — discover new folders and merge with YAML config. */
+/** POST scan — discover new folders and merge with YAML config.
+ *
+ *  Synology NAS: breadth-first traversal with bounded concurrency
+ *  (SCAN_CONCURRENCY parallel DSM calls), visited-set cycle detection,
+ *  paginated folder listing, retry on transient failures. */
 
 import { NextResponse } from "next/server";
-import crypto from "crypto";
-import https from "https";
 import http from "http";
 import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
+import {
+  isExcluded,
+  SCAN_CONCURRENCY,
+  SCAN_MAX_DEPTH,
+} from "@/lib/scan-constants";
+import {
+  dsmLogin,
+  listShares,
+  listSubfoldersPaginated,
+} from "@/lib/dsm-client";
 
-function totp(secret: string): string {
-  const key = base32Decode(secret.toUpperCase().replace(/\s/g, ""));
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
-  const h = crypto.createHmac("sha1", key).update(counter).digest();
-  const offset = h[h.length - 1] & 0x0f;
-  const code = (h.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
-  return String(code).padStart(6, "0");
-}
+// ---------------------------------------------------------------------------
+// Docker socket helpers (specific to this route — not moved to dsm-client)
+// ---------------------------------------------------------------------------
 
-function base32Decode(s: string): Buffer {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = 0, value = 0;
-  const output: number[] = [];
-  for (let i = 0; i < s.length; i++) {
-    value = (value << 5) | alphabet.indexOf(s[i]);
-    bits += 5;
-    if (bits >= 8) { output.push((value >>> (bits - 8)) & 0xff); bits -= 8; }
-  }
-  return Buffer.from(output);
-}
-
-const DEFAULT_EXCLUDES = [
-  ".venv", "venv", "__pycache__", ".git", "node_modules",
-  ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
-  "lost+found", ".Trash", "#recycle", "@eaDir",
-];
-
-function getExcludePatterns(): string[] {
-  try {
-    const settingsDir = process.env.CONFIGS_PATH || "/app/configs";
-    const raw = require("fs").readFileSync(`${settingsDir}/settings.json`, "utf-8");
-    const settings = JSON.parse(raw);
-    return settings.scan?.excludePatterns || DEFAULT_EXCLUDES;
-  } catch {
-    return DEFAULT_EXCLUDES;
-  }
-}
-
-function isExcluded(path: string): boolean {
-  const name = path.split("/").filter(Boolean).pop() || path;
-  return getExcludePatterns().some((p) => name === p);
-}
-
-function dockerRequest(path: string): Promise<Record<string, unknown>> {
+function dockerRequest(p: string): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { socketPath: "/var/run/docker.sock", path, method: "GET" },
+      { socketPath: "/var/run/docker.sock", path: p, method: "GET" },
       (res) => {
         let data = "";
         res.on("data", (c) => (data += c));
-        res.on("end", () => { try { resolve(JSON.parse(data)); } catch { reject(new Error(data.slice(0, 200))); } });
-      }
+        res.on("end", () => {
+          try { resolve(JSON.parse(data)); } catch {
+            reject(new Error(data.slice(0, 200)));
+          }
+        });
+      },
     );
     req.on("error", reject);
     req.setTimeout(5000, () => { req.destroy(); reject(new Error("timeout")); });
@@ -68,7 +44,9 @@ function dockerRequest(path: string): Promise<Record<string, unknown>> {
   });
 }
 
-async function getContainerEnv(container: string): Promise<Map<string, string>> {
+async function getContainerEnv(
+  container: string,
+): Promise<Map<string, string>> {
   const info = await dockerRequest(`/containers/${container}/json`);
   const cfg = info.Config as { Env?: string[] } | undefined;
   const map = new Map<string, string>();
@@ -79,81 +57,56 @@ async function getContainerEnv(container: string): Promise<Map<string, string>> 
   return map;
 }
 
-function dsmGet(url: string, params: Record<string, string>): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
-    const opts: https.RequestOptions = {
-      hostname: u.hostname, port: u.port, path: u.pathname + u.search,
-      method: "GET", rejectUnauthorized: false,
-    };
-    const req = https.request(opts, (res) => {
-      let data = "";
-      res.on("data", (c) => (data += c));
-      res.on("end", () => { try { resolve(JSON.parse(data)); } catch { reject(new Error(data.slice(0, 200))); } });
-    });
-    req.on("error", reject);
-    req.setTimeout(10000, () => { req.destroy(); reject(new Error("timeout")); });
-    req.end();
-  });
-}
+// ---------------------------------------------------------------------------
+// Concurrency limiter (inline — no external dependency)
+// ---------------------------------------------------------------------------
 
-async function listSubfolders(base: string, sid: string, folderPath: string): Promise<string[]> {
-  const resp = await dsmGet(`${base}/webapi/entry.cgi`, {
-    api: "SYNO.FileStation.List", version: "2", method: "list",
-    folder_path: `"${folderPath}"`, filetype: "dir", _sid: sid,
-  });
-  if (!(resp as { success?: boolean }).success) return [];
-  return ((resp as { data: { files?: Array<{ name: string; isdir: boolean }> } }).data.files || [])
-    .filter((f) => f.isdir)
-    .map((f) => `${folderPath}/${f.name}`);
-}
+/**
+ * Process `items` through `fn` with at most `concurrency` promises in flight.
+ * Preserves result order (result[i] corresponds to items[i]).
+ */
+async function mapConcurrent<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  if (items.length === 0) return [];
 
-async function scanRecursive(
-  base: string, sid: string, folder: string, depth: number, maxDepth: number
-): Promise<string[]> {
-  if (depth >= maxDepth) return [folder];
-  const results: string[] = [folder];
-  try {
-    const children = await listSubfolders(base, sid, folder);
-    for (const child of children) {
-      const name = child.split("/").pop() || "";
-      if (isExcluded(name)) continue;
-      const subResults = await scanRecursive(base, sid, child, depth + 1, maxDepth);
-      results.push(...subResults);
+  const results: R[] = new Array(items.length);
+  const executing = new Set<Promise<void>>();
+  let index = 0;
+
+  async function enqueue(): Promise<void> {
+    if (index >= items.length) return;
+    const i = index++;
+    const p = fn(items[i]).then((r) => { results[i] = r; });
+    // Track this promise; remove it when settled
+    const tracked = p.then(
+      () => { executing.delete(tracked); },
+      () => { executing.delete(tracked); },
+    );
+    executing.add(tracked);
+    // If pool is full, wait for one to finish before starting more
+    if (executing.size >= concurrency) {
+      await Promise.race(executing);
     }
-  } catch { /* skip inaccessible folders */ }
+    return enqueue();
+  }
+
+  // Seed the pool with initial tasks
+  const starters = Math.min(concurrency, items.length);
+  const seeds: Promise<void>[] = [];
+  for (let s = 0; s < starters; s++) seeds.push(enqueue());
+  await Promise.all(seeds);
+  // Wait for remaining in-flight
+  if (executing.size > 0) await Promise.all(executing);
+
   return results;
 }
 
-async function dsmLogin(base: string, user: string, pass: string, otpSecret: string): Promise<string> {
-  const resp = await dsmGet(`${base}/webapi/auth.cgi`, {
-    api: "SYNO.API.Auth", version: "7", method: "login",
-    account: user, passwd: pass, session: "FileStation", format: "cookie",
-  });
-
-  if ((resp as { success?: boolean }).success) {
-    return (resp as { data: { sid: string } }).data.sid;
-  }
-
-  const err = (resp as { error?: { code?: number } }).error;
-  if (err?.code === 403 && otpSecret) {
-    const otpResp = await dsmGet(`${base}/webapi/auth.cgi`, {
-      api: "SYNO.API.Auth", version: "7", method: "login",
-      account: user, passwd: pass, session: "FileStation", format: "cookie",
-      otp_code: totp(otpSecret),
-    });
-    if ((otpResp as { success?: boolean }).success) {
-      return (otpResp as { data: { sid: string } }).data.sid;
-    }
-    throw new Error(`DSM login with OTP failed: ${JSON.stringify((otpResp as { error?: unknown }).error)}`);
-  }
-
-  if (err?.code === 403) {
-    throw new Error("DSM requires OTP but SYNOLOGY_NAS_OTP_SECRET is not set");
-  }
-  throw new Error(`DSM login failed: ${JSON.stringify(err)}`);
-}
+// ---------------------------------------------------------------------------
+// BFS scan with parallel level expansion
+// ---------------------------------------------------------------------------
 
 async function scanSynology(): Promise<string[]> {
   const env = await getContainerEnv("synology-mcp");
@@ -165,33 +118,63 @@ async function scanSynology(): Promise<string[]> {
   const base = `https://${host}:${port}`;
 
   const sid = await dsmLogin(base, user, pass, otpSecret);
+  const shares = await listShares(base, sid);
 
-  // Get top-level shared folders
-  const shareResp = await dsmGet(`${base}/webapi/entry.cgi`, {
-    api: "SYNO.FileStation.List", version: "2", method: "list_share", _sid: sid,
-  });
-  if (!(shareResp as { success?: boolean }).success) {
-    throw new Error(`list_share failed: ${JSON.stringify((shareResp as { error?: unknown }).error)}`);
-  }
-
-  const shares = ((shareResp as { data: { shares: Array<{ name: string }> } }).data.shares || [])
-    .map((s) => `/${s.name}`);
-
-  // Recursive subfolder scan (full depth, exclusion patterns prevent noise)
-  const MAX_DEPTH = 20;
   const allFolders: string[] = [];
+  const visited = new Set<string>();
+
   for (const share of shares) {
     if (isExcluded(share)) continue;
-    const tree = await scanRecursive(base, sid, share, 1, MAX_DEPTH);
-    allFolders.push(...tree);
+    if (visited.has(share)) continue;
+    visited.add(share);
+    allFolders.push(share);
+
+    // BFS: expand one level at a time, listing children in parallel
+    let currentLevel = [share];
+    let depth = 1;
+
+    while (currentLevel.length > 0 && depth < SCAN_MAX_DEPTH) {
+      // Explore only non-excluded folders that we've already seen
+      const toExplore = currentLevel.filter(
+        (f) => !isExcluded(f) && visited.has(f),
+      );
+
+      if (toExplore.length === 0) break;
+
+      // List subdirectories of all folders at this level concurrently
+      const childrenPerFolder = await mapConcurrent(
+        toExplore,
+        (folder) => listSubfoldersPaginated(base, sid, folder).catch(() => [] as string[]),
+        SCAN_CONCURRENCY,
+      );
+
+      // Gather next level, filtering already-seen and excluded
+      const nextLevel: string[] = [];
+      for (const children of childrenPerFolder) {
+        for (const child of children) {
+          if (!visited.has(child) && !isExcluded(child)) {
+            visited.add(child);
+            nextLevel.push(child);
+            allFolders.push(child);
+          }
+        }
+      }
+
+      currentLevel = nextLevel;
+      depth++;
+    }
   }
 
   return allFolders;
 }
 
+// ---------------------------------------------------------------------------
+// POST handler
+// ---------------------------------------------------------------------------
+
 export async function POST(
   _request: Request,
-  { params }: { params: Promise<{ server: string }> }
+  { params }: { params: Promise<{ server: string }> },
 ) {
   const { server } = await params;
   try {
@@ -199,25 +182,38 @@ export async function POST(
     const raw = await fs.readFile(filePath, "utf-8");
     const config = yaml.load(raw) as Record<string, unknown>;
     const perms = config.permissions as Record<string, unknown>;
-    const existing = (perms?.paths || []) as Array<{ path: string; access: string; description?: string }>;
+    const existing = (perms?.paths || []) as Array<{
+      path: string;
+      access: string;
+      description?: string;
+    }>;
 
     let discovered: string[] = [];
     if (server === "synology-nas") {
       discovered = await scanSynology();
     } else {
       return NextResponse.json({
-        scanned: true, discovered: 0, added: 0, total: existing.length,
+        scanned: true,
+        discovered: 0,
+        added: 0,
+        total: existing.length,
         message: "Auto-discovery not available for this server yet",
       });
     }
 
-    const existingPaths = new Set(existing.map((r) => r.path.replace(/\/\*\*$/, "")));
+    const existingPaths = new Set(
+      existing.map((r) => r.path.replace(/\/\*\*$/, "")),
+    );
     let added = 0;
     for (const folderPath of discovered) {
       if (isExcluded(folderPath)) continue;
       const normalized = folderPath.replace(/\/$/, "");
       if (!existingPaths.has(normalized)) {
-        existing.push({ path: `${normalized}/**`, access: "read", description: "Auto-discovered" });
+        existing.push({
+          path: `${normalized}/**`,
+          access: "read",
+          description: "Auto-discovered",
+        });
         existingPaths.add(normalized);
         added++;
       }
@@ -228,7 +224,12 @@ export async function POST(
       await fs.writeFile(filePath, yamlStr, "utf-8");
     }
 
-    return NextResponse.json({ scanned: true, discovered: discovered.length, added, total: existing.length });
+    return NextResponse.json({
+      scanned: true,
+      discovered: discovered.length,
+      added,
+      total: existing.length,
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

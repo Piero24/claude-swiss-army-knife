@@ -52,7 +52,20 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const validated = settingsSchema.parse(body);
     await fs.mkdir(path.dirname(SETTINGS_PATH), { recursive: true });
-    await fs.writeFile(SETTINGS_PATH, JSON.stringify(validated, null, 2), "utf-8");
+    // Merge user excludePatterns with defaults (extend, never replace)
+    const mergedExcludes = validated.scan.excludePatterns.length > 0
+      ? [...new Set([...DEFAULTS.scan.excludePatterns, ...validated.scan.excludePatterns])]
+      : [...DEFAULTS.scan.excludePatterns];
+
+    const toSave = {
+      ...validated,
+      scan: {
+        ...validated.scan,
+        excludePatterns: mergedExcludes,
+      },
+    };
+
+    await fs.writeFile(SETTINGS_PATH, JSON.stringify(toSave, null, 2), "utf-8");
 
     // Reload scheduler with new interval
     try {

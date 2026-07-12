@@ -7,8 +7,14 @@ const API_KEY = process.env.WEBUI_API_KEY || "";
 let _started = false;
 let _intervalMs = 5 * 60 * 1000;
 let _timer: ReturnType<typeof setInterval> | null = null;
+let _scanning = false;
 
 async function runScan() {
+  if (_scanning) {
+    console.log("[scheduler] Skipping — previous scan still in progress");
+    return;
+  }
+  _scanning = true;
   try {
     const resp = await fetch(`http://localhost:${PORT}/api/scan/synology-nas`, {
       method: "POST",
@@ -22,6 +28,8 @@ async function runScan() {
     }
   } catch {
     // Best-effort
+  } finally {
+    _scanning = false;
   }
 }
 
