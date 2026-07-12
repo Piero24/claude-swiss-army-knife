@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AccessLevel, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
-import { getConfig, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog } from "@/lib/api";
+import { getConfig, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
@@ -19,6 +19,9 @@ export default function ServerDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showAddPath, setShowAddPath] = useState(false);
   const [showAddCmd, setShowAddCmd] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
+  const [pathSearch, setPathSearch] = useState("");
+  const [logSearch, setLogSearch] = useState("");
 
   const loadData = useCallback(async () => {
     try {
@@ -109,6 +112,18 @@ export default function ServerDetailPage() {
     }
   }
 
+  async function handleBulkSet(access: AccessLevel, type: "paths" | "commands") {
+    if (!config) return;
+    try {
+      await bulkSetAccess(server, access, type);
+      toast.success(`All ${type} set to ${access}`);
+      setBulkConfirm(null);
+      loadData();
+    } catch {
+      toast.error("Failed to update");
+    }
+  }
+
   async function handleAddCommand(data: { pattern: string; access: AccessLevel; description?: string }) {
     try {
       await addCommandRule(server, data);
@@ -134,10 +149,29 @@ export default function ServerDetailPage() {
       <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Path Permissions</h2>
-          <button onClick={() => setShowAddPath(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
-            <Plus size={16} /> Add Path Rule
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 mr-1">Set all:</span>
+            {(["none", "read", "write"] as AccessLevel[]).map((level) => (
+              <button
+                key={level}
+                onClick={() => setBulkConfirm({ access: level, type: "paths" })}
+                className="px-2 py-0.5 text-xs rounded border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white transition-colors"
+              >
+                {level}
+              </button>
+            ))}
+            <button onClick={() => setShowAddPath(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 ml-3">
+              <Plus size={16} /> Add
+            </button>
+          </div>
         </div>
+        <input
+          type="text"
+          placeholder="Filter paths…"
+          value={pathSearch}
+          onChange={(e) => setPathSearch(e.target.value)}
+          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
         <div className="rounded-lg border border-gray-800 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -149,7 +183,9 @@ export default function ServerDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {config.permissions.paths.map((rule) => (
+              {config.permissions.paths
+                .filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))
+                .map((rule) => (
                 <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
                   <td className="px-4 py-2 font-mono text-xs">{rule.path}</td>
                   <td className="px-4 py-2">
@@ -220,6 +256,13 @@ export default function ServerDetailPage() {
       {/* Audit Log */}
       <section>
         <h2 className="text-lg font-semibold mb-3">Audit Log (last 50)</h2>
+        <input
+          type="text"
+          placeholder="Filter log…"
+          value={logSearch}
+          onChange={(e) => setLogSearch(e.target.value)}
+          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
         <div className="rounded-lg border border-gray-800 overflow-hidden max-h-80 overflow-y-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-gray-900 text-gray-400 text-left">
@@ -231,7 +274,13 @@ export default function ServerDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {auditLog.map((entry, i) => (
+              {auditLog
+                .filter((e) => {
+                  if (!logSearch) return true;
+                  const q = logSearch.toLowerCase();
+                  return (e.target||"").toLowerCase().includes(q) || (e.command||"").toLowerCase().includes(q) || (e.result||"").toLowerCase().includes(q) || (e.reason||"").toLowerCase().includes(q);
+                })
+                .map((entry, i) => (
                 <tr key={i} className="border-t border-gray-800">
                   <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap">{entry.ts?.slice(11, 19) || ""}</td>
                   <td className="px-3 py-1.5 font-mono truncate max-w-60">{entry.target || entry.command || entry.target_type || ""}</td>
@@ -269,6 +318,35 @@ export default function ServerDetailPage() {
           onSave={(data) => handleAddCommand(data as { pattern: string; access: AccessLevel; description?: string })}
           onClose={() => setShowAddCmd(false)}
         />
+      )}
+
+      {/* Bulk Confirm Dialog */}
+      {bulkConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setBulkConfirm(null)}>
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2">Set all {bulkConfirm.type}?</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              This will change{' '}
+              <span className="text-white font-semibold">
+                {bulkConfirm.type === "paths" ? config!.permissions.paths.length : config!.permissions.commands.length}
+              </span>{' '}
+              {bulkConfirm.type} to{' '}
+              <span className="text-white font-semibold">{bulkConfirm.access}</span>.
+              This cannot be undone in one click.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBulkConfirm(null)} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700">
+                Cancel
+              </button>
+              <button
+                onClick={() => handleBulkSet(bulkConfirm.access, bulkConfirm.type)}
+                className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500"
+              >
+                Yes, set all
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
