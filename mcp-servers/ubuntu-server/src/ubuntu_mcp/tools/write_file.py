@@ -6,7 +6,7 @@ from permission_engine import ForbiddenError, PermissionEnforcer
 
 
 async def write_file(
-    args: dict, enforcer: PermissionEnforcer, mount_prefix: str
+    args: dict, enforcer: PermissionEnforcer, mount_prefix: str, name: str = ""
 ) -> dict:
     """Write (overwrite) a file on the host filesystem.
 
@@ -20,7 +20,7 @@ async def write_file(
     """
     requested = args["path"]
     content = args["content"]
-    enforcer.check("write", requested)
+    enforcer.check("write", requested, tool=name)
 
     container_path = (Path(mount_prefix) / requested.lstrip("/")).resolve()
 
