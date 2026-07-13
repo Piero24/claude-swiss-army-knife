@@ -9,11 +9,16 @@ const SETTINGS_PATH = process.env.CONFIGS_PATH
   ? path.join(process.env.CONFIGS_PATH, "settings.json")
   : "/app/configs/settings.json";
 
+const serverEntrySchema = z.object({
+  enabled: z.boolean().default(true),
+});
+
 const settingsSchema = z.object({
   scan: z.object({
     intervalMinutes: z.number().min(1).max(1440).default(60),
     excludePatterns: z.array(z.string()).default([]),
   }),
+  servers: z.record(z.string(), serverEntrySchema).default({}),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;
@@ -28,6 +33,11 @@ const DEFAULTS: AppSettings = {
       "*.app", "*.pkg", "*.bundle", "*.framework",
       "*.xcodeproj", "*.xcworkspace", "*.kext",
     ],
+  },
+  servers: {
+    "ubuntu-server": { enabled: true },
+    "obsidian": { enabled: true },
+    "synology-nas": { enabled: true },
   },
 };
 

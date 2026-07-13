@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AccessLevel, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
-import { getConfig, getFolders, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, scanServer } from "@/lib/api";
+import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, scanServer } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
 import { toast } from "sonner";
@@ -35,17 +35,21 @@ export default function ServerDetailPage() {
   });
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [collapseKey, setCollapseKey] = useState(0);
+  const [serverEnabled, setServerEnabled] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const [cfg, audit, tree] = await Promise.all([
+      const [cfg, audit, tree, st] = await Promise.all([
         getConfig(server),
         getAuditLog(server, 50),
         getFolders(server).catch(() => ({ folders: [], server: "", count: 0 })),
+        getServersStatus().catch(() => ({ servers: {} as Record<string, { enabled: boolean }> })),
       ]);
       setConfig(cfg);
       setFolders(tree.folders || []);
       setAuditLog(audit);
+      const srv = st.servers[server];
+      setServerEnabled(!srv || srv.enabled !== false);
     } catch (err) {
       toast.error("Failed to load data");
     } finally {
@@ -258,6 +262,16 @@ export default function ServerDetailPage() {
         )}
         {lastScan && <span className="text-xs text-gray-500">{lastScan}</span>}
       </div>
+
+      {!serverEnabled && (
+        <div className="mb-6 rounded-lg border border-yellow-800 bg-yellow-900/30 p-4 flex items-center gap-3">
+          <span className="text-yellow-400 text-lg">⏸</span>
+          <div>
+            <p className="text-yellow-300 font-semibold text-sm">Server Deactivated</p>
+            <p className="text-yellow-500 text-xs">This server is currently disabled. Tools are unavailable until reactivated from the dashboard.</p>
+          </div>
+        </div>
+      )}
 
       {/* Path Permissions — Tree View */}
       <section className="mb-8">
