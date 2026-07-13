@@ -12,7 +12,7 @@ export async function PATCH(
 ) {
   const { server, ruleId } = await params;
   try {
-    const { access } = z.object({ access: z.enum(["none", "read", "write"]) }).parse(await request.json());
+    const { access } = z.object({ access: z.enum(["none", "active"]) }).parse(await request.json());
     const filePath = getConfigPath(server);
     const raw = await fs.readFile(filePath, "utf-8");
     const config = yaml.load(raw) as Record<string, any>;

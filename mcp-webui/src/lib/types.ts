@@ -1,6 +1,7 @@
 /** Permission engine types — mirrors Python Pydantic models. */
 
 export type AccessLevel = "none" | "read" | "write";
+export type CommandAccess = "none" | "active";
 
 export interface PathRule {
   id: string;
@@ -12,7 +13,7 @@ export interface PathRule {
 export interface CommandRule {
   id: string;
   pattern: string;
-  access: AccessLevel;
+  access: CommandAccess;
   description?: string;
 }
 
@@ -26,7 +27,7 @@ export interface ServerConfig {
     default_access: AccessLevel;
     paths: PathRule[];
     commands: CommandRule[];
-    default_command_access: AccessLevel;
+    default_command_access: CommandAccess;
   };
 }
 

@@ -267,6 +267,7 @@ def create_server() -> Server:
 
                 case "obsidian_search_notes":
                     enforcer.check("read", "/", name)
+                    enforcer.check_command("rg *", name)
                     query = arguments["query"]
                     max_results = arguments.get("max_results", 20)
                     regex = arguments.get("regex", False)

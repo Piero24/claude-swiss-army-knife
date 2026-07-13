@@ -249,6 +249,7 @@ def create_server() -> Server:
                     enforcer.check(
                         "read", arguments.get("folder_path", "/"), name
                     )
+                    enforcer.check_command(name, name)
                     result = await dsm.file_search(
                         arguments["query"], arguments.get("folder_path", "/")
                     )
@@ -263,6 +264,7 @@ def create_server() -> Server:
                     ]
 
                 case "syno_system_info":
+                    enforcer.check_command(name, name)
                     result = await dsm.system_info()
                     return [
                         TextContent(
@@ -271,6 +273,7 @@ def create_server() -> Server:
                     ]
 
                 case "syno_storage_info":
+                    enforcer.check_command(name, name)
                     result = await dsm.storage_info()
                     return [
                         TextContent(
