@@ -105,12 +105,17 @@ function TreeNode({
         ) : (
           <span className="w-4 shrink-0" />
         )}
-        <span className="text-gray-300 flex-1 truncate font-mono text-sm">
+        <span className="text-gray-300 flex-1 truncate font-mono text-sm min-w-0">
           {node.name}
           {childCount > 0 && (
             <span className="text-gray-600 ml-1 text-xs">({childCount})</span>
           )}
         </span>
+        {node.description && (
+          <span className="text-gray-500 text-xs truncate hidden sm:inline-block max-w-[200px] shrink-0" title={node.description}>
+            {node.description}
+          </span>
+        )}
         {restricted && <Lock size={12} className="text-gray-600 shrink-0" />}
         <AccessToggles
           value={node.access}
@@ -152,7 +157,8 @@ export default function FolderTree({
         {/* Header */}
         <div className="flex items-center gap-2 py-1.5 px-2 bg-gray-900 text-xs text-gray-400 font-medium border-b border-gray-700 sticky top-0 z-10">
           <span className="w-4 shrink-0" />
-          <span className="flex-1">Path</span>
+          <span className="flex-1 min-w-0">Path</span>
+          <span className="hidden sm:inline-block w-[200px] shrink-0">Description</span>
           <span className="w-30 shrink-0">Access</span>
         </div>
         {folders.map((f) => (
