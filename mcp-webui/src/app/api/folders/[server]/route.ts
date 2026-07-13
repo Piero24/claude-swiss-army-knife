@@ -18,6 +18,15 @@ interface FolderNode {
 function buildTree(paths: Array<{ path: string; access: string; description?: string }>): FolderNode[] {
   const root: Record<string, FolderNode> = {};
 
+  // Build a lookup map: normalized path → rule (for access resolution)
+  const ruleMap = new Map<string, { access: string; description?: string }>();
+  for (const rule of paths) {
+    const clean = "/" + rule.path.replace(/^\/+/, "").replace(/\/\*\*$/, "");
+    // Most-specific (last) rule for a given path wins
+    ruleMap.set(clean, { access: rule.access, description: rule.description });
+  }
+
+  // Pass 1: Build the tree structure
   for (const rule of paths) {
     const clean = rule.path.replace(/^\/+/, "").replace(/\/\*\*$/, "");
     const segments = clean.split("/");
@@ -30,8 +39,8 @@ function buildTree(paths: Array<{ path: string; access: string; description?: st
       root[topName] = {
         name: topName,
         path: `/${topName}/**`,
-        access: rule.access,
-        description: rule.description || "",
+        access: "none", // placeholder — resolved in pass 2
+        description: "",
         children: [],
       };
     }
@@ -47,7 +56,7 @@ function buildTree(paths: Array<{ path: string; access: string; description?: st
           child = {
             name: segments[i],
             path: `${currentPath}/**`,
-            access: rule.access,
+            access: "none", // placeholder — resolved in pass 2
             description: "",
             children: [],
           };
@@ -55,13 +64,28 @@ function buildTree(paths: Array<{ path: string; access: string; description?: st
         }
         current = child;
       }
-      // Update leaf with rule's access if it's more specific
-      current.access = rule.access;
-      if (rule.description) current.description = rule.description;
     }
   }
 
-  return Object.values(root).sort((a, b) => a.name.localeCompare(b.name));
+  // Pass 2: Resolve each node's access from the rule map
+  function resolveAccess(node: FolderNode): void {
+    const nodePath = "/" + node.path.replace(/^\/+/, "").replace(/\/\*\*$/, "");
+    const rule = ruleMap.get(nodePath);
+    if (rule) {
+      node.access = rule.access;
+      if (rule.description) node.description = rule.description;
+    }
+    for (const child of node.children) {
+      resolveAccess(child);
+    }
+  }
+
+  const result = Object.values(root);
+  for (const node of result) {
+    resolveAccess(node);
+  }
+
+  return result.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function GET(
