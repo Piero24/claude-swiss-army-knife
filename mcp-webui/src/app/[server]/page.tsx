@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AccessLevel, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
-import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, scanServer } from "@/lib/api";
+import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
 import { toast } from "sonner";
@@ -36,6 +36,8 @@ export default function ServerDetailPage() {
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [collapseKey, setCollapseKey] = useState(0);
   const [serverEnabled, setServerEnabled] = useState(true);
+  const [toggling, setToggling] = useState(false);
+  const toggleAbort = useRef<AbortController | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -61,16 +63,17 @@ export default function ServerDetailPage() {
 
   async function handleTogglePath(ruleId: string, access: AccessLevel) {
     if (!config) return;
-    // Optimistic update
-    const prev = { ...config };
+    // Optimistic update — immutable to ensure React detects the change
+    const prev = structuredClone(config);
     const idx = config.permissions.paths.findIndex((p) => p.id === ruleId);
-    if (idx >= 0) config.permissions.paths[idx].access = access;
-    setConfig({ ...config });
+    if (idx < 0) return;
+    const newPaths = config.permissions.paths.map((p, i) =>
+      i === idx ? { ...p, access } : p
+    );
+    setConfig({ ...config, permissions: { ...config.permissions, paths: newPaths } });
     try {
       await updatePathRule(server, ruleId, access);
       toast.success(`Path access set to ${access}`);
-      // Refresh folder tree to reflect changes
-      getFolders(server).then((t) => setFolders(t.folders || [])).catch(() => {});
     } catch (err) {
       setConfig(prev);
       toast.error("Failed to update");
@@ -79,15 +82,14 @@ export default function ServerDetailPage() {
 
   async function handleDeletePath(ruleId: string) {
     if (!config) return;
-    const prev = [...config.permissions.paths];
-    config.permissions.paths = config.permissions.paths.filter((p) => p.id !== ruleId);
-    setConfig({ ...config });
+    const prev = structuredClone(config);
+    const newPaths = config.permissions.paths.filter((p) => p.id !== ruleId);
+    setConfig({ ...config, permissions: { ...config.permissions, paths: newPaths } });
     try {
       await deletePathRule(server, ruleId);
       toast.success("Path rule removed");
     } catch (err) {
-      config.permissions.paths = prev;
-      setConfig({ ...config });
+      setConfig(prev);
       toast.error("Failed to delete");
     }
   }
@@ -105,10 +107,13 @@ export default function ServerDetailPage() {
 
   async function handleToggleCommand(ruleId: string, access: AccessLevel) {
     if (!config) return;
-    const prev = { ...config };
+    const prev = structuredClone(config);
     const idx = config.permissions.commands.findIndex((c) => c.id === ruleId);
-    if (idx >= 0) config.permissions.commands[idx].access = access;
-    setConfig({ ...config });
+    if (idx < 0) return;
+    const newCommands = config.permissions.commands.map((c, i) =>
+      i === idx ? { ...c, access } : c
+    );
+    setConfig({ ...config, permissions: { ...config.permissions, commands: newCommands } });
     try {
       await updateCommandRule(server, ruleId, access);
       toast.success(`Command access set to ${access}`);
@@ -120,15 +125,14 @@ export default function ServerDetailPage() {
 
   async function handleDeleteCommand(ruleId: string) {
     if (!config) return;
-    const prev = [...config.permissions.commands];
-    config.permissions.commands = config.permissions.commands.filter((c) => c.id !== ruleId);
-    setConfig({ ...config });
+    const prev = structuredClone(config);
+    const newCommands = config.permissions.commands.filter((c) => c.id !== ruleId);
+    setConfig({ ...config, permissions: { ...config.permissions, commands: newCommands } });
     try {
       await deleteCommandRule(server, ruleId);
       toast.success("Command rule removed");
     } catch (err) {
-      config.permissions.commands = prev;
-      setConfig({ ...config });
+      setConfig(prev);
       toast.error("Failed to delete");
     }
   }
@@ -329,42 +333,66 @@ export default function ServerDetailPage() {
           <FolderTree
             key={collapseKey}
             folders={visibleFolders}
-            onToggle={(folderPath, access) => {
+            disabled={toggling}
+            onToggle={async (folderPath, access) => {
+              if (toggling) return;
               // Find matching rule
               const cleanPath = folderPath.replace(/\/\*\*$/, "");
               const rule = config?.permissions.paths.find(
                 (r) => r.path.replace(/\/\*\*$/, "") === cleanPath
               );
               if (!rule) return;
-              handleTogglePath(rule.id, access);
 
-              // Cascade to children if parent becomes more restrictive
-              if (access === "none" || access === "read") {
-                const prefix = cleanPath + "/";
-                config?.permissions.paths.forEach((childRule) => {
-                  if (childRule.id === rule.id) return;
-                  const childPath = childRule.path.replace(/\/\*\*$/, "");
-                  if (childPath.startsWith(prefix)) {
-                    const newChildAccess = access === "none" ? "none" : (
-                      childRule.access === "write" ? "read" : childRule.access
-                    );
-                    if (childRule.access !== newChildAccess) {
-                      handleTogglePath(childRule.id, newChildAccess as AccessLevel);
-                    }
-                  }
-                });
+              // ── Optimistic UI: apply parent + cascade immediately ──
+              const LEVEL_ORDER: Record<string, number> = { none: 0, read: 1, write: 2 };
+              const accessIdx = LEVEL_ORDER[access] ?? 0;
+              const prevConfig = structuredClone(config!);
+              const prefix = cleanPath + "/";
+
+              const newPaths = config!.permissions.paths.map((p) => {
+                if (p.id === rule.id) return { ...p, access };
+                const childPath = p.path.replace(/\/\*\*$/, "");
+                if (childPath.startsWith(prefix)) {
+                  const childIdx = LEVEL_ORDER[p.access] ?? 0;
+                  if (childIdx > accessIdx) return { ...p, access };
+                }
+                return p;
+              });
+              setConfig({ ...config!, permissions: { ...config!.permissions, paths: newPaths } });
+
+              // ── Single atomic API call ──
+              setToggling(true);
+              try {
+                const result = await cascadePathAccess(server, rule.id, access);
+                if (result.updated > 1) {
+                  toast.success(`Updated ${result.updated} rules`);
+                } else {
+                  toast.success(`Access set to ${access}`);
+                }
+                // Single reload after the atomic operation
+                const [fresh, tree] = await Promise.all([
+                  getConfig(server as ServerName),
+                  getFolders(server).catch(() => ({ folders: [], server: "", count: 0 })),
+                ]);
+                setConfig(fresh);
+                setFolders(tree.folders || []);
+              } catch {
+                setConfig(prevConfig);
+                toast.error("Failed to update");
+              } finally {
+                setToggling(false);
               }
             }}
           />
         ) : (
           <div className="rounded-lg border border-gray-800 overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="bg-gray-900 text-gray-400 text-left">
-                  <th className="px-4 py-2">Path</th>
-                  <th className="px-4 py-2 w-32">Access</th>
+                  <th className="px-4 py-2 w-[40%]">Path</th>
+                  <th className="px-4 py-2 w-[120px]">Access</th>
                   <th className="px-4 py-2 hidden md:table-cell">Description</th>
-                  <th className="px-4 py-2 w-12"></th>
+                  <th className="px-4 py-2 w-10"></th>
                 </tr>
               </thead>
               <tbody>
@@ -372,12 +400,12 @@ export default function ServerDetailPage() {
                   .filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))
                   .map((rule) => (
                   <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
-                    <td className="px-4 py-2 font-mono text-xs">{rule.path}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 font-mono text-xs align-middle truncate">{rule.path}</td>
+                    <td className="px-4 py-2 align-middle">
                       <AccessToggles value={rule.access} onChange={(a) => handleTogglePath(rule.id, a)} />
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs hidden md:table-cell">{rule.description || ""}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 text-gray-500 text-xs align-middle hidden md:table-cell truncate">{rule.description || ""}</td>
+                    <td className="px-4 py-2 align-middle text-center">
                       <button onClick={() => handleDeletePath(rule.id)} className="text-gray-600 hover:text-red-400">
                         <Trash2 size={14} />
                       </button>
@@ -403,24 +431,24 @@ export default function ServerDetailPage() {
             </button>
           </div>
           <div className="rounded-lg border border-gray-800 overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="bg-gray-900 text-gray-400 text-left">
-                  <th className="px-4 py-2">Pattern</th>
-                  <th className="px-4 py-2 w-32">Access</th>
+                  <th className="px-4 py-2 w-[40%]">Pattern</th>
+                  <th className="px-4 py-2 w-[120px]">Access</th>
                   <th className="px-4 py-2 hidden md:table-cell">Description</th>
-                  <th className="px-4 py-2 w-12"></th>
+                  <th className="px-4 py-2 w-10"></th>
                 </tr>
               </thead>
               <tbody>
                 {config.permissions.commands.map((rule) => (
                   <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
-                    <td className="px-4 py-2 font-mono text-xs">{rule.pattern}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 font-mono text-xs align-middle truncate">{rule.pattern}</td>
+                    <td className="px-4 py-2 align-middle">
                       <AccessToggles value={rule.access} onChange={(a) => handleToggleCommand(rule.id, a)} />
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs hidden md:table-cell">{rule.description || ""}</td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 text-gray-500 text-xs align-middle hidden md:table-cell truncate">{rule.description || ""}</td>
+                    <td className="px-4 py-2 align-middle text-center">
                       <button onClick={() => handleDeleteCommand(rule.id)} className="text-gray-600 hover:text-red-400">
                         <Trash2 size={14} />
                       </button>

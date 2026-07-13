@@ -100,6 +100,29 @@ export async function bulkSetAccess(
   });
 }
 
+export async function bulkUpdatePathRules(
+  server: ServerName,
+  updates: Array<{ id: string; access: AccessLevel }>
+): Promise<{ updated: number }> {
+  return fetchJSON(`${BASE}/config/${server}/bulk`, {
+    method: "PATCH",
+    body: JSON.stringify({ type: "paths", updates }),
+  });
+}
+
+/** Atomically update a path rule AND cascade restrictions to children.
+ *  Single YAML read+write on the server — replaces 5 sequential calls. */
+export async function cascadePathAccess(
+  server: ServerName,
+  ruleId: string,
+  access: AccessLevel
+): Promise<{ updated: number; changes: Array<{ id: string; access: string }> }> {
+  return fetchJSON(`${BASE}/config/${server}/cascade`, {
+    method: "PATCH",
+    body: JSON.stringify({ ruleId, access }),
+  });
+}
+
 // ── Scan ────────────────────────────────────────────
 
 export async function scanServer(server: ServerName): Promise<{ scanned: boolean; discovered: number; added: number; total: number; message?: string }> {

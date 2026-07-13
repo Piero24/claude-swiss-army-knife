@@ -75,28 +75,45 @@ function AccessToggles({
   );
 }
 
+// Cycle through 5 background tonalities by depth so nested folders are visually distinct.
+// Depth 0 is transparent; deeper levels use progressively darker shades, cycling every 5 levels.
+const DEPTH_BG: string[] = [
+  "",                          // depth 0 — transparent
+  "rgba(255,255,255,0.02)",    // depth 1 / 6 / 11 …
+  "rgba(255,255,255,0.04)",    // depth 2 / 7 / 12 …
+  "rgba(255,255,255,0.06)",    // depth 3 / 8 / 13 …
+  "rgba(255,255,255,0.09)",    // depth 4 / 9 / 14 …
+];
+
 function TreeNode({
   node,
   depth,
   parentAccess,
   onToggle,
+  disabled,
 }: {
   node: FolderNode;
   depth: number;
   parentAccess: AccessLevel;
   onToggle?: (path: string, access: AccessLevel) => void;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const hasChildren = node.children.length > 0;
   const childCount = countDescendants(node);
   const maxAccess = maxChildAccess(parentAccess);
+  // Effective access: the node can't exceed what the parent allows
+  const effectiveIdx = Math.min(levelIndex(node.access), levelIndex(parentAccess));
+  const effectiveAccess = LEVEL_ORDER[effectiveIdx] || "none";
+  // Show lock when the node's own rule is overridden by a more restrictive parent
   const restricted = levelIndex(node.access) > levelIndex(maxAccess);
+  const depthBg = DEPTH_BG[depth % DEPTH_BG.length];
 
   return (
     <div>
       <div
-        className="flex items-center gap-2 py-1.5 px-2 hover:bg-gray-800/50 text-sm border-b border-gray-800/50"
-        style={{ paddingLeft: `${8 + depth * 20}px` }}
+        className={`flex items-center gap-2 py-1.5 px-2 hover:bg-gray-800/50 text-sm border-b border-gray-800/50${disabled ? " opacity-60 pointer-events-none" : ""}`}
+        style={{ paddingLeft: `${8 + depth * 20}px`, backgroundColor: depthBg || undefined }}
       >
         {hasChildren ? (
           <button onClick={() => setOpen(!open)} className="text-gray-500 hover:text-white shrink-0">
@@ -111,12 +128,10 @@ function TreeNode({
             <span className="text-gray-600 ml-1 text-xs">({childCount})</span>
           )}
         </span>
-        {node.description && (
-          <span className="text-gray-500 text-xs truncate hidden sm:inline-block max-w-[200px] shrink-0" title={node.description}>
-            {node.description}
-          </span>
-        )}
-        {restricted && <Lock size={12} className="text-gray-600 shrink-0" />}
+        <span className="text-gray-500 text-xs truncate hidden sm:inline-block w-[200px] shrink-0" title={node.description || undefined}>
+          {node.description || ""}
+        </span>
+        {restricted ? <Lock size={12} className="text-gray-600 shrink-0" /> : <span className="w-3 shrink-0" />}
         <AccessToggles
           value={node.access}
           maxLevel={maxChildAccess(parentAccess)}
@@ -129,8 +144,9 @@ function TreeNode({
             key={child.path}
             node={child}
             depth={depth + 1}
-            parentAccess={node.access as AccessLevel}
+            parentAccess={effectiveAccess}
             onToggle={onToggle}
+            disabled={disabled}
           />
         ))
       }
@@ -141,9 +157,11 @@ function TreeNode({
 export default function FolderTree({
   folders,
   onToggle,
+  disabled,
 }: {
   folders: FolderNode[];
   onToggle?: (path: string, access: AccessLevel) => void;
+  disabled?: boolean;
 }) {
   const total = countNodes(folders);
 
@@ -154,15 +172,16 @@ export default function FolderTree({
     <div>
       <p className="text-xs text-gray-500 mb-1">{total} folder{total !== 1 ? "s" : ""}</p>
       <div className="rounded-lg border border-gray-800 overflow-hidden max-h-[65vh] overflow-y-auto">
-        {/* Header */}
+        {/* Header — must match TreeNode row structure for alignment */}
         <div className="flex items-center gap-2 py-1.5 px-2 bg-gray-900 text-xs text-gray-400 font-medium border-b border-gray-700 sticky top-0 z-10">
           <span className="w-4 shrink-0" />
           <span className="flex-1 min-w-0">Path</span>
           <span className="hidden sm:inline-block w-[200px] shrink-0">Description</span>
+          <span className="w-3 shrink-0" /> {/* Lock icon spacer */}
           <span className="w-30 shrink-0">Access</span>
         </div>
         {folders.map((f) => (
-          <TreeNode key={f.path} node={f} depth={0} parentAccess="write" onToggle={onToggle} />
+          <TreeNode key={f.path} node={f} depth={0} parentAccess="write" onToggle={onToggle} disabled={disabled} />
         ))}
       </div>
     </div>

@@ -164,7 +164,7 @@ export default function DashboardPage() {
                   className={`shrink-0 w-9 h-5 rounded-full relative transition-colors ${enabled ? "bg-green-600" : "bg-gray-600"}`}
                   title={enabled ? "Deactivate" : "Activate"}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? "translate-x-4" : "translate-x-0"}`} />
                 </button>
               </div>
               <h2 className="font-semibold mb-1">{SERVER_LABELS[server]}</h2>
@@ -178,17 +178,14 @@ export default function DashboardPage() {
                 ) : (
                   <span className="inline-block px-2 py-0.5 rounded bg-red-900/50 text-red-400 text-xs">❌ No config</span>
                 )}
-                {badge && (
+                {enabled && badge && (
                   <span className={`inline-block ml-1 px-2 py-0.5 rounded text-xs ${badge.color}`}>{badge.icon} {badge.label}</span>
-                )}
-                {!enabled && (
-                  <span className="inline-block ml-1 px-2 py-0.5 rounded bg-gray-800 text-gray-500 text-xs">⏸ Paused</span>
                 )}
               </div>
             </div>
           );
           return enabled ? (
-            <Link key={server} href={`/${server}`} className="h-full">
+            <Link key={server} href={`/${server}`} className="block h-full">
               {cardContent}
             </Link>
           ) : (
