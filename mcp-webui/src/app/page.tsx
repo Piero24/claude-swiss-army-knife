@@ -156,19 +156,19 @@ export default function DashboardPage() {
           const badge = h ? HEALTH_BADGE[h.status] : null;
           const enabled = !serverStatus[server] || serverStatus[server].enabled !== false;
           const cardContent = (
-            <div className={`block rounded-lg border p-5 transition-colors ${enabled ? "border-gray-800 bg-gray-900 hover:border-gray-600" : "border-gray-800/50 bg-gray-900/50 opacity-50 cursor-not-allowed"}`}>
+            <div className={`rounded-lg border p-5 transition-colors h-full flex flex-col ${enabled ? "border-gray-800 bg-gray-900 hover:border-gray-600" : "border-gray-800/50 bg-gray-900/50 opacity-50"}`}>
               <div className="flex items-start justify-between mb-2">
                 <div className="text-3xl">{SERVER_ICONS[server]}</div>
                 <button
                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleToggleServer(server, !enabled); }}
-                  className={`shrink-0 w-9 h-5 rounded-full relative transition-colors ${enabled ? "bg-green-600" : "bg-gray-700"}`}
+                  className={`shrink-0 w-9 h-5 rounded-full relative transition-colors ${enabled ? "bg-green-600" : "bg-gray-600"}`}
                   title={enabled ? "Deactivate" : "Activate"}
                 >
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? "translate-x-4" : "translate-x-0.5"}`} />
                 </button>
               </div>
               <h2 className="font-semibold mb-1">{SERVER_LABELS[server]}</h2>
-              <div className="text-xs text-gray-400 space-y-0.5">
+              <div className="text-xs text-gray-400 space-y-0.5 flex-1">
                 {config ? (
                   <>
                     <p>{config.permissions.paths.length} path rules</p>
@@ -182,17 +182,17 @@ export default function DashboardPage() {
                   <span className={`inline-block ml-1 px-2 py-0.5 rounded text-xs ${badge.color}`}>{badge.icon} {badge.label}</span>
                 )}
                 {!enabled && (
-                  <span className="inline-block ml-1 px-2 py-0.5 rounded bg-gray-800 text-gray-500 text-xs">⏸ Disabled</span>
+                  <span className="inline-block ml-1 px-2 py-0.5 rounded bg-gray-800 text-gray-500 text-xs">⏸ Paused</span>
                 )}
               </div>
             </div>
           );
           return enabled ? (
-            <Link key={server} href={`/${server}`}>
+            <Link key={server} href={`/${server}`} className="h-full">
               {cardContent}
             </Link>
           ) : (
-            <div key={server}>{cardContent}</div>
+            <div key={server} className="h-full">{cardContent}</div>
           );
         })}
       </div>
