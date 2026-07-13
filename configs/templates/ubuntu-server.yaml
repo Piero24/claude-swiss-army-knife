@@ -54,51 +54,51 @@ permissions:
   commands:
     # ---- Systemd: status checks (read) ----
     - pattern: "systemctl status *"
-      access: read
+      access: active
       description: "Check any service status"
 
     - pattern: "systemctl is-active *"
-      access: read
+      access: active
       description: "Check if service is active"
 
     - pattern: "systemctl is-enabled *"
-      access: read
+      access: active
       description: "Check if service is enabled"
 
     # ---- Systemd: service management (write) ----
     - pattern: "systemctl restart nginx"
-      access: write
+      access: active
       description: "Restart nginx"
 
     - pattern: "systemctl reload nginx"
-      access: write
+      access: active
       description: "Reload nginx config"
 
     - pattern: "systemctl restart docker-*"
-      access: write
+      access: active
       description: "Restart Docker Compose services"
 
     # ---- Docker (read) ----
     - pattern: "docker ps"
-      access: read
+      access: active
       description: "List running containers"
 
     - pattern: "docker ps -a"
-      access: read
+      access: active
       description: "List all containers"
 
     - pattern: "docker logs *"
-      access: read
+      access: active
       description: "View container logs"
 
     # ---- Docker (write) ----
     - pattern: "docker restart *"
-      access: write
+      access: active
       description: "Restart a container"
 
     # ---- Journal (read) ----
     - pattern: "journalctl *"
-      access: read
+      access: active
       description: "Query systemd journal"
 
   # Default: deny any command not explicitly listed

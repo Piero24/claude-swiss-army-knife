@@ -8,7 +8,7 @@ import { getConfigPath } from "@/lib/config";
 
 const addCommandSchema = z.object({
   pattern: z.string().min(1),
-  access: z.enum(["none", "read", "write"]),
+  access: z.enum(["none", "active"]),
   description: z.string().optional(),
 });
 
