@@ -20,9 +20,20 @@ from .dsm_client import DSMClient
 
 # Reuse scan constants from the web UI (duplicated for container independence)
 DEFAULT_EXCLUDES = {
-    ".venv", "venv", "__pycache__", ".git", "node_modules",
-    ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
-    "lost+found", ".Trash", "#recycle", "@eaDir", ".env",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".git",
+    "node_modules",
+    ".next",
+    ".DS_Store",
+    ".pytest_cache",
+    ".mypy_cache",
+    "lost+found",
+    ".Trash",
+    "#recycle",
+    "@eaDir",
+    ".env",
 }
 CANCEL_FILE = "/tmp/scan-cancel"
 
@@ -81,7 +92,9 @@ async def discover_folders() -> list[str]:
             # List subdirectories of all folders at this level
             tasks = []
             for folder in current_level:
-                if is_excluded(folder.split("/")[-1] if "/" in folder else folder):
+                if is_excluded(
+                    folder.split("/")[-1] if "/" in folder else folder
+                ):
                     continue
                 tasks.append(_list_subdirs(client, folder))
 

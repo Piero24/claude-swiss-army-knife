@@ -18,8 +18,16 @@ VAULT_PATH = "/data/vaults"
 CANCEL_FILE = "/tmp/scan-cancel"
 
 EXCLUDES = {
-    ".obsidian", ".git", ".trash", ".venv", "venv", "__pycache__",
-    "node_modules", ".DS_Store", ".pytest_cache", ".mypy_cache",
+    ".obsidian",
+    ".git",
+    ".trash",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    ".DS_Store",
+    ".pytest_cache",
+    ".mypy_cache",
 }
 
 
