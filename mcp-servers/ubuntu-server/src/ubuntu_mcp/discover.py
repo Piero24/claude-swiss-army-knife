@@ -20,14 +20,30 @@ CANCEL_FILE = "/tmp/scan-cancel"
 DEFAULT_ROOTS = ["home", "var/www", "var/log", "etc/nginx"]
 
 EXCLUDES = {
-    ".venv", "venv", "__pycache__", ".git", "node_modules",
-    ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
-    "lost+found", ".Trash", "#recycle", "@eaDir", ".env",
-    ".ssh", ".gnupg", ".ssh/", ".gnupg/",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".git",
+    "node_modules",
+    ".next",
+    ".DS_Store",
+    ".pytest_cache",
+    ".mypy_cache",
+    "lost+found",
+    ".Trash",
+    "#recycle",
+    "@eaDir",
+    ".env",
+    ".ssh",
+    ".gnupg",
+    ".ssh/",
+    ".gnupg/",
 }
 
 
-def discover_folders(mount_prefix: str, roots: list[str], max_depth: int = 3) -> list[str]:
+def discover_folders(
+    mount_prefix: str, roots: list[str], max_depth: int = 3
+) -> list[str]:
     """Walk mount points and return discovered folder paths.
 
     Args:
