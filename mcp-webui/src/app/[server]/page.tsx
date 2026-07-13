@@ -23,6 +23,7 @@ export default function ServerDetailPage() {
   const [showAddCmd, setShowAddCmd] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
   const [pathSearch, setPathSearch] = useState("");
+  const [pathAccessFilter, setPathAccessFilter] = useState<AccessLevel | "all">("all");
   const [logSearch, setLogSearch] = useState("");
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(() => {
@@ -186,6 +187,27 @@ export default function ServerDetailPage() {
   if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-gray-400">Loading...</p></div>;
   if (!config) return <div className="flex min-h-screen items-center justify-center"><p className="text-red-400">Failed to load config</p></div>;
 
+  // Recursively filter tree by access level, preserving parent chains of matches
+  function filterTreeByAccess(nodes: FolderNode[], access: string): FolderNode[] {
+    return nodes.reduce((acc, node) => {
+      const filteredChildren = filterTreeByAccess(node.children, access);
+      if (node.access === access || filteredChildren.length > 0) {
+        acc.push({ ...node, children: filteredChildren });
+      }
+      return acc;
+    }, [] as FolderNode[]);
+  }
+
+  // Combine text search + access filter
+  let visibleFolders = folders;
+  if (pathAccessFilter !== "all") {
+    visibleFolders = filterTreeByAccess(visibleFolders, pathAccessFilter);
+  }
+  if (pathSearch) {
+    const q = pathSearch.toLowerCase();
+    visibleFolders = visibleFolders.filter((f) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q));
+  }
+
   return (
     <div className="max-w-5xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-6">
@@ -230,17 +252,40 @@ export default function ServerDetailPage() {
             </button>
           </div>
         </div>
-        <input
-          type="text"
-          placeholder="Filter folders…"
-          value={pathSearch}
-          onChange={(e) => setPathSearch(e.target.value)}
-          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            type="text"
+            placeholder="Filter folders…"
+            value={pathSearch}
+            onChange={(e) => setPathSearch(e.target.value)}
+            className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
+            {(["all", "none", "read", "write"] as const).map((level) => {
+              const active = pathAccessFilter === level;
+              const colors: Record<string, string> = {
+                all: "bg-gray-700 text-gray-300",
+                none: "bg-gray-600 text-gray-300",
+                read: "bg-blue-600 text-white",
+                write: "bg-green-600 text-white",
+              };
+              return (
+                <button
+                  key={level}
+                  onClick={() => setPathAccessFilter(level)}
+                  className={`px-2 py-1 text-xs font-medium transition-colors
+                    ${active ? colors[level] : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
+                >
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         {folders.length > 0 ? (
           <FolderTree
             key={collapseKey}
-            folders={pathSearch ? folders.filter((f) => f.name.toLowerCase().includes(pathSearch.toLowerCase()) || f.path.toLowerCase().includes(pathSearch.toLowerCase())) : folders}
+            folders={visibleFolders}
             onToggle={(folderPath, access) => {
               // Find matching rule
               const cleanPath = folderPath.replace(/\/\*\*$/, "");
