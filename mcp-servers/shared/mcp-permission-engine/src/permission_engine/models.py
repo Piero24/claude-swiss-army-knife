@@ -10,18 +10,25 @@ from pydantic import BaseModel, Field
 class AccessLevel(str, Enum):
     """Access levels in increasing order of privilege.
 
-    none  = explicitly denied
-    read  = list, read, search
-    write = create, update, delete (also implies read)
+    none   = explicitly denied
+    read   = list, read, search
+    write  = create, update, delete (also implies read)
+    active = allowed (binary on/off for commands)
     """
 
     NONE = "none"
     READ = "read"
     WRITE = "write"
+    ACTIVE = "active"
 
     def grants(self, required: "AccessLevel") -> bool:
         """Check if this access level is sufficient for the required level."""
-        order = {AccessLevel.NONE: 0, AccessLevel.READ: 1, AccessLevel.WRITE: 2}
+        order = {
+            AccessLevel.NONE: 0,
+            AccessLevel.READ: 1,
+            AccessLevel.WRITE: 2,
+            AccessLevel.ACTIVE: 1,
+        }
         return order[self] >= order[required]
 
 

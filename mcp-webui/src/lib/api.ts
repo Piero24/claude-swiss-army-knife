@@ -1,6 +1,6 @@
 /** Typed API client for fetching config data from the Web UI backend routes. */
 
-import type { AccessLevel, AuditEntry, PathRule, ServerConfig, ServerName } from "./types";
+import type { AccessLevel, CommandAccess, AuditEntry, PathRule, ServerConfig, ServerName } from "./types";
 
 const BASE = "/api";
 
@@ -59,14 +59,14 @@ export async function deletePathRule(server: ServerName, ruleId: string): Promis
 
 // ── Command Rules ──────────────────────────────────
 
-export async function addCommandRule(server: ServerName, rule: { pattern: string; access: AccessLevel; description?: string }): Promise<{ created: boolean }> {
+export async function addCommandRule(server: ServerName, rule: { pattern: string; access: CommandAccess; description?: string }): Promise<{ created: boolean }> {
   return fetchJSON(`${BASE}/config/${server}/commands`, {
     method: "POST",
     body: JSON.stringify(rule),
   });
 }
 
-export async function updateCommandRule(server: ServerName, ruleId: string, access: AccessLevel): Promise<{ updated: boolean }> {
+export async function updateCommandRule(server: ServerName, ruleId: string, access: CommandAccess): Promise<{ updated: boolean }> {
   return fetchJSON(`${BASE}/config/${server}/commands/${ruleId}`, {
     method: "PATCH",
     body: JSON.stringify({ access }),

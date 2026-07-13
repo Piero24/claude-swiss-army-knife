@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import type { AccessLevel, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
+import type { AccessLevel, CommandAccess, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
 import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
@@ -105,7 +105,7 @@ export default function ServerDetailPage() {
     }
   }
 
-  async function handleToggleCommand(ruleId: string, access: AccessLevel) {
+  async function handleToggleCommand(ruleId: string, access: CommandAccess) {
     if (!config) return;
     const prev = structuredClone(config);
     const idx = config.permissions.commands.findIndex((c) => c.id === ruleId);
@@ -184,7 +184,7 @@ export default function ServerDetailPage() {
     }
   }
 
-  async function handleAddCommand(data: { pattern: string; access: AccessLevel; description?: string }) {
+  async function handleAddCommand(data: { pattern: string; access: CommandAccess; description?: string }) {
     try {
       await addCommandRule(server, data);
       toast.success("Command rule added");
@@ -421,8 +421,7 @@ export default function ServerDetailPage() {
         )}
       </section>
 
-      {/* Command Rules — only for Ubuntu server */}
-      {server === "ubuntu-server" && (
+      {/* Command Rules */}
         <section className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Command Permissions</h2>
@@ -435,7 +434,7 @@ export default function ServerDetailPage() {
               <thead>
                 <tr className="bg-gray-900 text-gray-400 text-left">
                   <th className="px-4 py-2 w-[40%]">Pattern</th>
-                  <th className="px-4 py-2 w-[120px]">Access</th>
+                  <th className="px-4 py-2 w-[130px]">Access</th>
                   <th className="px-4 py-2 hidden md:table-cell">Description</th>
                   <th className="px-4 py-2 w-10"></th>
                 </tr>
@@ -445,7 +444,7 @@ export default function ServerDetailPage() {
                   <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
                     <td className="px-4 py-2 font-mono text-xs align-middle truncate">{rule.pattern}</td>
                     <td className="px-4 py-2 align-middle">
-                      <AccessToggles value={rule.access} onChange={(a) => handleToggleCommand(rule.id, a)} />
+                      <CommandToggles value={rule.access} onChange={(a) => handleToggleCommand(rule.id, a)} />
                     </td>
                     <td className="px-4 py-2 text-gray-500 text-xs align-middle hidden md:table-cell truncate">{rule.description || ""}</td>
                     <td className="px-4 py-2 align-middle text-center">
@@ -462,7 +461,6 @@ export default function ServerDetailPage() {
             </table>
           </div>
         </section>
-      )}
 
       {/* Audit Log */}
       <section>
@@ -562,8 +560,9 @@ export default function ServerDetailPage() {
         <AddRuleDialog
           title="Add Command Rule"
           fields={[{ name: "pattern", label: "Pattern", placeholder: "systemctl status *" }, { name: "description", label: "Description", placeholder: "Optional" }]}
-          onSave={(data) => handleAddCommand(data as { pattern: string; access: AccessLevel; description?: string })}
+          onSave={(data) => handleAddCommand(data as { pattern: string; access: CommandAccess; description?: string })}
           onClose={() => setShowAddCmd(false)}
+          commandAccess
         />
       )}
 
@@ -624,6 +623,28 @@ function AccessToggles({ value, onChange }: { value: AccessLevel; onChange: (a: 
   );
 }
 
+function CommandToggles({ value, onChange }: { value: string; onChange: (a: CommandAccess) => void }) {
+  const levels: CommandAccess[] = ["none", "active"];
+  const colors: Record<string, string> = {
+    none: "bg-gray-700 text-gray-400",
+    active: "bg-green-600 text-white",
+  };
+
+  return (
+    <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
+      {levels.map((level) => (
+        <button
+          key={level}
+          onClick={() => onChange(level)}
+          className={`inline-flex items-center justify-center px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap ${value === level ? colors[level] : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
+        >
+          {level}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ── Add Rule Dialog ─────────────────────────────────── */
 
 function AddRuleDialog({
@@ -631,13 +652,15 @@ function AddRuleDialog({
   fields,
   onSave,
   onClose,
+  commandAccess,
 }: {
   title: string;
   fields: { name: string; label: string; placeholder: string }[];
   onSave: (data: Record<string, string>) => void;
   onClose: () => void;
+  commandAccess?: boolean;
 }) {
-  const [formData, setFormData] = useState<Record<string, string>>({ access: "read" });
+  const [formData, setFormData] = useState<Record<string, string>>({ access: commandAccess ? "active" : "read" });
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -667,7 +690,11 @@ function AddRuleDialog({
           ))}
           <div>
             <label className="block text-xs text-gray-400 mb-1">Access Level</label>
-            <AccessToggles value={(formData.access as AccessLevel) || "read"} onChange={(a) => setFormData({ ...formData, access: a })} />
+            {commandAccess ? (
+              <CommandToggles value={formData.access || "active"} onChange={(a) => setFormData({ ...formData, access: a })} />
+            ) : (
+              <AccessToggles value={(formData.access as AccessLevel) || "read"} onChange={(a) => setFormData({ ...formData, access: a })} />
+            )}
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700">Cancel</button>

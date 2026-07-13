@@ -8,11 +8,11 @@ import { z } from "zod";
 import { getConfigPath } from "@/lib/config";
 
 const bulkSchema = z.object({
-  access: z.enum(["none", "read", "write"]).optional(),
+  access: z.enum(["none", "read", "write", "active"]).optional(),
   type: z.enum(["paths", "commands"]).default("paths"),
   updates: z.array(z.object({
     id: z.string(),
-    access: z.enum(["none", "read", "write"]),
+    access: z.enum(["none", "read", "write", "active"]),
   })).optional(),
 });
 
