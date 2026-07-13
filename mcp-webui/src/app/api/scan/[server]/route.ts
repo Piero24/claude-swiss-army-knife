@@ -1,185 +1,153 @@
-/** POST scan — discover new folders and merge with YAML config.
+/** POST scan — trigger folder discovery inside the MCP container via docker exec.
  *
- *  Synology NAS: breadth-first traversal with bounded concurrency
- *  (SCAN_CONCURRENCY parallel DSM calls), visited-set cycle detection,
- *  paginated folder listing, retry on transient failures. */
+ *  Each MCP server has a `discover` module that lists folders from its native
+ *  backend and prints JSON to stdout.  The web UI never sees credentials —
+ *  they stay inside the container where they belong.
+ *
+ *  Server → container → discover command:
+ *    synology-nas  → synology-mcp  → python -m synology_mcp discover
+ *    obsidian      → obsidian-mcp  → python -m obsidian_mcp discover
+ *    ubuntu-server → ubuntu-mcp    → python -m ubuntu_mcp discover */
 
 import { NextResponse } from "next/server";
 import http from "http";
 import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
-import { cancelScan, endScan, isCancelled, startScan } from "@/lib/scan-status";
-import {
-  isExcluded,
-  SCAN_CONCURRENCY,
-  SCAN_DELAY_MS,
-} from "@/lib/scan-constants";
-import {
-  dsmLogin,
-  listShares,
-  listSubfoldersPaginated,
-} from "@/lib/dsm-client";
+import { endScan, startScan } from "@/lib/scan-status";
+import { isExcluded } from "@/lib/scan-constants";
 
-// ---------------------------------------------------------------------------
-// Docker socket helpers (specific to this route — not moved to dsm-client)
-// ---------------------------------------------------------------------------
+// ── Server → container → discover command mapping ──────────────────────
 
-function dockerRequest(p: string): Promise<Record<string, unknown>> {
+const SCAN_CONFIG: Record<string, { container: string; cmd: string[] }> = {
+  "synology-nas": {
+    container: "synology-mcp",
+    cmd: ["python", "-m", "synology_mcp", "discover"],
+  },
+  obsidian: {
+    container: "obsidian-mcp",
+    cmd: ["python", "-m", "obsidian_mcp", "discover"],
+  },
+  "ubuntu-server": {
+    container: "ubuntu-mcp",
+    cmd: ["python", "-m", "ubuntu_mcp", "discover"],
+  },
+};
+
+// ── Docker exec via socket ──────────────────────────────────────────────
+
+function dockerRequest(
+  method: string,
+  p: string,
+  body?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    const req = http.request(
-      { socketPath: "/var/run/docker.sock", path: p, method: "GET" },
-      (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try { resolve(JSON.parse(data)); } catch {
-            reject(new Error(data.slice(0, 200)));
-          }
-        });
-      },
-    );
+    const opts: http.RequestOptions = {
+      socketPath: "/var/run/docker.sock",
+      path: p,
+      method,
+      headers:
+        body !== undefined
+          ? { "Content-Type": "application/json" }
+          : undefined,
+    };
+    const req = http.request(opts, (res) => {
+      let data = "";
+      res.on("data", (c) => (data += c));
+      res.on("end", () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          reject(new Error(data.slice(0, 200)));
+        }
+      });
+    });
     req.on("error", reject);
-    req.setTimeout(5000, () => { req.destroy(); reject(new Error("timeout")); });
+    req.setTimeout(30_000, () => {
+      req.destroy();
+      reject(new Error("timeout"));
+    });
+    if (body !== undefined) req.write(JSON.stringify(body));
     req.end();
   });
 }
 
-async function getContainerEnv(
+/** Run a command inside a Docker container and return stdout as a string. */
+async function dockerExec(
   container: string,
-): Promise<Map<string, string>> {
-  const info = await dockerRequest(`/containers/${container}/json`);
-  const cfg = info.Config as { Env?: string[] } | undefined;
-  const map = new Map<string, string>();
-  for (const e of cfg?.Env || []) {
-    const eq = e.indexOf("=");
-    if (eq > 0) map.set(e.slice(0, eq), e.slice(eq + 1));
-  }
-  return map;
-}
+  cmd: string[],
+): Promise<string> {
+  // 1. Create exec instance
+  const create = (await dockerRequest("POST", `/containers/${container}/exec`, {
+    AttachStdout: true,
+    AttachStderr: true,
+    Cmd: cmd,
+  })) as unknown as { Id: string };
 
-// ---------------------------------------------------------------------------
-// Concurrency limiter (inline — no external dependency)
-// ---------------------------------------------------------------------------
-
-/**
- * Process `items` through `fn` with at most `concurrency` promises in flight.
- * Preserves result order (result[i] corresponds to items[i]).
- */
-async function mapConcurrent<T, R>(
-  items: T[],
-  fn: (item: T) => Promise<R>,
-  concurrency: number,
-): Promise<R[]> {
-  if (items.length === 0) return [];
-
-  const results: R[] = new Array(items.length);
-  const executing = new Set<Promise<void>>();
-  let index = 0;
-
-  async function enqueue(): Promise<void> {
-    if (index >= items.length) return;
-    const i = index++;
-    const p = fn(items[i]).then((r) => { results[i] = r; });
-    // Track this promise; remove it when settled
-    const tracked = p.then(
-      () => { executing.delete(tracked); },
-      () => { executing.delete(tracked); },
-    );
-    executing.add(tracked);
-    // If pool is full, wait for one to finish before starting more
-    if (executing.size >= concurrency) {
-      await Promise.race(executing);
-    }
-    return enqueue();
-  }
-
-  // Seed the pool with initial tasks
-  const starters = Math.min(concurrency, items.length);
-  const seeds: Promise<void>[] = [];
-  for (let s = 0; s < starters; s++) seeds.push(enqueue());
-  await Promise.all(seeds);
-  // Wait for remaining in-flight
-  if (executing.size > 0) await Promise.all(executing);
-
-  return results;
-}
-
-// ---------------------------------------------------------------------------
-// BFS scan with parallel level expansion
-// ---------------------------------------------------------------------------
-
-async function scanSynology(): Promise<string[]> {
-  const env = await getContainerEnv("synology-mcp");
-  const host = env.get("SYNOLOGY_NAS_HOST") || "";
-  const port = env.get("SYNOLOGY_NAS_PORT") || "5001";
-  const user = env.get("SYNOLOGY_NAS_USER") || "";
-  const pass = env.get("SYNOLOGY_NAS_PASSWORD") || "";
-  const otpSecret = env.get("SYNOLOGY_NAS_OTP_SECRET") || "";
-  const base = `https://${host}:${port}`;
-
-  const sid = await dsmLogin(base, user, pass, otpSecret);
-  const shares = await listShares(base, sid);
-
-  const allFolders: string[] = [];
-  const visited = new Set<string>();
-
-  for (const share of shares) {
-    if (isExcluded(share)) continue;
-    if (visited.has(share)) continue;
-    visited.add(share);
-    allFolders.push(share);
-
-    // BFS: expand one level at a time, listing children in parallel
-    let currentLevel = [share];
-
-    while (currentLevel.length > 0) {
-      if (isCancelled()) { allFolders.push("__CANCELLED__"); return allFolders; }
-      // Explore only non-excluded folders that we've already seen
-      const toExplore = currentLevel.filter(
-        (f) => !isExcluded(f) && visited.has(f),
-      );
-
-      if (toExplore.length === 0) break;
-
-      // List subdirectories of all folders at this level concurrently
-      const childrenPerFolder = await mapConcurrent(
-        toExplore,
-        async (folder) => {
-          if (SCAN_DELAY_MS > 0) await new Promise((r) => setTimeout(r, SCAN_DELAY_MS));
-          return listSubfoldersPaginated(base, sid, folder).catch(() => [] as string[]);
+  // 2. Start and capture output
+  return new Promise((resolve, reject) => {
+    const parts: Buffer[] = [];
+    const req = http.request(
+      {
+        socketPath: "/var/run/docker.sock",
+        path: `/exec/${create.Id}/start`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Connection: "Upgrade",
+          Upgrade: "tcp",
         },
-        SCAN_CONCURRENCY,
-      );
-
-      // Gather next level, filtering already-seen and excluded
-      const nextLevel: string[] = [];
-      for (const children of childrenPerFolder) {
-        for (const child of children) {
-          if (!visited.has(child) && !isExcluded(child)) {
-            visited.add(child);
-            nextLevel.push(child);
-            allFolders.push(child);
+      },
+      (res) => {
+        res.on("data", (c: Buffer) => parts.push(c));
+        res.on("end", () => {
+          // Docker multiplexes stdout/stderr — strip 8-byte header per frame
+          const raw = Buffer.concat(parts);
+          let stdout = "";
+          let pos = 0;
+          while (pos + 8 <= raw.length) {
+            const streamType = raw[pos];
+            const frameLen = raw.readUInt32BE(pos + 4);
+            pos += 8;
+            if (pos + frameLen > raw.length) break;
+            if (streamType === 1) {
+              // stdout
+              stdout += raw.subarray(pos, pos + frameLen).toString("utf-8");
+            }
+            pos += frameLen;
           }
-        }
-      }
-
-      currentLevel = nextLevel;
-    }
-  }
-
-  return allFolders;
+          resolve(stdout.trim());
+        });
+      },
+    );
+    req.on("error", reject);
+    req.setTimeout(120_000, () => {
+      req.destroy();
+      reject(new Error("exec timeout"));
+    });
+    req.write(
+      JSON.stringify({ Detach: false, Tty: false }),
+    );
+    req.end();
+  });
 }
 
-// ---------------------------------------------------------------------------
-// POST handler
-// ---------------------------------------------------------------------------
+// ── POST handler ────────────────────────────────────────────────────────
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ server: string }> },
 ) {
   const { server } = await params;
+  const scanCfg = SCAN_CONFIG[server];
+
+  if (!scanCfg) {
+    return NextResponse.json(
+      { error: "Auto-discovery not available for this server" },
+      { status: 400 },
+    );
+  }
+
   try {
     const filePath = getConfigPath(server);
     const raw = await fs.readFile(filePath, "utf-8");
@@ -191,24 +159,36 @@ export async function POST(
       description?: string;
     }>;
 
-    let discovered: string[] = [];
-    if (server === "synology-nas") {
-      startScan("synology-nas");
-      discovered = await scanSynology();
-      endScan();
-      if (discovered.includes("__CANCELLED__")) {
-        return NextResponse.json({ cancelled: true });
+    // Run discovery inside the MCP container
+    startScan(server);
+    const stdout = await dockerExec(scanCfg.container, scanCfg.cmd);
+    endScan();
+
+    let discovered: string[];
+    try {
+      const parsed = JSON.parse(stdout);
+      if (Array.isArray(parsed)) {
+        discovered = parsed;
+      } else if (parsed && typeof parsed === "object" && "error" in parsed) {
+        return NextResponse.json(
+          { error: parsed.error },
+          { status: 500 },
+        );
+      } else {
+        discovered = [];
       }
-    } else {
-      return NextResponse.json({
-        scanned: true,
-        discovered: 0,
-        added: 0,
-        total: existing.length,
-        message: "Auto-discovery not available for this server yet",
-      });
+    } catch {
+      return NextResponse.json(
+        { error: `Invalid JSON from discover: ${stdout.slice(0, 200)}` },
+        { status: 500 },
+      );
     }
 
+    if (discovered.includes("__CANCELLED__")) {
+      return NextResponse.json({ cancelled: true });
+    }
+
+    // Merge discovered folders into YAML config (same logic, no secrets)
     const existingPaths = new Set(
       existing.map((r) => r.path.replace(/\/\*\*$/, "")),
     );
@@ -229,7 +209,10 @@ export async function POST(
 
     // Remove paths matching current exclude patterns
     const cleaned = existing.filter((r) => {
-      const segments = r.path.replace(/\/\*\*$/, "").split("/").filter(Boolean);
+      const segments = r.path
+        .replace(/\/\*\*$/, "")
+        .split("/")
+        .filter(Boolean);
       return !segments.some((seg) => isExcluded(`/${seg}`));
     });
     const removed = existing.length - cleaned.length;
@@ -248,6 +231,7 @@ export async function POST(
       total: cleaned.length,
     });
   } catch (err) {
+    endScan();
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
