@@ -1,6 +1,7 @@
 """Permission enforcer — validates file and command access, prevents path traversal and command injection."""
 
 import fnmatch
+import json
 import re
 from pathlib import Path
 from typing import Optional
@@ -61,6 +62,37 @@ class PermissionEnforcer:
         if self._config is None:
             raise RuntimeError("Config not loaded")
         return self._config
+
+    # Map MCP internal server names → web UI server keys
+    _SERVER_KEY_MAP = {
+        "ubuntu-mcp": "ubuntu-server",
+        "obsidian-mcp": "obsidian",
+        "synology-mcp": "synology-nas",
+    }
+
+    def is_server_enabled(self, settings_dir: str = "/app/configs") -> bool:
+        """Check if this server is enabled in settings.json.
+
+        Args:
+            settings_dir: Directory containing settings.json.
+
+        Returns:
+            True if the server is enabled, False if explicitly disabled.
+            Defaults to True if settings.json is missing or unreadable.
+        """
+        try:
+            settings_path = Path(settings_dir) / "settings.json"
+            if not settings_path.exists():
+                return True
+            with open(settings_path, "r") as f:
+                settings = json.load(f)
+            servers = settings.get("servers", {})
+            mcp_name = self._config.server.name if self._config else ""
+            # Resolve via map, fall back to exact match
+            key = self._SERVER_KEY_MAP.get(mcp_name, mcp_name)
+            return servers.get(key, {}).get("enabled", True)
+        except Exception:
+            return True  # can't read settings → assume enabled
 
     def check(self, required_access: str, path: str, tool: str = "") -> bool:
         """Check if the given access level is allowed for a filesystem path.
