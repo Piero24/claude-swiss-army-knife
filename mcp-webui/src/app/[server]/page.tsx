@@ -23,7 +23,11 @@ export default function ServerDetailPage() {
   const [showAddCmd, setShowAddCmd] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
   const [pathSearch, setPathSearch] = useState("");
+  const [pathAccessFilter, setPathAccessFilter] = useState<AccessLevel | "all">("all");
   const [logSearch, setLogSearch] = useState("");
+  const [logAccessFilter, setLogAccessFilter] = useState<AccessLevel | "all">("all");
+  const [logResultFilter, setLogResultFilter] = useState<"all" | "allowed" | "denied">("all");
+  const [logDateFilter, setLogDateFilter] = useState<"all" | "hour" | "today" | "week">("all");
   const [scanning, setScanning] = useState(false);
   const [lastScan, setLastScan] = useState<string | null>(() => {
     if (typeof window !== "undefined") return localStorage.getItem(`lastScan_${server}`) || null;
@@ -186,6 +190,54 @@ export default function ServerDetailPage() {
   if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-gray-400">Loading...</p></div>;
   if (!config) return <div className="flex min-h-screen items-center justify-center"><p className="text-red-400">Failed to load config</p></div>;
 
+  // Recursively filter tree by access level, preserving parent chains of matches
+  function filterTreeByAccess(nodes: FolderNode[], access: string): FolderNode[] {
+    return nodes.reduce((acc, node) => {
+      const filteredChildren = filterTreeByAccess(node.children, access);
+      if (node.access === access || filteredChildren.length > 0) {
+        acc.push({ ...node, children: filteredChildren });
+      }
+      return acc;
+    }, [] as FolderNode[]);
+  }
+
+  // Combine text search + access filter
+  let visibleFolders = folders;
+  if (pathAccessFilter !== "all") {
+    visibleFolders = filterTreeByAccess(visibleFolders, pathAccessFilter);
+  }
+  if (pathSearch) {
+    const q = pathSearch.toLowerCase();
+    visibleFolders = visibleFolders.filter((f) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q));
+  }
+
+  // Combine audit log filters: text search + access + result + date range
+  const now = Date.now();
+  const dateThresholds: Record<string, number> = {
+    hour: now - 60 * 60 * 1000,
+    today: new Date(new Date().toDateString()).getTime(),
+    week: now - 7 * 24 * 60 * 60 * 1000,
+  };
+  const visibleAuditLog = auditLog.filter((e) => {
+    if (logAccessFilter !== "all" && e.access !== logAccessFilter) return false;
+    if (logResultFilter !== "all" && e.result !== logResultFilter) return false;
+    if (logDateFilter !== "all") {
+      if (!e.ts) return false;
+      const ts = new Date(e.ts).getTime();
+      if (isNaN(ts) || ts < dateThresholds[logDateFilter]) return false;
+    }
+    if (logSearch) {
+      const q = logSearch.toLowerCase();
+      return (e.target || "").toLowerCase().includes(q)
+        || (e.command || "").toLowerCase().includes(q)
+        || (e.result || "").toLowerCase().includes(q)
+        || (e.reason || "").toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const logFiltersActive = logAccessFilter !== "all" || logResultFilter !== "all" || logDateFilter !== "all";
+
   return (
     <div className="max-w-5xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-6">
@@ -230,17 +282,40 @@ export default function ServerDetailPage() {
             </button>
           </div>
         </div>
-        <input
-          type="text"
-          placeholder="Filter folders…"
-          value={pathSearch}
-          onChange={(e) => setPathSearch(e.target.value)}
-          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            type="text"
+            placeholder="Filter folders…"
+            value={pathSearch}
+            onChange={(e) => setPathSearch(e.target.value)}
+            className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
+            {(["all", "none", "read", "write"] as const).map((level) => {
+              const active = pathAccessFilter === level;
+              const colors: Record<string, string> = {
+                all: "bg-gray-700 text-gray-300",
+                none: "bg-gray-600 text-gray-300",
+                read: "bg-blue-600 text-white",
+                write: "bg-green-600 text-white",
+              };
+              return (
+                <button
+                  key={level}
+                  onClick={() => setPathAccessFilter(level)}
+                  className={`px-2 py-1 text-xs font-medium transition-colors
+                    ${active ? colors[level] : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
+                >
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         {folders.length > 0 ? (
           <FolderTree
             key={collapseKey}
-            folders={pathSearch ? folders.filter((f) => f.name.toLowerCase().includes(pathSearch.toLowerCase()) || f.path.toLowerCase().includes(pathSearch.toLowerCase())) : folders}
+            folders={visibleFolders}
             onToggle={(folderPath, access) => {
               // Find matching rule
               const cleanPath = folderPath.replace(/\/\*\*$/, "");
@@ -351,13 +426,52 @@ export default function ServerDetailPage() {
       {/* Audit Log */}
       <section>
         <h2 className="text-lg font-semibold mb-3">Audit Log (last 50)</h2>
-        <input
-          type="text"
-          placeholder="Filter log…"
-          value={logSearch}
-          onChange={(e) => setLogSearch(e.target.value)}
-          className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <input
+            type="text"
+            placeholder="Filter log…"
+            value={logSearch}
+            onChange={(e) => setLogSearch(e.target.value)}
+            className="flex-1 min-w-[140px] rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <select
+            value={logAccessFilter}
+            onChange={(e) => setLogAccessFilter(e.target.value as AccessLevel | "all")}
+            className="rounded border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All access</option>
+            <option value="read">Read</option>
+            <option value="write">Write</option>
+            <option value="none">None</option>
+          </select>
+          <select
+            value={logResultFilter}
+            onChange={(e) => setLogResultFilter(e.target.value as "all" | "allowed" | "denied")}
+            className="rounded border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All results</option>
+            <option value="allowed">Allowed</option>
+            <option value="denied">Denied</option>
+          </select>
+          <select
+            value={logDateFilter}
+            onChange={(e) => setLogDateFilter(e.target.value as "all" | "hour" | "today" | "week")}
+            className="rounded border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All time</option>
+            <option value="hour">Last hour</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+          </select>
+          {logFiltersActive && (
+            <button
+              onClick={() => { setLogAccessFilter("all"); setLogResultFilter("all"); setLogDateFilter("all"); }}
+              className="px-2 py-1.5 text-xs rounded border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
         <div className="rounded-lg border border-gray-800 overflow-hidden max-h-80 overflow-y-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-gray-900 text-gray-400 text-left">
@@ -369,13 +483,7 @@ export default function ServerDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {auditLog
-                .filter((e) => {
-                  if (!logSearch) return true;
-                  const q = logSearch.toLowerCase();
-                  return (e.target||"").toLowerCase().includes(q) || (e.command||"").toLowerCase().includes(q) || (e.result||"").toLowerCase().includes(q) || (e.reason||"").toLowerCase().includes(q);
-                })
-                .map((entry, i) => (
+              {visibleAuditLog.map((entry, i) => (
                 <tr key={i} className="border-t border-gray-800">
                   <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap">{entry.ts?.slice(11, 19) || ""}</td>
                   <td className="px-3 py-1.5 font-mono truncate max-w-60">{entry.target || entry.command || entry.target_type || ""}</td>
@@ -389,6 +497,9 @@ export default function ServerDetailPage() {
               ))}
               {auditLog.length === 0 && (
                 <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No audit entries yet.</td></tr>
+              )}
+              {auditLog.length > 0 && visibleAuditLog.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No entries match filters.</td></tr>
               )}
             </tbody>
           </table>
