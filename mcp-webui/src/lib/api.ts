@@ -153,6 +153,34 @@ export async function getHealth(server: ServerName): Promise<HealthStatus> {
   return fetchJSON<HealthStatus>(`${BASE}/health/${server}`);
 }
 
+// ── Server Status ──────────────────────────────────
+
+export interface ServerStatus {
+  enabled: boolean;
+}
+
+export interface ServersStatus {
+  servers: Record<string, ServerStatus>;
+}
+
+export async function getServersStatus(): Promise<ServersStatus> {
+  return fetchJSON<ServersStatus>(`${BASE}/settings`).then((s) => {
+    // Extract servers section from settings
+    const settings = s as unknown as Record<string, unknown>;
+    if (settings.servers && typeof settings.servers === "object") {
+      return { servers: settings.servers as Record<string, ServerStatus> };
+    }
+    return { servers: {} };
+  });
+}
+
+export async function toggleServerStatus(server: string, enabled: boolean): Promise<{ server: string; enabled: boolean }> {
+  return fetchJSON(`${BASE}/servers/${server}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
 // ── Auth ───────────────────────────────────────────
 
 export async function login(apiKey: string): Promise<{ success: boolean }> {
