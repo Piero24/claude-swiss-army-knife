@@ -1,0 +1,15 @@
+# User authentication for MCP servers.
+# Each user gets an ID and a shared secret (key).
+# The key is stored HASHED — use the helper script to generate:
+#   python -c "import hashlib; print('sha256$' + hashlib.sha256(input('Key: ').encode()).hexdigest())"
+
+users:
+  - id: "alice"
+    key: "sha256$e35c28e2b4a1d9f7f8a1c4b7e0d3"  # example hash — replace with real one
+    name: "Alice"
+    enabled: true
+
+  - id: "bob"
+    key: "sha256$f4d2e1a3c5b7d9e0f2a4c6b8d05d7e9f1a4c6b8d0"  # example hash — replace with real one
+    name: "Bob"
+    enabled: true

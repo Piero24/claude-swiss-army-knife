@@ -28,6 +28,7 @@ class AuditLogger:
         access: str = "",
         granted: str = "",
         tool: str = "",
+        agent_id: str = "default",
     ) -> None:
         """Log an allowed access."""
         self._write_entry(
@@ -38,6 +39,7 @@ class AuditLogger:
             access=access,
             granted=granted,
             tool=tool,
+            agent_id=agent_id,
         )
 
     def denied(
@@ -49,6 +51,7 @@ class AuditLogger:
         required_access: str = "",
         granted_access: str = "",
         tool: str = "",
+        agent_id: str = "default",
     ) -> None:
         """Log a denied access."""
         self._write_entry(
@@ -60,6 +63,7 @@ class AuditLogger:
             granted=granted_access,
             reason=reason,
             tool=tool,
+            agent_id=agent_id,
         )
 
     def _write_entry(self, **fields: object) -> None:

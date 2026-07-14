@@ -1,7 +1,9 @@
 """Permission enforcer — validates file and command access, prevents path traversal and command injection."""
 
+import contextvars
 import fnmatch
 import json
+import os
 import re
 from pathlib import Path
 from typing import Optional
@@ -10,6 +12,13 @@ from .audit import AuditLogger
 from .config import ConfigLoader, load_config
 from .models import AccessLevel, CommandRule, ServerConfig
 from .resolver import PathResolver
+
+
+# Context variable for the current agent/user identity.
+# Set once per request in call_tool() and read automatically by check()/check_command().
+_current_agent_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "current_agent_id", default="default"
+)
 
 
 # Shell metacharacters that enable command chaining / injection
@@ -94,6 +103,36 @@ class PermissionEnforcer:
         except Exception:
             return True  # can't read settings → assume enabled
 
+    def authenticate(
+        self, user_id: str, user_key: str, users_config_path: str = ""
+    ) -> bool:
+        """Validate user credentials against users.yaml.
+
+        Args:
+            user_id: The user ID from MCP_USER_ID env var.
+            user_key: The plaintext key from MCP_USER_KEY env var.
+            users_config_path: Path to users.yaml. Defaults to
+                <config_dir>/users.yaml.
+
+        Returns:
+            True if authentication succeeds.
+
+        Raises:
+            AuthenticationError: If credentials are invalid or user is disabled.
+        """
+        # If no identity is provided, skip authentication (allow "default")
+        if user_id == "default" and not user_key:
+            return True
+
+        from .users import AuthenticationError, load_users, validate_user
+
+        if not users_config_path:
+            users_config_path = str(self._config_path.parent / "users.yaml")
+
+        users = load_users(users_config_path)
+        validate_user(users, user_id, user_key)
+        return True
+
     def check(self, required_access: str, path: str, tool: str = "") -> bool:
         """Check if the given access level is allowed for a filesystem path.
 
@@ -110,6 +149,7 @@ class PermissionEnforcer:
         """
         required = AccessLevel(required_access)
         granted = self._path_resolver.resolve(path)
+        agent_id = _current_agent_id.get()
 
         if not granted.grants(required):
             self._audit.denied(
@@ -120,6 +160,7 @@ class PermissionEnforcer:
                 granted_access=granted.value,
                 reason=f"path not in config or insufficient access (have {granted.value}, need {required.value})",
                 tool=tool,
+                agent_id=agent_id,
             )
             raise ForbiddenError(
                 f"Access denied: '{path}' has {granted.value} access, "
@@ -134,6 +175,7 @@ class PermissionEnforcer:
             access=required.value,
             granted=granted.value,
             tool=tool,
+            agent_id=agent_id,
         )
         return True
 
@@ -149,6 +191,8 @@ class PermissionEnforcer:
         Raises:
             ForbiddenError: If the command is denied or contains injection attempts.
         """
+        agent_id = _current_agent_id.get()
+
         # 1. Block shell metacharacters (command injection prevention)
         if _SHELL_METACHARS.search(command):
             self._audit.denied(
@@ -157,6 +201,7 @@ class PermissionEnforcer:
                 command,
                 reason="command contains forbidden shell metacharacters",
                 tool=tool,
+                agent_id=agent_id,
             )
             raise ForbiddenError(
                 f"Command denied: contains forbidden shell metacharacters",
@@ -187,6 +232,7 @@ class PermissionEnforcer:
                 command,
                 reason="command not in allowlist or explicitly denied",
                 tool=tool,
+                agent_id=agent_id,
             )
             raise ForbiddenError(
                 f"Command denied: '{command}' is not in the allowlist",
@@ -200,6 +246,7 @@ class PermissionEnforcer:
             access="execute",
             granted=granted.value,
             tool=tool,
+            agent_id=agent_id,
         )
         return True
 
