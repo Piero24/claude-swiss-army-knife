@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AccessLevel, CommandAccess, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
-import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer } from "@/lib/api";
+import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
 import { toast } from "sonner";
@@ -18,7 +18,12 @@ export default function ServerDetailPage() {
 
   const [config, setConfig] = useState<ServerConfig | null>(null);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditPageSize, setAuditPageSize] = useState(50);
+  const [expandedLogIdx, setExpandedLogIdx] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [showAddPath, setShowAddPath] = useState(false);
   const [showAddCmd, setShowAddCmd] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
@@ -41,15 +46,19 @@ export default function ServerDetailPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [cfg, audit, tree, st] = await Promise.all([
+      const [cfg, audit, tree, st, settings] = await Promise.all([
         getConfig(server),
-        getAuditLog(server, 50),
+        getAuditLog(server, auditPageSize, 0),
         getFolders(server).catch(() => ({ folders: [], server: "", count: 0 })),
         getServersStatus().catch(() => ({ servers: {} as Record<string, { enabled: boolean }> })),
+        getSettings().catch(() => null),
       ]);
       setConfig(cfg);
       setFolders(tree.folders || []);
-      setAuditLog(audit);
+      setAuditLog(audit.entries);
+      setAuditTotal(audit.total);
+      setAuditPage(0);
+      if (settings?.auditPageSize) setAuditPageSize(settings.auditPageSize);
       const srv = st.servers[server];
       setServerEnabled(!srv || srv.enabled !== false);
     } catch (err) {
@@ -60,6 +69,20 @@ export default function ServerDetailPage() {
   }, [server]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  async function loadAuditPage(page: number) {
+    setAuditLoading(true);
+    try {
+      const result = await getAuditLog(server, auditPageSize, page * auditPageSize);
+      setAuditLog(result.entries);
+      setAuditTotal(result.total);
+      setAuditPage(page);
+    } catch {
+      toast.error("Failed to load audit log");
+    } finally {
+      setAuditLoading(false);
+    }
+  }
 
   async function handleTogglePath(ruleId: string, access: AccessLevel) {
     if (!config) return;
@@ -245,6 +268,12 @@ export default function ServerDetailPage() {
   });
 
   const logFiltersActive = logAccessFilter !== "all" || logResultFilter !== "all" || logDateFilter !== "all";
+  const totalAuditPages = Math.max(1, Math.ceil(auditTotal / auditPageSize));
+  const accessBadgeColors: Record<string, string> = {
+    read: "bg-blue-900/50 text-blue-400",
+    write: "bg-green-900/50 text-green-400",
+    none: "bg-gray-700 text-gray-400",
+  };
   return (
     <div className="max-w-5xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-6">
@@ -464,7 +493,9 @@ export default function ServerDetailPage() {
 
       {/* Audit Log */}
       <section>
-        <h2 className="text-lg font-semibold mb-3">Audit Log (last 50)</h2>
+        <h2 className="text-lg font-semibold mb-3">Audit Log</h2>
+
+        {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 mb-2">
           <input
             type="text"
@@ -511,38 +542,108 @@ export default function ServerDetailPage() {
             </button>
           )}
         </div>
-        <div className="rounded-lg border border-gray-800 overflow-hidden max-h-80 overflow-y-auto">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-gray-900 text-gray-400 text-left">
-              <tr>
-                <th className="px-3 py-2">Time</th>
-                <th className="px-3 py-2">Target</th>
-                <th className="px-3 py-2">Result</th>
-                <th className="px-3 py-2 hidden md:table-cell">Reason</th>
+
+        {/* Table */}
+        <div className="rounded-lg border border-gray-800">
+          {/* Fixed header */}
+          <table className="w-full text-xs table-fixed">
+            <thead>
+              <tr className="bg-gray-900 text-gray-400 text-left">
+                <th className="px-2 py-2 w-14 rounded-tl-lg">Time</th>
+                <th className="px-2 py-2">Target</th>
+                <th className="px-2 py-2 w-[58px]">Access</th>
+                <th className="px-2 py-2 w-[62px]">Result</th>
+                <th className="px-2 py-2 hidden md:table-cell">Reason</th>
               </tr>
             </thead>
-            <tbody>
-              {visibleAuditLog.map((entry, i) => (
-                <tr key={i} className="border-t border-gray-800">
-                  <td className="px-3 py-1.5 text-gray-500 whitespace-nowrap">{entry.ts?.slice(11, 19) || ""}</td>
-                  <td className="px-3 py-1.5 font-mono truncate max-w-60">{entry.target || entry.command || entry.target_type || ""}</td>
-                  <td className="px-3 py-1.5">
-                    <span className={`px-1.5 py-0.5 rounded text-xs ${entry.result === "allowed" ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"}`}>
-                      {entry.result}
-                    </span>
-                  </td>
-                  <td className="px-3 py-1.5 text-gray-600 hidden md:table-cell">{entry.reason || ""}</td>
-                </tr>
-              ))}
-              {auditLog.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No audit entries yet.</td></tr>
-              )}
-              {auditLog.length > 0 && visibleAuditLog.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No entries match filters.</td></tr>
-              )}
-            </tbody>
           </table>
+          {/* Scrollable body */}
+          <div className="max-h-[60vh] overflow-y-auto border-t border-gray-800">
+            <table className="w-full text-xs table-fixed">
+              <tbody>
+                {auditLoading && (
+                  <tr><td colSpan={5} className="px-4 py-4 text-gray-500 text-center">Loading…</td></tr>
+                )}
+                {!auditLoading && visibleAuditLog.map((entry, i) => (
+                  <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer" onClick={() => setExpandedLogIdx(expandedLogIdx === i ? null : i)}>
+                    <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap w-14" title={entry.ts || undefined}>{entry.ts?.slice(11, 19) || ""}</td>
+                    <td className="px-2 py-1.5 font-mono truncate" title={entry.target || entry.command || ""}>{entry.target || entry.command || entry.target_type || ""}</td>
+                    <td className="px-2 py-1.5 w-[58px]">
+                      {entry.access ? (
+                        <span className={`px-1 py-0.5 rounded text-[10px] font-medium ${accessBadgeColors[entry.access] || "bg-gray-700 text-gray-400"}`}>
+                          {entry.access}
+                        </span>
+                      ) : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="px-2 py-1.5 w-[62px]">
+                      <span className={`px-1 py-0.5 rounded text-[10px] font-medium ${entry.result === "allowed" ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"}`}>
+                        {entry.result}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1.5 text-gray-600 truncate hidden md:table-cell" title={entry.reason || undefined}>{entry.reason || ""}</td>
+                  </tr>
+                ))}
+                {!auditLoading && auditLog.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-4 text-gray-500 text-center">No audit entries yet.</td></tr>
+                )}
+                {!auditLoading && auditLog.length > 0 && visibleAuditLog.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-4 text-gray-500 text-center">No entries match filters.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer with pagination */}
+          <div className="flex items-center justify-between px-3 py-2 border-t border-gray-800 bg-gray-900 text-xs text-gray-400 rounded-b-lg">
+            <span>{auditTotal.toLocaleString()} entries — page {auditPage + 1} of {totalAuditPages}</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => loadAuditPage(auditPage - 1)}
+                disabled={auditPage <= 0 || auditLoading}
+                className="px-2 py-0.5 rounded border border-gray-700 hover:border-gray-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                ← Prev
+              </button>
+              <button
+                onClick={() => loadAuditPage(auditPage + 1)}
+                disabled={auditPage >= totalAuditPages - 1 || auditLoading}
+                className="px-2 py-0.5 rounded border border-gray-700 hover:border-gray-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* Expanded detail panel */}
+        {expandedLogIdx !== null && visibleAuditLog[expandedLogIdx] && (
+          <div className="mt-2 rounded-lg border border-gray-700 bg-gray-900 p-4 text-xs space-y-2">
+            {(() => {
+              const e = visibleAuditLog[expandedLogIdx];
+              return (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div><span className="text-gray-500">Timestamp:</span> <span className="text-gray-300">{e.ts || "—"}</span></div>
+                    <div><span className="text-gray-500">Server:</span> <span className="text-gray-300">{e.server || "—"}</span></div>
+                    <div><span className="text-gray-500">Target type:</span> <span className="text-gray-300">{e.target_type || "—"}</span></div>
+                    <div><span className="text-gray-500">Target:</span> <span className="text-gray-300 font-mono">{e.target || "—"}</span></div>
+                    <div><span className="text-gray-500">Command:</span> <span className="text-gray-300 font-mono">{e.command || "—"}</span></div>
+                    <div><span className="text-gray-500">Access requested:</span> <span className={`font-medium ${e.access === "write" ? "text-green-400" : e.access === "read" ? "text-blue-400" : e.access === "none" ? "text-gray-400" : "text-gray-300"}`}>{e.access || "—"}</span></div>
+                    <div><span className="text-gray-500">Result:</span> <span className={`font-medium ${e.result === "allowed" ? "text-green-400" : "text-red-400"}`}>{e.result}</span></div>
+                    <div><span className="text-gray-500">Reason:</span> <span className="text-gray-300">{e.reason || "—"}</span></div>
+                    {e.agent_id && <div><span className="text-gray-500">Agent:</span> <span className="text-gray-300 font-mono">{e.agent_id}</span></div>}
+                  </div>
+                  {e.message && (
+                    <div>
+                      <span className="text-gray-500">Message:</span>
+                      <pre className="mt-1 p-2 rounded bg-gray-800 text-gray-300 whitespace-pre-wrap text-[11px] max-h-40 overflow-y-auto">{e.message}</pre>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
       </section>
 
       {/* Add Path Dialog */}
