@@ -40,6 +40,8 @@ export interface AuditEntry {
   command?: string;
   access?: string;
   reason?: string;
+  agent_id?: string;
+  message?: string;
 }
 
 export type ServerName = "ubuntu-server" | "obsidian" | "synology-nas";

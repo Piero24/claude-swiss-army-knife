@@ -127,6 +127,23 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+
+      {/* Audit Log Section */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold mb-4">Audit Log</h2>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">Entries per page</label>
+          <select
+            value={settings.auditPageSize || 50}
+            onChange={(e) => setSettings({ ...settings, auditPageSize: parseInt(e.target.value) as 50 | 100 | 150 })}
+            className="w-32 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={150}>150</option>
+          </select>
+        </div>
+      </section>
     </div>
   );
 }

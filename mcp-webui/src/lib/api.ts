@@ -81,10 +81,13 @@ export async function deleteCommandRule(server: ServerName, ruleId: string): Pro
 
 // ── Audit ──────────────────────────────────────────
 
-export async function getAuditLog(server: ServerName, limit = 50, filter?: "allowed" | "denied"): Promise<AuditEntry[]> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  if (filter) params.set("filter", filter);
-  return fetchJSON<AuditEntry[]>(`${BASE}/audit/${server}?${params}`);
+export async function getAuditLog(
+  server: ServerName,
+  limit = 50,
+  offset = 0
+): Promise<{ entries: AuditEntry[]; total: number }> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return fetchJSON<{ entries: AuditEntry[]; total: number }>(`${BASE}/audit/${server}?${params}`);
 }
 
 // ── Bulk ────────────────────────────────────────────
@@ -136,6 +139,7 @@ export interface AppSettings {
     intervalMinutes: number;
     excludePatterns: string[];
   };
+  auditPageSize?: number;
 }
 
 export async function getSettings(): Promise<AppSettings> {
