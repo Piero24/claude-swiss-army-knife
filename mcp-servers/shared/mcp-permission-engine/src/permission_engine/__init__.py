@@ -18,7 +18,7 @@ Usage:
 
 from .audit import AuditLogger, read_audit_log
 from .config import ConfigLoader, load_config
-from .enforcer import ForbiddenError, PermissionEnforcer
+from .enforcer import ForbiddenError, PermissionEnforcer, _current_agent_id
 from .models import (
     AccessLevel,
     CommandRule,
@@ -27,11 +27,13 @@ from .models import (
     ServerConfig,
     ServerInfo,
 )
+from .users import AuthenticationError, UserConfig, UsersConfig, load_users, validate_user
 
 __all__ = [
     # Enforcer
     "PermissionEnforcer",
     "ForbiddenError",
+    "_current_agent_id",
     # Config
     "load_config",
     "ConfigLoader",
@@ -45,4 +47,10 @@ __all__ = [
     # Audit
     "AuditLogger",
     "read_audit_log",
+    # Users
+    "AuthenticationError",
+    "UserConfig",
+    "UsersConfig",
+    "load_users",
+    "validate_user",
 ]

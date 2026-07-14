@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 import yaml
-from permission_engine.enforcer import ForbiddenError, PermissionEnforcer, _SHELL_METACHARS
+from permission_engine.enforcer import (
+    ForbiddenError,
+    PermissionEnforcer,
+    _SHELL_METACHARS,
+    _current_agent_id,
+)
+from permission_engine.audit import read_audit_log
 
 
 CONFIG_YAML = """
@@ -133,6 +139,20 @@ permissions:
             enforcer.check("read", "/etc/shadow")
         assert exc_info.value.path == "/etc/shadow"
 
+    def test_agent_id_flows_through_check(self, enforcer):
+        """agent_id from contextvar appears in audit log via check()."""
+        _current_agent_id.set("alice")
+        enforcer.check("read", "/var/log/syslog")
+        entries = read_audit_log("/tmp/test-audit.log")
+        assert entries[0].get("agent_id") == "alice"
+
+    def test_agent_id_default_in_check(self, enforcer):
+        """When contextvar is default, 'default' appears in audit log."""
+        _current_agent_id.set("default")
+        enforcer.check("read", "/var/log/syslog")
+        entries = read_audit_log("/tmp/test-audit.log")
+        assert entries[0].get("agent_id") == "default"
+
 
 class TestCommandAccess:
     """Tests for command allowlist enforcement."""
@@ -180,6 +200,13 @@ class TestCommandAccess:
 
     def test_journalctl_allowed(self, enforcer):
         assert enforcer.check_command("journalctl -u nginx") is True
+
+    def test_agent_id_flows_through_check_command(self, enforcer):
+        """agent_id from contextvar appears in audit log via check_command()."""
+        _current_agent_id.set("bob")
+        enforcer.check_command("systemctl status nginx")
+        entries = read_audit_log("/tmp/test-audit.log")
+        assert entries[0].get("agent_id") == "bob"
 
 
 class TestSafeResolvePath:
