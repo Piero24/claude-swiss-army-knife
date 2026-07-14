@@ -167,7 +167,11 @@ class TestAuditLogger:
     def test_agent_id_custom_allowed(self, audit_logger):
         """Custom agent_id flows through to log entry (allowed)."""
         audit_logger.allowed(
-            "test-mcp", "file", "/test", access="read", granted="read",
+            "test-mcp",
+            "file",
+            "/test",
+            access="read",
+            granted="read",
             agent_id="alice",
         )
         entries = read_audit_log(audit_logger._log_path)
@@ -176,7 +180,11 @@ class TestAuditLogger:
     def test_agent_id_custom_denied(self, audit_logger):
         """Custom agent_id flows through to log entry (denied)."""
         audit_logger.denied(
-            "test-mcp", "file", "/secret", reason="nope", agent_id="bob",
+            "test-mcp",
+            "file",
+            "/secret",
+            reason="nope",
+            agent_id="bob",
         )
         entries = read_audit_log(audit_logger._log_path)
         assert entries[0].get("agent_id") == "bob"

@@ -127,9 +127,7 @@ class PermissionEnforcer:
         from .users import AuthenticationError, load_users, validate_user
 
         if not users_config_path:
-            users_config_path = str(
-                self._config_path.parent / "users.yaml"
-            )
+            users_config_path = str(self._config_path.parent / "users.yaml")
 
         users = load_users(users_config_path)
         validate_user(users, user_id, user_key)

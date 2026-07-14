@@ -13,11 +13,11 @@ class UserConfig(BaseModel):
     """A single user definition from users.yaml."""
 
     id: str = Field(..., description="Unique user identifier")
-    key: str = Field(
-        ..., description="Hashed key in format 'sha256$<hex>'"
-    )
+    key: str = Field(..., description="Hashed key in format 'sha256$<hex>'")
     name: str = Field(default="", description="Display name")
-    enabled: bool = Field(default=True, description="Whether this user is active")
+    enabled: bool = Field(
+        default=True, description="Whether this user is active"
+    )
 
 
 class UsersConfig(BaseModel):
