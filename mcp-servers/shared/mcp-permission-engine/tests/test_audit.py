@@ -157,3 +157,26 @@ class TestAuditLogger:
         entries = read_audit_log(audit_logger._log_path)
         assert entries[0]["target_type"] == "command"
         assert entries[0]["target"] == "systemctl status nginx"
+
+    def test_agent_id_default(self, audit_logger):
+        """agent_id defaults to 'default' when not provided."""
+        audit_logger.allowed("test-mcp", "file", "/test")
+        entries = read_audit_log(audit_logger._log_path)
+        assert entries[0].get("agent_id") == "default"
+
+    def test_agent_id_custom_allowed(self, audit_logger):
+        """Custom agent_id flows through to log entry (allowed)."""
+        audit_logger.allowed(
+            "test-mcp", "file", "/test", access="read", granted="read",
+            agent_id="alice",
+        )
+        entries = read_audit_log(audit_logger._log_path)
+        assert entries[0].get("agent_id") == "alice"
+
+    def test_agent_id_custom_denied(self, audit_logger):
+        """Custom agent_id flows through to log entry (denied)."""
+        audit_logger.denied(
+            "test-mcp", "file", "/secret", reason="nope", agent_id="bob",
+        )
+        entries = read_audit_log(audit_logger._log_path)
+        assert entries[0].get("agent_id") == "bob"

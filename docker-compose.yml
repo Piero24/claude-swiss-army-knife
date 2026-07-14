@@ -44,6 +44,7 @@ services:
       - /etc/nginx:/mnt/host/etc/nginx:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
+      - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu:/var/log/mcp
     pid: "host"
     network_mode: "host"
@@ -60,6 +61,7 @@ services:
     volumes:
       - ${OBSIDIAN_VAULT_PATH:-/DATA/obsidian-vaults}:/data/vaults:rw
       - ./configs/obsidian.yaml:/app/config.yaml:ro
+      - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/obsidian:/var/log/mcp
     stdin_open: true
     restart: unless-stopped
@@ -73,6 +75,7 @@ services:
     container_name: ${SYNOLOGY_MCP_CONTAINER:-synology-mcp}
     volumes:
       - ./configs/synology-nas.yaml:/app/config.yaml:ro
+      - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/synology:/var/log/mcp
     environment:
       - SYNOLOGY_NAS_HOST=${SYNOLOGY_NAS_HOST}
