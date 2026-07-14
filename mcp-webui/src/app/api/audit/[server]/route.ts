@@ -1,4 +1,4 @@
-/** GET — recent audit log entries for a server. */
+/** GET — paginated audit log entries for a server. */
 
 import { NextResponse } from "next/server";
 import * as fs from "fs/promises";
@@ -18,14 +18,14 @@ export async function GET(
 
   const url = new URL(request.url);
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 500);
-  const filter = url.searchParams.get("filter"); // "allowed" | "denied" | null
+  const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
 
   try {
     const logDir = path.join(LOGS_PATH, server === "synology-nas" ? "synology" : server === "ubuntu-server" ? "ubuntu" : "obsidian");
     const logFile = path.join(logDir, "audit.log");
 
     const raw = await fs.readFile(logFile, "utf-8").catch(() => "");
-    if (!raw) return NextResponse.json([]);
+    if (!raw) return NextResponse.json({ entries: [], total: 0 });
 
     const entries = raw
       .split("\n")
@@ -36,9 +36,11 @@ export async function GET(
       .filter(Boolean)
       .reverse();
 
-    const filtered = filter ? entries.filter((e: any) => e.result === filter) : entries;
-    return NextResponse.json(filtered.slice(0, limit));
+    return NextResponse.json({
+      entries: entries.slice(offset, offset + limit),
+      total: entries.length,
+    });
   } catch {
-    return NextResponse.json([]);
+    return NextResponse.json({ entries: [], total: 0 });
   }
 }

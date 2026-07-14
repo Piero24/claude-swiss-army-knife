@@ -19,6 +19,7 @@ const settingsSchema = z.object({
     excludePatterns: z.array(z.string()).default([]),
   }),
   servers: z.record(z.string(), serverEntrySchema).default({}),
+  auditPageSize: z.number().refine((n) => [50, 100, 150].includes(n), { message: "Must be 50, 100, or 150" }).default(50),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;
@@ -39,6 +40,7 @@ const DEFAULTS: AppSettings = {
     "obsidian": { enabled: true },
     "synology-nas": { enabled: true },
   },
+  auditPageSize: 50,
 };
 
 async function load(): Promise<AppSettings> {
