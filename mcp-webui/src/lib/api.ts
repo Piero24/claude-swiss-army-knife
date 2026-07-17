@@ -220,3 +220,26 @@ export async function login(apiKey: string): Promise<{ success: boolean }> {
 export async function logout(): Promise<{ success: boolean }> {
   return fetchJSON(`${BASE}/auth`, { method: "DELETE" });
 }
+
+// ── Agents ──────────────────────────────────────────
+
+export async function getAgents() {
+  return fetchJSON<import("./types").UsersConfig>(`${BASE}/agents`);
+}
+
+export async function updateAgentsSettings(data: { mode: string }) {
+  return fetchJSON<{ saved: boolean }>(`${BASE}/agents`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAgent(
+  id: string,
+  data: { enabled?: boolean; tools?: string[] }
+) {
+  return fetchJSON<{ updated: boolean }>(`${BASE}/agents/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
