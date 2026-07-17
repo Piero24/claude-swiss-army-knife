@@ -16,7 +16,7 @@ from pathlib import Path
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
-from permission_engine import PermissionEnforcer, _current_agent_id
+from permission_engine import PermissionEnforcer, _current_user_id, _observed_subagent_id
 
 from .config_watcher import watch_config
 from .path_mapper import PathMapper
@@ -270,7 +270,8 @@ def create_server() -> Server:
 
         # Set agent identity from environment (user-configured in Claude Code settings)
         user_id = os.environ.get("MCP_USER_ID", "default")
-        _current_agent_id.set(user_id)
+        _current_user_id.set(user_id)
+        _observed_subagent_id.set(os.environ.get("CLAUDE_AGENT_ID", ""))
 
         # Authenticate if credentials are provided
         user_key = os.environ.get("MCP_USER_KEY", "")

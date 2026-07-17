@@ -16,8 +16,14 @@ from .resolver import PathResolver
 
 # Context variable for the current agent/user identity.
 # Set once per request in call_tool() and read automatically by check()/check_command().
-_current_agent_id: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "current_agent_id", default="default"
+_current_user_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "current_user_id", default="default"
+)
+
+# Observed sub-agent label — caller-controlled, untrusted, audit-only.
+# Set from CLAUDE_AGENT_ID env var. Never used for access control decisions.
+_observed_subagent_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "observed_subagent_id", default=""
 )
 
 
@@ -150,14 +156,14 @@ class PermissionEnforcer:
         validate_user(users, user_id, user_key)
         return True
 
-    def check_tool_access(self, agent_id: str, tool_name: str) -> bool:
+    def check_tool_access(self, user_id: str, tool_name: str) -> bool:
         """Check if an agent is allowed to use a specific tool.
 
         Evaluates the access mode and the user's tool list. Must be called
         after :meth:`authenticate` so the agent identity is established.
 
         Args:
-            agent_id: The agent/user ID (from MCP_USER_ID or "default").
+            user_id: The agent/user ID (from MCP_USER_ID or "default").
             tool_name: The MCP tool name being invoked.
 
         Returns:
@@ -173,29 +179,29 @@ class PermissionEnforcer:
         mode = users.mode
 
         # Find the user in the list (None if not listed)
-        user = next((u for u in users.users if u.id == agent_id), None)
+        user = next((u for u in users.users if u.id == user_id), None)
 
         if mode == "open":
             if user and not user.enabled:
-                raise ForbiddenError(f"User '{agent_id}' is disabled")
+                raise ForbiddenError(f"User '{user_id}' is disabled")
             return True
 
         if mode == "allowlist":
             if user is None:
                 raise ForbiddenError(
-                    f"Agent '{agent_id}' is not in the allowlist"
+                    f"Agent '{user_id}' is not in the allowlist"
                 )
             if not user.enabled:
-                raise ForbiddenError(f"User '{agent_id}' is disabled")
+                raise ForbiddenError(f"User '{user_id}' is disabled")
             if not _tool_allowed(user, tool_name):
                 raise ForbiddenError(
-                    f"Tool '{tool_name}' not allowed for user '{agent_id}'"
+                    f"Tool '{tool_name}' not allowed for user '{user_id}'"
                 )
             return True
 
         if mode == "blocklist":
             if user and not user.enabled:
-                raise ForbiddenError(f"User '{agent_id}' is blocked")
+                raise ForbiddenError(f"User '{user_id}' is blocked")
             return True
 
         return True
@@ -216,7 +222,8 @@ class PermissionEnforcer:
         """
         required = AccessLevel(required_access)
         granted = self._path_resolver.resolve(path)
-        agent_id = _current_agent_id.get()
+        user_id = _current_user_id.get()
+        subagent_id = _observed_subagent_id.get()
 
         if not granted.grants(required):
             self._audit.denied(
@@ -227,7 +234,8 @@ class PermissionEnforcer:
                 granted_access=granted.value,
                 reason=f"path not in config or insufficient access (have {granted.value}, need {required.value})",
                 tool=tool,
-                agent_id=agent_id,
+                user_id=user_id,
+                subagent_id=subagent_id,
             )
             raise ForbiddenError(
                 f"Access denied: '{path}' has {granted.value} access, "
@@ -242,7 +250,8 @@ class PermissionEnforcer:
             access=required.value,
             granted=granted.value,
             tool=tool,
-            agent_id=agent_id,
+            user_id=user_id,
+            subagent_id=subagent_id,
         )
         return True
 
@@ -258,7 +267,8 @@ class PermissionEnforcer:
         Raises:
             ForbiddenError: If the command is denied or contains injection attempts.
         """
-        agent_id = _current_agent_id.get()
+        user_id = _current_user_id.get()
+        subagent_id = _observed_subagent_id.get()
 
         # 1. Block shell metacharacters (command injection prevention)
         if _SHELL_METACHARS.search(command):
@@ -268,7 +278,8 @@ class PermissionEnforcer:
                 command,
                 reason="command contains forbidden shell metacharacters",
                 tool=tool,
-                agent_id=agent_id,
+                user_id=user_id,
+                subagent_id=subagent_id,
             )
             raise ForbiddenError(
                 f"Command denied: contains forbidden shell metacharacters",
@@ -299,7 +310,8 @@ class PermissionEnforcer:
                 command,
                 reason="command not in allowlist or explicitly denied",
                 tool=tool,
-                agent_id=agent_id,
+                user_id=user_id,
+                subagent_id=subagent_id,
             )
             raise ForbiddenError(
                 f"Command denied: '{command}' is not in the allowlist",
@@ -313,7 +325,8 @@ class PermissionEnforcer:
             access="execute",
             granted=granted.value,
             tool=tool,
-            agent_id=agent_id,
+            user_id=user_id,
+            subagent_id=subagent_id,
         )
         return True
 
