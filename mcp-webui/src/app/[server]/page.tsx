@@ -631,7 +631,8 @@ export default function ServerDetailPage() {
                     <div><span className="text-gray-500">Access requested:</span> <span className={`font-medium ${e.access === "write" ? "text-green-400" : e.access === "read" ? "text-blue-400" : e.access === "none" ? "text-gray-400" : "text-gray-300"}`}>{e.access || "—"}</span></div>
                     <div><span className="text-gray-500">Result:</span> <span className={`font-medium ${e.result === "allowed" ? "text-green-400" : "text-red-400"}`}>{e.result}</span></div>
                     <div><span className="text-gray-500">Reason:</span> <span className="text-gray-300">{e.reason || "—"}</span></div>
-                    {e.agent_id && <div><span className="text-gray-500">Agent:</span> <span className="text-gray-300 font-mono">{e.agent_id}</span></div>}
+                    {e.user_id && <div><span className="text-gray-500">User:</span> <span className="text-gray-300 font-mono">{e.user_id}</span></div>}
+                    {e.subagent_id && <div><span className="text-gray-500">Sub-agent:</span> <span className="text-gray-400 font-mono text-xs">{e.subagent_id}</span></div>}
                   </div>
                   {e.message && (
                     <div>
