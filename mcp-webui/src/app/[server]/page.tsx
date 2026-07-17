@@ -275,7 +275,7 @@ export default function ServerDetailPage() {
     none: "bg-gray-700 text-gray-400",
   };
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-6">
         <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
         <h1 className="text-2xl font-bold">{SERVER_LABELS[server]}</h1>
@@ -550,10 +550,12 @@ export default function ServerDetailPage() {
             <thead>
               <tr className="bg-gray-900 text-gray-400 text-left">
                 <th className="px-2 py-2 w-14 rounded-tl-lg">Time</th>
-                <th className="px-2 py-2">Target</th>
-                <th className="px-2 py-2 w-[58px]">Access</th>
+                <th className="px-2 py-2 w-[13%]">Target</th>
+                <th className="px-2 py-2 w-[62px]">Access</th>
                 <th className="px-2 py-2 w-[62px]">Result</th>
-                <th className="px-2 py-2 hidden md:table-cell">Reason</th>
+                <th className="px-2 py-2 w-[35%] hidden md:table-cell">Reason</th>
+                <th className="px-2 py-2 w-[80px] hidden md:table-cell">User</th>
+                <th className="px-2 py-2 w-[90px] hidden md:table-cell">Sub-agent</th>
               </tr>
             </thead>
           </table>
@@ -562,13 +564,13 @@ export default function ServerDetailPage() {
             <table className="w-full text-xs table-fixed">
               <tbody>
                 {auditLoading && (
-                  <tr><td colSpan={5} className="px-4 py-4 text-gray-500 text-center">Loading…</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-4 text-gray-500 text-center">Loading…</td></tr>
                 )}
                 {!auditLoading && visibleAuditLog.map((entry, i) => (
                   <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer" onClick={() => setExpandedLogIdx(expandedLogIdx === i ? null : i)}>
                     <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap w-14" title={entry.ts || undefined}>{entry.ts?.slice(11, 19) || ""}</td>
-                    <td className="px-2 py-1.5 font-mono truncate" title={entry.target || entry.command || ""}>{entry.target || entry.command || entry.target_type || ""}</td>
-                    <td className="px-2 py-1.5 w-[58px]">
+                    <td className="px-2 py-1.5 font-mono truncate w-[13%]" title={entry.target || entry.command || ""}>{entry.target || entry.command || entry.target_type || ""}</td>
+                    <td className="px-2 py-1.5 w-[62px]">
                       {entry.access ? (
                         <span className={`px-1 py-0.5 rounded text-[10px] font-medium ${accessBadgeColors[entry.access] || "bg-gray-700 text-gray-400"}`}>
                           {entry.access}
@@ -580,14 +582,16 @@ export default function ServerDetailPage() {
                         {entry.result}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-gray-600 truncate hidden md:table-cell" title={entry.reason || undefined}>{entry.reason || ""}</td>
+                    <td className="px-2 py-1.5 text-gray-600 truncate hidden md:table-cell w-[35%]" title={entry.reason || undefined}>{entry.reason || ""}</td>
+                    <td className="px-2 py-1.5 font-mono text-gray-500 truncate hidden md:table-cell w-[80px]" title={entry.user_id || undefined}>{entry.user_id || "—"}</td>
+                    <td className="px-2 py-1.5 font-mono text-gray-500 truncate hidden md:table-cell w-[90px]" title={entry.subagent_id || undefined}>{entry.subagent_id || "—"}</td>
                   </tr>
                 ))}
                 {!auditLoading && auditLog.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-4 text-gray-500 text-center">No audit entries yet.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-4 text-gray-500 text-center">No audit entries yet.</td></tr>
                 )}
                 {!auditLoading && auditLog.length > 0 && visibleAuditLog.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-4 text-gray-500 text-center">No entries match filters.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-4 text-gray-500 text-center">No entries match filters.</td></tr>
                 )}
               </tbody>
             </table>
