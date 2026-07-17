@@ -283,6 +283,16 @@ def create_server() -> Server:
                 )
             ]
 
+        # Check tool-level access control
+        try:
+            enforcer.check_tool_access(user_id, name)
+        except Exception as e:
+            return [
+                TextContent(
+                    type="text", text=json.dumps({"error": str(e)}, indent=2)
+                )
+            ]
+
         try:
             match name:
                 case "ubuntu_read_file":

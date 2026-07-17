@@ -254,3 +254,184 @@ class TestSafeResolvePath:
         # This is hard to test without actual symlinks, but the logic
         # uses Path.resolve() which follows symlinks
         pass  # Tested via integration with real filesystem
+
+
+@pytest.fixture
+def enforcer_with_users():
+    """Create an enforcer with a users.yaml alongside the config."""
+    import tempfile
+
+    tmpdir = tempfile.mkdtemp()
+    config_path = Path(tmpdir) / "config.yaml"
+    config_path.write_text(CONFIG_YAML)
+    enf = PermissionEnforcer(str(config_path))
+    yield enf
+    # Cleanup
+    import shutil
+
+    shutil.rmtree(tmpdir)
+    audit_log = Path("/tmp/test-audit.log")
+    if audit_log.exists():
+        audit_log.unlink()
+
+
+def _write_users_yaml(dir_path: str, content: str):
+    """Write a users.yaml in the given directory."""
+    (Path(dir_path) / "users.yaml").write_text(content)
+
+
+class TestCheckToolAccess:
+    """Tests for check_tool_access() access control."""
+
+    OPEN_USERS = """mode: open
+users:
+  - id: "alice"
+    key: "sha256$abc"
+    name: "Alice"
+    enabled: true
+    tools: ["*"]
+  - id: "bob"
+    key: "sha256$def"
+    name: "Bob"
+    enabled: false
+    tools: ["ubuntu_read_file"]
+"""
+
+    ALLOWLIST_USERS = """mode: allowlist
+users:
+  - id: "alice"
+    key: "sha256$abc"
+    name: "Alice"
+    enabled: true
+    tools: ["*"]
+  - id: "bob"
+    key: "sha256$def"
+    name: "Bob"
+    enabled: true
+    tools: ["ubuntu_read_file", "ubuntu_list_dir"]
+"""
+
+    BLOCKLIST_USERS = """mode: blocklist
+users:
+  - id: "alice"
+    key: "sha256$abc"
+    name: "Alice"
+    enabled: true
+    tools: ["*"]
+  - id: "bob"
+    key: "sha256$def"
+    name: "Bob"
+    enabled: false
+    tools: ["ubuntu_read_file"]
+"""
+
+    # ── Open mode ──
+
+    def test_open_mode_listed_enabled_passes(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.OPEN_USERS
+        )
+        assert (
+            enforcer_with_users.check_tool_access("alice", "ubuntu_read_file")
+            is True
+        )
+
+    def test_open_mode_listed_disabled_blocked(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.OPEN_USERS
+        )
+        with pytest.raises(ForbiddenError, match="disabled"):
+            enforcer_with_users.check_tool_access("bob", "ubuntu_read_file")
+
+    def test_open_mode_unlisted_passes(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.OPEN_USERS
+        )
+        assert (
+            enforcer_with_users.check_tool_access("stranger", "any_tool")
+            is True
+        )
+
+    def test_open_mode_default_user_passes(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.OPEN_USERS
+        )
+        assert (
+            enforcer_with_users.check_tool_access("default", "any_tool") is True
+        )
+
+    # ── Allowlist mode ──
+
+    def test_allowlist_listed_enabled_passes(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
+        )
+        assert (
+            enforcer_with_users.check_tool_access("alice", "ubuntu_read_file")
+            is True
+        )
+
+    def test_allowlist_restricted_tool_blocked(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
+        )
+        with pytest.raises(ForbiddenError, match="not allowed"):
+            enforcer_with_users.check_tool_access("bob", "ubuntu_write_file")
+
+    def test_allowlist_restricted_tool_allowed(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
+        )
+        assert (
+            enforcer_with_users.check_tool_access("bob", "ubuntu_read_file")
+            is True
+        )
+
+    def test_allowlist_unlisted_blocked(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
+        )
+        with pytest.raises(ForbiddenError, match="not in the allowlist"):
+            enforcer_with_users.check_tool_access("stranger", "any_tool")
+
+    def test_allowlist_default_blocked(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
+        )
+        with pytest.raises(ForbiddenError, match="not in the allowlist"):
+            enforcer_with_users.check_tool_access("default", "any_tool")
+
+    # ── Blocklist mode ──
+
+    def test_blocklist_enabled_passes(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.BLOCKLIST_USERS
+        )
+        assert (
+            enforcer_with_users.check_tool_access("alice", "ubuntu_read_file")
+            is True
+        )
+
+    def test_blocklist_disabled_blocked(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.BLOCKLIST_USERS
+        )
+        with pytest.raises(ForbiddenError, match="blocked"):
+            enforcer_with_users.check_tool_access("bob", "ubuntu_read_file")
+
+    def test_blocklist_unlisted_passes(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.BLOCKLIST_USERS
+        )
+        assert (
+            enforcer_with_users.check_tool_access("stranger", "any_tool")
+            is True
+        )
+
+    def test_blocklist_default_passes(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.BLOCKLIST_USERS
+        )
+        assert (
+            enforcer_with_users.check_tool_access("default", "any_tool") is True
+        )
