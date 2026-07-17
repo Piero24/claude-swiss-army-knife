@@ -145,3 +145,28 @@ class TestValidateUser:
             validate_user(users_config, "alice", "")
         with pytest.raises(AuthenticationError):
             validate_user(users_config, "alice", "a" * 100)
+
+
+class TestAccessControlFields:
+    """Tests for mode and tools fields in user/access configs."""
+
+    def test_users_config_default_mode(self):
+        config = UsersConfig(users=[])
+        assert config.mode == "open"
+
+    def test_users_config_custom_mode(self):
+        config = UsersConfig(mode="allowlist", users=[])
+        assert config.mode == "allowlist"
+
+    def test_user_config_default_tools(self):
+        user = UserConfig(id="alice", key="sha256$abc123")
+        assert user.tools == ["*"]
+
+    def test_user_config_custom_tools(self):
+        user = UserConfig(
+            id="alice",
+            key="sha256$abc123",
+            tools=["ubuntu_read_file", "ubuntu_list_dir"],
+        )
+        assert "ubuntu_read_file" in user.tools
+        assert len(user.tools) == 2

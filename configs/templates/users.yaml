@@ -1,15 +1,27 @@
-# User authentication for MCP servers.
-# Each user gets an ID and a shared secret (key).
-# The key is stored HASHED — use the helper script to generate:
+# User authentication and access control for MCP servers.
+#
+# Copy this to ../users.yaml and edit with real values.
+# Generate hashed keys with:
 #   python -c "import hashlib; print('sha256$' + hashlib.sha256(input('Key: ').encode()).hexdigest())"
+#
+# mode: "open" (default) | "allowlist" | "blocklist"
+#   - open:       everyone can use tools (users can be disabled individually)
+#   - allowlist:  only listed + enabled users can use tools
+#   - blocklist:  everyone except disabled users can use tools
+#
+# tools: ["*"] = all tools, or list specific tool names per server
+
+mode: open
 
 users:
   - id: "alice"
-    key: "sha256$e35c28e2b4a1d9f7f8a1c4b7e0d3"  # example hash — replace with real one
+    key: "sha256$e35c28e2b4a1d9f7c8b3a6e0d2f5a9c1b7e4d8f0a3c6b9e2d5f8a1c4b7e0d3"  # example — replace
     name: "Alice"
     enabled: true
+    tools: ["*"]
 
   - id: "bob"
-    key: "sha256$f4d2e1a3c5b7d9e0f2a4c6b8d05d7e9f1a4c6b8d0"  # example hash — replace with real one
+    key: "sha256$f4d2e1a3c5b7d9e0f2a4c6b8d0e3f5a7c9b1d4e6f8a0c3b5d7e9f1a4c6b8d0"  # example — replace
     name: "Bob"
     enabled: true
+    tools: ["ubuntu_read_file", "ubuntu_list_dir"]
