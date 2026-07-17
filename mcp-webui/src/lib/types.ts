@@ -63,3 +63,18 @@ export const ACCESS_COLORS: Record<AccessLevel, string> = {
   read: "bg-blue-100 text-blue-700 border-blue-400",
   write: "bg-green-100 text-green-700 border-green-400",
 };
+
+// ── Agents ──────────────────────────────────────────
+
+export interface UserConfig {
+  id: string;
+  key: string;
+  name: string;
+  enabled: boolean;
+  tools: string[];
+}
+
+export interface UsersConfig {
+  mode: "open" | "allowlist" | "blocklist";
+  users: UserConfig[];
+}

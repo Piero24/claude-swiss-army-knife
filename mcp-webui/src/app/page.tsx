@@ -9,7 +9,7 @@ import { getConfig, getHealth, getServersStatus, toggleServerStatus } from "@/li
 import { logout } from "@/lib/api";
 import type { HealthStatus } from "@/lib/api";
 import type { ServerStatus } from "@/lib/api";
-import { LogOut, Settings, Power } from "lucide-react";
+import { LogOut, Settings, Shield, Power } from "lucide-react";
 
 const SERVERS: ServerName[] = ["ubuntu-server", "obsidian", "synology-nas"];
 
@@ -123,6 +123,9 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold">🔐 MCP Permissions Manager</h1>
         {isScanning && <span className="text-xs text-blue-400 animate-pulse">🔄 Scanning{scanServer ? ` ${scanServer}` : ""}…</span>}
+        <Link href="/agents" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
+          <Shield size={16} /> Agents
+        </Link>
         <Link href="/settings" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
           <Settings size={16} /> Settings
         </Link>
