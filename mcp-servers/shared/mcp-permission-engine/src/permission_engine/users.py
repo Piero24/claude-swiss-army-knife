@@ -18,11 +18,19 @@ class UserConfig(BaseModel):
     enabled: bool = Field(
         default=True, description="Whether this user is active"
     )
+    tools: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Allowed tools: ['*'] = all, or specific tool names",
+    )
 
 
 class UsersConfig(BaseModel):
     """Top-level users configuration."""
 
+    mode: str = Field(
+        default="open",
+        description="Access mode: 'open', 'allowlist', or 'blocklist'",
+    )
     users: list[UserConfig] = Field(
         default_factory=list, description="List of configured users"
     )

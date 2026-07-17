@@ -25,6 +25,23 @@ _current_agent_id: contextvars.ContextVar[str] = contextvars.ContextVar(
 _SHELL_METACHARS = re.compile(r"[;&|`$(){}\]\[<>!\\'\"]")
 
 
+def _tool_allowed(user, tool_name: str) -> bool:
+    """Check if a tool is in the user's allowed tool list.
+
+    Args:
+        user: A UserConfig instance.
+        tool_name: The MCP tool name to check.
+
+    Returns:
+        True if the tool is allowed for this user.
+    """
+    if not user.tools:
+        return True
+    if "*" in user.tools:
+        return True
+    return tool_name in user.tools
+
+
 class ForbiddenError(Exception):
     """Raised when an operation is denied by the permission engine."""
 
@@ -131,6 +148,56 @@ class PermissionEnforcer:
 
         users = load_users(users_config_path)
         validate_user(users, user_id, user_key)
+        return True
+
+    def check_tool_access(self, agent_id: str, tool_name: str) -> bool:
+        """Check if an agent is allowed to use a specific tool.
+
+        Evaluates the access mode and the user's tool list. Must be called
+        after :meth:`authenticate` so the agent identity is established.
+
+        Args:
+            agent_id: The agent/user ID (from MCP_USER_ID or "default").
+            tool_name: The MCP tool name being invoked.
+
+        Returns:
+            True if the agent is allowed to use the tool.
+
+        Raises:
+            ForbiddenError: If the agent is blocked, not in allowlist,
+                or doesn't have access to the tool.
+        """
+        from .users import load_users
+
+        users = load_users(str(self._config_path.parent / "users.yaml"))
+        mode = users.mode
+
+        # Find the user in the list (None if not listed)
+        user = next((u for u in users.users if u.id == agent_id), None)
+
+        if mode == "open":
+            if user and not user.enabled:
+                raise ForbiddenError(f"User '{agent_id}' is disabled")
+            return True
+
+        if mode == "allowlist":
+            if user is None:
+                raise ForbiddenError(
+                    f"Agent '{agent_id}' is not in the allowlist"
+                )
+            if not user.enabled:
+                raise ForbiddenError(f"User '{agent_id}' is disabled")
+            if not _tool_allowed(user, tool_name):
+                raise ForbiddenError(
+                    f"Tool '{tool_name}' not allowed for user '{agent_id}'"
+                )
+            return True
+
+        if mode == "blocklist":
+            if user and not user.enabled:
+                raise ForbiddenError(f"User '{agent_id}' is blocked")
+            return True
+
         return True
 
     def check(self, required_access: str, path: str, tool: str = "") -> bool:
