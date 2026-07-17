@@ -40,7 +40,8 @@ export interface AuditEntry {
   command?: string;
   access?: string;
   reason?: string;
-  agent_id?: string;
+  user_id?: string;
+  subagent_id?: string;
   message?: string;
 }
 
