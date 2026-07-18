@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { AccessLevel, CommandAccess, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
-import { SERVER_LABELS } from "@/lib/types";
 import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
@@ -19,7 +18,8 @@ import { Folders, Plus, RefreshCw, Trash2 } from "lucide-react";
 export default function ServerDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const server = params.server as ServerName;
+  const server = params.server as string;
+  const serverLabel = server.replace(/-server$/, "").replace(/-mcp$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   const [config, setConfig] = useState<ServerConfig | null>(null);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
@@ -297,7 +297,7 @@ export default function ServerDetailPage() {
   return (
     <div className="max-w-7xl mx-auto p-6">
       <PageHeader
-        title={SERVER_LABELS[server]}
+        title={serverLabel}
         backHref="/"
         actions={
           <>
@@ -424,7 +424,7 @@ export default function ServerDetailPage() {
                 }
                 // Single reload after the atomic operation
                 const [fresh, tree] = await Promise.all([
-                  getConfig(server as ServerName),
+                  getConfig(server),
                   getFolders(server).catch(() => ({ folders: [], server: "", count: 0 })),
                 ]);
                 setConfig(fresh);
