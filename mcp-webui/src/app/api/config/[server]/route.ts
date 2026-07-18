@@ -1,10 +1,9 @@
 /** GET/PUT full config for a server. */
 
 import { NextResponse } from "next/server";
-import * as fs from "fs/promises";
-import * as yaml from "js-yaml";
 import { z } from "zod";
-import { getConfigPath } from "@/lib/config";
+import { readServerConfig, writeServerConfig } from "@/lib/yaml-config";
+import { apiHandler, withValidation } from "@/lib/api-helpers";
 
 const accessLevelSchema = z.enum(["none", "read", "write"]);
 
@@ -72,41 +71,19 @@ function simpleHash(s: string): string {
   return Math.abs(h).toString(36);
 }
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ server: string }> }
-) {
+export const GET = apiHandler(async (_request, { params }) => {
   const { server } = await params;
-  try {
-    const filePath = getConfigPath(server);
-    const raw = await fs.readFile(filePath, "utf-8");
-    const config = yaml.load(raw) as Record<string, unknown>;
-    if (ensureRuleIds(config)) {
-      const yamlStr = yaml.dump(config, { noRefs: true, lineWidth: -1 });
-      await fs.writeFile(filePath, yamlStr, "utf-8");
-    }
-    return NextResponse.json(config);
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+  const config = await readServerConfig(server);
+  if (ensureRuleIds(config)) {
+    await writeServerConfig(server, config);
   }
-}
+  return NextResponse.json(config);
+});
 
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ server: string }> }
-) {
+export const PUT = apiHandler(async (request, { params }) => {
   const { server } = await params;
-  try {
-    const body = await request.json();
-    const validated = serverConfigSchema.parse(body);
-    const filePath = getConfigPath(server);
-    const yamlStr = yaml.dump(validated, { noRefs: true, lineWidth: -1 });
-    await fs.writeFile(filePath, yamlStr, "utf-8");
-    return NextResponse.json({ saved: true, server });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: err.errors }, { status: 400 });
-    }
-    return NextResponse.json({ error: String(err) }, { status: 500 });
-  }
-}
+  const validated = await withValidation(serverConfigSchema, request);
+  await writeServerConfig(server, validated);
+  return NextResponse.json({ saved: true, server });
+});
+

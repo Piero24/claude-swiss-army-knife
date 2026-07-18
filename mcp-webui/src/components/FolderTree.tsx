@@ -2,15 +2,9 @@
 
 import { useState } from "react";
 import type { AccessLevel } from "@/lib/types";
+import type { FolderNode } from "@/lib/api";
+import { AccessToggles } from "@/components/AccessToggles";
 import { ChevronRight, ChevronDown, Lock } from "lucide-react";
-
-interface FolderNode {
-  name: string;
-  path: string;
-  access: string;
-  description: string;
-  children: FolderNode[];
-}
 
 const LEVEL_ORDER: AccessLevel[] = ["none", "read", "write"];
 
@@ -36,43 +30,6 @@ function countDescendants(node: FolderNode): number {
   let n = node.children.length;
   for (const c of node.children) n += countDescendants(c);
   return n;
-}
-
-function AccessToggles({
-  value,
-  maxLevel,
-  onChange,
-}: {
-  value: string;
-  maxLevel: AccessLevel;
-  onChange?: (a: AccessLevel) => void;
-}) {
-  const maxIdx = levelIndex(maxLevel);
-  return (
-    <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
-      {LEVEL_ORDER.map((level, i) => {
-        const disabled = i > maxIdx;
-        const active = value === level;
-        const colors: Record<string, string> = {
-          none: "bg-gray-700 text-gray-400",
-          read: "bg-blue-600 text-white",
-          write: "bg-green-600 text-white",
-        };
-        return (
-          <button
-            key={level}
-            disabled={disabled}
-            onClick={(e) => { e.stopPropagation(); onChange?.(level); }}
-            className={`px-2 py-1 text-xs font-medium transition-colors
-              ${active ? colors[level] : "bg-gray-800 text-gray-500 hover:bg-gray-700"}
-              ${disabled ? "opacity-30 cursor-not-allowed" : ""}`}
-          >
-            {level}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 // Cycle through 5 background tonalities by depth so nested folders are visually distinct.
@@ -133,7 +90,7 @@ function TreeNode({
         </span>
         {restricted ? <Lock size={12} className="text-gray-600 shrink-0" /> : <span className="w-3 shrink-0" />}
         <AccessToggles
-          value={node.access}
+          value={node.access as AccessLevel}
           maxLevel={maxChildAccess(parentAccess)}
           onChange={(a) => onToggle?.(node.path, a)}
         />

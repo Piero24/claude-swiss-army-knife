@@ -8,10 +8,9 @@ import os
 import subprocess
 from pathlib import Path
 
-from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
-from permission_engine import PermissionEnforcer, _current_user_id, _observed_subagent_id
+from permission_engine import BaseMCPServer
 
 from .config_watcher import watch_config
 from .frontmatter import build_frontmatter, get_tags, get_title, parse_frontmatter
@@ -20,370 +19,250 @@ from .wikilinks import extract_links, find_backlinks
 
 logger = logging.getLogger("obsidian-mcp")
 
-_enforcer: PermissionEnforcer | None = None
-_vault: Vault | None = None
 VAULT_PATH = "/data/vaults"
 
 
-def get_enforcer() -> PermissionEnforcer:
-    if _enforcer is None:
-        raise RuntimeError("Enforcer not initialized")
-    return _enforcer
+class ObsidianServer(BaseMCPServer):
 
+    def __init__(self, config_path: str):
+        super().__init__("obsidian-mcp", config_path)
+        self.vault = Vault(VAULT_PATH)
+        self.setup()
 
-def get_vault() -> Vault:
-    if _vault is None:
-        raise RuntimeError("Vault not initialized")
-    return _vault
-
-
-def reload_config() -> None:
-    if _enforcer is not None:
-        _enforcer.reload()
-        logger.info("Config reloaded")
-
-
-def create_server() -> Server:
-    server = Server("obsidian-mcp")
-
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        return [
-            Tool(
-                name="obsidian_list_vault",
-                description="List the vault directory structure.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "subfolder": {
-                            "type": "string",
-                            "description": "Subfolder to list (default: root).",
-                        },
-                        "depth": {
-                            "type": "integer",
-                            "description": "Max depth (default: 3).",
-                        },
-                    },
-                },
-            ),
-            Tool(
-                name="obsidian_read_note",
-                description="Read a note's full content with parsed frontmatter.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Path relative to vault root.",
-                        },
-                    },
-                    "required": ["path"],
-                },
-            ),
-            Tool(
-                name="obsidian_write_note",
-                description="Create or update a note.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Path relative to vault root.",
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "Markdown content.",
-                        },
-                        "frontmatter": {
-                            "type": "object",
-                            "description": "Optional YAML frontmatter to merge.",
-                        },
-                    },
-                    "required": ["path", "content"],
-                },
-            ),
-            Tool(
-                name="obsidian_delete_note",
-                description="Delete a note (soft-delete to .trash/ by default).",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Path relative to vault root.",
-                        },
-                        "permanent": {
-                            "type": "boolean",
-                            "description": "Permanently delete (default: false).",
-                        },
-                    },
-                    "required": ["path"],
-                },
-            ),
-            Tool(
-                name="obsidian_search_notes",
-                description="Full-text search across all notes using ripgrep.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Search query (supports regex).",
-                        },
-                        "max_results": {
-                            "type": "integer",
-                            "description": "Max results (default: 20).",
-                        },
-                        "regex": {
-                            "type": "boolean",
-                            "description": "Treat query as regex (default: false).",
-                        },
-                    },
-                    "required": ["query"],
-                },
-            ),
-            Tool(
-                name="obsidian_search_by_tag",
-                description="Find all notes with a specific frontmatter tag.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "tag": {
-                            "type": "string",
-                            "description": "Tag to search for.",
-                        },
-                    },
-                    "required": ["tag"],
-                },
-            ),
-            Tool(
-                name="obsidian_get_backlinks",
-                description="Find notes that link to a target note via [[wikilinks]].",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Target note path.",
-                        },
-                    },
-                    "required": ["path"],
-                },
-            ),
-            Tool(
-                name="obsidian_get_tags",
-                description="List all unique tags used across the vault.",
-                inputSchema={"type": "object", "properties": {}},
-            ),
-            Tool(
-                name="obsidian_get_frontmatter",
-                description="Read only the YAML frontmatter of a note.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "Path relative to vault root.",
-                        },
-                    },
-                    "required": ["path"],
-                },
-            ),
-        ]
-
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-        enforcer = get_enforcer()
-        vault = get_vault()
-
-        # Set agent identity from environment (user-configured in Claude Code settings)
-        user_id = os.environ.get("MCP_USER_ID", "default")
-        _current_user_id.set(user_id)
-        _observed_subagent_id.set(os.environ.get("CLAUDE_AGENT_ID", ""))
-
-        # Authenticate if credentials are provided
-        user_key = os.environ.get("MCP_USER_KEY", "")
-        try:
-            enforcer.authenticate(user_id, user_key)
-        except Exception as e:
+    def setup(self):
+        @self.server.list_tools()
+        async def list_tools() -> list[Tool]:
             return [
-                TextContent(
-                    type="text", text=json.dumps({"error": str(e)}, indent=2)
-                )
+                Tool(
+                    name="obsidian_list_vault",
+                    description="List the vault directory structure.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "subfolder": {
+                                "type": "string",
+                                "description": "Subfolder to list (default: root).",
+                            },
+                            "depth": {
+                                "type": "integer",
+                                "description": "Max depth (default: 3).",
+                            },
+                        },
+                    },
+                ),
+                Tool(
+                    name="obsidian_read_note",
+                    description="Read a note's full content with parsed frontmatter.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path relative to vault root.",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
+                Tool(
+                    name="obsidian_write_note",
+                    description="Create or update a note.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path relative to vault root.",
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "Markdown content.",
+                            },
+                            "frontmatter": {
+                                "type": "object",
+                                "description": "Optional YAML frontmatter to merge.",
+                            },
+                        },
+                        "required": ["path", "content"],
+                    },
+                ),
+                Tool(
+                    name="obsidian_delete_note",
+                    description="Delete a note (soft-delete to .trash/ by default).",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path relative to vault root.",
+                            },
+                            "permanent": {
+                                "type": "boolean",
+                                "description": "Permanently delete (default: false).",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
+                Tool(
+                    name="obsidian_search_notes",
+                    description="Full-text search across all notes using ripgrep.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Search query (supports regex).",
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "description": "Max results (default: 20).",
+                            },
+                            "regex": {
+                                "type": "boolean",
+                                "description": "Treat query as regex (default: false).",
+                            },
+                        },
+                        "required": ["query"],
+                    },
+                ),
+                Tool(
+                    name="obsidian_search_by_tag",
+                    description="Find all notes with a specific frontmatter tag.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "tag": {
+                                "type": "string",
+                                "description": "Tag to search for.",
+                            },
+                        },
+                        "required": ["tag"],
+                    },
+                ),
+                Tool(
+                    name="obsidian_get_backlinks",
+                    description="Find notes that link to a target note via [[wikilinks]].",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Target note path.",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
+                Tool(
+                    name="obsidian_get_tags",
+                    description="List all unique tags used across the vault.",
+                    inputSchema={"type": "object", "properties": {}},
+                ),
+                Tool(
+                    name="obsidian_get_frontmatter",
+                    description="Read only the YAML frontmatter of a note.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path relative to vault root.",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
             ]
 
-        # Check tool-level access control
-        try:
-            enforcer.check_tool_access(user_id, name)
-        except Exception as e:
-            return [
-                TextContent(
-                    type="text", text=json.dumps({"error": str(e)}, indent=2)
+        @self.server.call_tool()
+        async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+            return await self.handle_tool_call(name, arguments, self._dispatch)
+
+    async def _dispatch(self, name: str, arguments: dict) -> dict | list:
+        match name:
+            case "obsidian_list_vault":
+                subfolder = arguments.get("subfolder", "")
+                self.enforcer.check("read", subfolder or "/", name)
+                entries = self.vault.list_vault(
+                    subfolder, arguments.get("depth", 3)
                 )
-            ]
+                return {"entries": entries, "count": len(entries)}
 
-        try:
-            match name:
-                case "obsidian_list_vault":
-                    subfolder = arguments.get("subfolder", "")
-                    enforcer.check("read", subfolder or "/", name)
-                    entries = vault.list_vault(
-                        subfolder, arguments.get("depth", 3)
-                    )
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {"entries": entries, "count": len(entries)},
-                                indent=2,
-                            ),
-                        )
-                    ]
+            case "obsidian_read_note":
+                self.enforcer.check("read", arguments["path"], name)
+                content = self.vault.read_note(arguments["path"])
+                fm, body = parse_frontmatter(content)
+                return {
+                    "path": arguments["path"],
+                    "frontmatter": fm,
+                    "body": body,
+                }
 
-                case "obsidian_read_note":
-                    enforcer.check("read", arguments["path"], name)
-                    content = vault.read_note(arguments["path"])
-                    fm, body = parse_frontmatter(content)
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {
-                                    "path": arguments["path"],
-                                    "frontmatter": fm,
-                                    "body": body,
-                                },
-                                indent=2,
-                                ensure_ascii=False,
-                            ),
-                        )
-                    ]
+            case "obsidian_write_note":
+                self.enforcer.check("write", arguments["path"], name)
+                body = arguments["content"]
+                user_fm = arguments.get("frontmatter", {})
+                if user_fm:
+                    fm_text = build_frontmatter(user_fm)
+                    body = fm_text + body
+                filepath = self.vault.write_note(arguments["path"], body)
+                return {
+                    "written": True,
+                    "path": arguments["path"],
+                    "file": str(filepath),
+                }
 
-                case "obsidian_write_note":
-                    enforcer.check("write", arguments["path"], name)
-                    body = arguments["content"]
-                    user_fm = arguments.get("frontmatter", {})
-                    if user_fm:
-                        fm_text = build_frontmatter(user_fm)
-                        body = fm_text + body
-                    filepath = vault.write_note(arguments["path"], body)
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {
-                                    "written": True,
-                                    "path": arguments["path"],
-                                    "file": str(filepath),
-                                },
-                                indent=2,
-                            ),
-                        )
-                    ]
-
-                case "obsidian_delete_note":
-                    enforcer.check("write", arguments["path"], name)
-                    result = vault.delete_note(
-                        arguments["path"], arguments.get("permanent", False)
-                    )
-                    return [
-                        TextContent(
-                            type="text", text=json.dumps(result, indent=2)
-                        )
-                    ]
-
-                case "obsidian_search_notes":
-                    enforcer.check("read", "/", name)
-                    enforcer.check_command("rg *", name)
-                    query = arguments["query"]
-                    max_results = arguments.get("max_results", 20)
-                    regex = arguments.get("regex", False)
-                    results = _ripgrep_search(
-                        str(vault.root), query, max_results, regex
-                    )
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {"results": results, "count": len(results)},
-                                indent=2,
-                                ensure_ascii=False,
-                            ),
-                        )
-                    ]
-
-                case "obsidian_search_by_tag":
-                    enforcer.check("read", "/", name)
-                    tag = arguments["tag"]
-                    results = _search_by_tag(vault, tag)
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {
-                                    "tag": tag,
-                                    "results": results,
-                                    "count": len(results),
-                                },
-                                indent=2,
-                            ),
-                        )
-                    ]
-
-                case "obsidian_get_backlinks":
-                    enforcer.check("read", arguments["path"], name)
-                    backlinks = find_backlinks(vault.root, arguments["path"])
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {
-                                    "target": arguments["path"],
-                                    "backlinks": backlinks,
-                                    "count": len(backlinks),
-                                },
-                                indent=2,
-                            ),
-                        )
-                    ]
-
-                case "obsidian_get_tags":
-                    enforcer.check("read", "/", name)
-                    all_tags = _get_all_tags(vault)
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps({"tags": all_tags}, indent=2),
-                        )
-                    ]
-
-                case "obsidian_get_frontmatter":
-                    enforcer.check("read", arguments["path"], name)
-                    content = vault.read_note(arguments["path"])
-                    fm, _ = parse_frontmatter(content)
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {"path": arguments["path"], "frontmatter": fm},
-                                indent=2,
-                            ),
-                        )
-                    ]
-
-                case _:
-                    return [
-                        TextContent(type="text", text=f"Unknown tool: {name}")
-                    ]
-
-        except Exception as e:
-            return [
-                TextContent(
-                    type="text", text=json.dumps({"error": str(e)}, indent=2)
+            case "obsidian_delete_note":
+                self.enforcer.check("write", arguments["path"], name)
+                result = self.vault.delete_note(
+                    arguments["path"], arguments.get("permanent", False)
                 )
-            ]
+                return result
 
-    return server
+            case "obsidian_search_notes":
+                self.enforcer.check("read", "/", name)
+                self.enforcer.check_command("rg *", name)
+                query = arguments["query"]
+                max_results = arguments.get("max_results", 20)
+                regex = arguments.get("regex", False)
+                results = _ripgrep_search(
+                    str(self.vault.root), query, max_results, regex
+                )
+                return {"results": results, "count": len(results)}
+
+            case "obsidian_search_by_tag":
+                self.enforcer.check("read", "/", name)
+                tag = arguments["tag"]
+                results = _search_by_tag(self.vault, tag)
+                return {
+                    "tag": tag,
+                    "results": results,
+                    "count": len(results),
+                }
+
+            case "obsidian_get_backlinks":
+                self.enforcer.check("read", arguments["path"], name)
+                backlinks = find_backlinks(self.vault.root, arguments["path"])
+                return {
+                    "target": arguments["path"],
+                    "backlinks": backlinks,
+                    "count": len(backlinks),
+                }
+
+            case "obsidian_get_tags":
+                self.enforcer.check("read", "/", name)
+                all_tags = _get_all_tags(self.vault)
+                return {"tags": all_tags}
+
+            case "obsidian_get_frontmatter":
+                self.enforcer.check("read", arguments["path"], name)
+                content = self.vault.read_note(arguments["path"])
+                fm, _ = parse_frontmatter(content)
+                return {"path": arguments["path"], "frontmatter": fm}
+
+            case _:
+                raise ValueError(f"Unknown tool: {name}")
 
 
 def _ripgrep_search(
@@ -465,26 +344,26 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    global _enforcer, _vault
-
     config_path = Path(args.config).resolve()
-    _enforcer = PermissionEnforcer(str(config_path))
+    logger.info("Loading config from: %s", config_path)
+
+    app = ObsidianServer(str(config_path))
     logger.info(
-        "Loaded config — %d path rules", len(_enforcer.config.permissions.paths)
+        "Vault opened at %s (%d notes)",
+        VAULT_PATH,
+        len(app.vault.get_all_notes()),
     )
 
-    _vault = Vault(VAULT_PATH)
-    logger.info(
-        "Vault opened at %s (%d notes)", VAULT_PATH, len(_vault.get_all_notes())
+    watch_task = asyncio.create_task(
+        watch_config(config_path, app.reload_config)
     )
 
-    watch_task = asyncio.create_task(watch_config(config_path, reload_config))
-
-    server = create_server()
     async with stdio_server() as (read_stream, write_stream):
         logger.info("Obsidian MCP server running (stdio mode)")
-        await server.run(
-            read_stream, write_stream, server.create_initialization_options()
+        await app.server.run(
+            read_stream,
+            write_stream,
+            app.server.create_initialization_options(),
         )
 
     watch_task.cancel()

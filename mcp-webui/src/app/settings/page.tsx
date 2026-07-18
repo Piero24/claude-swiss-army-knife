@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { getSettings, updateSettings } from "@/lib/api";
 import type { AppSettings } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -53,17 +53,18 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-8">
-        <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="ml-auto px-4 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
+      <PageHeader
+        title="Settings"
+        actions={
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        }
+      />
 
       {/* Scan Section */}
       <section className="mb-8">
