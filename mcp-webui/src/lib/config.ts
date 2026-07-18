@@ -7,7 +7,7 @@ const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
  * Validates the server name to prevent path traversal.
  */
 export function getConfigPath(server: string): string {
-  const valid = ["ubuntu-server", "obsidian", "synology-nas"];
+  const valid = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp"];
   if (!valid.includes(server)) {
     throw new Error(`Invalid server name: ${server}`);
   }

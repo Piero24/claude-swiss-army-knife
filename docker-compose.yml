@@ -109,6 +109,27 @@ services:
     restart: unless-stopped
 
   # ============================================================
+  # MCP Proxy — GitHub
+  # ============================================================
+
+  github-mcp:
+    build:
+      context: ./mcp-servers/github
+      args:
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+        PROXY_PATH: shared/mcp-proxy
+    image: github-mcp:${GITHUB_MCP_IMAGE_TAG:-latest}
+    container_name: ${GITHUB_MCP_CONTAINER:-github-mcp}
+    volumes:
+      - ./configs/github-mcp.yaml:/app/config.yaml:ro
+      - ./configs/users.yaml:/app/users.yaml:ro
+      - ${MCP_LOG_DIR:-/var/log/mcp}/github:/var/log/mcp
+    environment:
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN:-}
+    stdin_open: true
+    restart: unless-stopped
+
+  # ============================================================
   # Documentation Site (Docusaurus 3)
   # ============================================================
 

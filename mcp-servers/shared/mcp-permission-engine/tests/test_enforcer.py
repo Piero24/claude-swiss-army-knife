@@ -435,3 +435,70 @@ users:
         assert (
             enforcer_with_users.check_tool_access("default", "any_tool") is True
         )
+
+
+CONFIG_WITH_TOOLS = """
+server:
+  name: test-mcp
+  log_level: DEBUG
+  audit_log: /tmp/test-audit.log
+
+permissions:
+  default_access: none
+  paths: []
+  commands: []
+  default_command_access: none
+  tools:
+    - pattern: "search_*"
+      access: active
+    - pattern: "list_*"
+      access: active
+    - pattern: "delete_*"
+      access: none
+    - pattern: "create_issue"
+      access: active
+  default_tool_access: none
+"""
+
+
+@pytest.fixture
+def enforcer_with_tools():
+    """Create an enforcer with tool rules configured."""
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False
+    ) as f:
+        f.write(CONFIG_WITH_TOOLS)
+        f.flush()
+        path = f.name
+
+    enf = PermissionEnforcer(path)
+    yield enf
+    Path(path).unlink()
+    audit_log = Path("/tmp/test-audit.log")
+    if audit_log.exists():
+        audit_log.unlink()
+
+
+class TestCheckTool:
+    """Tests for check_tool() — proxy tool access enforcement."""
+
+    def test_allowed_by_pattern(self, enforcer_with_tools):
+        assert enforcer_with_tools.check_tool("search_repos") is True
+
+    def test_allowed_exact_match(self, enforcer_with_tools):
+        assert enforcer_with_tools.check_tool("create_issue") is True
+
+    def test_denied_by_pattern(self, enforcer_with_tools):
+        with pytest.raises(ForbiddenError, match="deny rule"):
+            enforcer_with_tools.check_tool("delete_repo")
+
+    def test_denied_default(self, enforcer_with_tools):
+        with pytest.raises(ForbiddenError, match="not in the allowlist"):
+            enforcer_with_tools.check_tool("random_tool")
+
+    def test_audit_log_entry(self, enforcer_with_tools):
+        enforcer_with_tools.check_tool("search_code")
+        entries = read_audit_log("/tmp/test-audit.log")
+        assert entries[0]["target_type"] == "tool"
+        assert entries[0]["target"] == "search_code"
+        assert entries[0]["result"] == "allowed"

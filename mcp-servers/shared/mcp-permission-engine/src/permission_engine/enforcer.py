@@ -330,6 +330,79 @@ class PermissionEnforcer:
         )
         return True
 
+    def check_tool(self, tool_name: str) -> bool:
+        """Check if a proxy MCP tool is allowed by tool rules.
+
+        Uses fnmatch glob matching against configured ToolRule patterns.
+        For use by proxy servers wrapping external MCPs.
+
+        Args:
+            tool_name: The MCP tool name (e.g., "search_repositories").
+
+        Returns:
+            True if the tool is allowed.
+
+        Raises:
+            ForbiddenError: If the tool is denied.
+        """
+        user_id = _current_user_id.get()
+        subagent_id = _observed_subagent_id.get()
+
+        rules = self._config.permissions.tools
+        default = self._config.permissions.default_tool_access
+
+        for rule in rules:
+            if fnmatch.fnmatch(tool_name, rule.pattern):
+                if rule.access == AccessLevel.NONE:
+                    self._audit.denied(
+                        self._config.server.name,
+                        "tool",
+                        tool_name,
+                        reason=f"tool '{tool_name}' denied by rule '{rule.pattern}'",
+                        user_id=user_id,
+                        subagent_id=subagent_id,
+                    )
+                    raise ForbiddenError(
+                        f"Tool denied: '{tool_name}' matches deny rule '{rule.pattern}'",
+                        path=tool_name,
+                    )
+                self._audit.allowed(
+                    self._config.server.name,
+                    "tool",
+                    tool_name,
+                    access="execute",
+                    granted=rule.access.value,
+                    user_id=user_id,
+                    subagent_id=subagent_id,
+                )
+                return True
+
+        # No matching rule — use default
+        if default == AccessLevel.NONE:
+            self._audit.denied(
+                self._config.server.name,
+                "tool",
+                tool_name,
+                reason="tool not in allowlist (default deny)",
+                user_id=user_id,
+                subagent_id=subagent_id,
+            )
+            raise ForbiddenError(
+                f"Tool denied: '{tool_name}' is not in the allowlist",
+                path=tool_name,
+            )
+
+        self._audit.allowed(
+            self._config.server.name,
+            "tool",
+            tool_name,
+            access="execute",
+            granted=default.value,
+            user_id=user_id,
+            subagent_id=subagent_id,
+        )
+        return True
+
     def safe_resolve_path(
         self, requested_path: str, mount_prefix: str, allowed_bases: list[str]
     ) -> Path:

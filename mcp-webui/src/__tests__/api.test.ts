@@ -9,23 +9,25 @@ import {
 
 describe("types", () => {
   describe("SERVER_LABELS", () => {
-    it("has labels for all three servers", () => {
+    it("has labels for all servers", () => {
       expect(SERVER_LABELS["ubuntu-server"]).toBe("Ubuntu Server");
       expect(SERVER_LABELS["obsidian"]).toBe("Obsidian");
       expect(SERVER_LABELS["synology-nas"]).toBe("Synology NAS");
+      expect(SERVER_LABELS["github-mcp"]).toBe("GitHub");
     });
 
-    it("has exactly three entries", () => {
-      expect(Object.keys(SERVER_LABELS)).toHaveLength(3);
+    it("has exactly four entries", () => {
+      expect(Object.keys(SERVER_LABELS)).toHaveLength(4);
     });
   });
 
   describe("SERVER_ICONS", () => {
-    it("has icons for all three servers", () => {
+    it("has icons for all servers", () => {
       const servers: ServerName[] = [
         "ubuntu-server",
         "obsidian",
         "synology-nas",
+        "github-mcp",
       ];
       for (const s of servers) {
         expect(SERVER_ICONS[s]).toBeTruthy();
@@ -46,7 +48,7 @@ describe("types", () => {
 
 describe("ServerName type", () => {
   it("accepts valid server names", () => {
-    const valid: ServerName[] = ["ubuntu-server", "obsidian", "synology-nas"];
-    expect(valid).toHaveLength(3);
+    const valid: ServerName[] = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp"];
+    expect(valid).toHaveLength(4);
   });
 });

@@ -24,8 +24,10 @@ from .models import (
     CommandRule,
     PathRule,
     PermissionsConfig,
+    ProxyConfig,
     ServerConfig,
     ServerInfo,
+    ToolRule,
 )
 from .users import AuthenticationError, UserConfig, UsersConfig, load_users, validate_user
 from .server import BaseMCPServer
@@ -45,7 +47,9 @@ __all__ = [
     "AccessLevel",
     "PathRule",
     "CommandRule",
+    "ToolRule",
     "PermissionsConfig",
+    "ProxyConfig",
     "ServerConfig",
     "ServerInfo",
     # Audit
