@@ -17,6 +17,13 @@ export interface CommandRule {
   description?: string;
 }
 
+export interface ToolRule {
+  id: string;
+  pattern: string;
+  access: "none" | "active";
+  description?: string;
+}
+
 export interface ServerConfig {
   server: {
     name: string;
@@ -28,6 +35,8 @@ export interface ServerConfig {
     paths: PathRule[];
     commands: CommandRule[];
     default_command_access: CommandAccess;
+    tools: ToolRule[];
+    default_tool_access: "none" | "active";
   };
 }
 

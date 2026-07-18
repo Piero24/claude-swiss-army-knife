@@ -208,6 +208,36 @@ export async function toggleServerStatus(server: string, enabled: boolean): Prom
   });
 }
 
+// ── Tool Rules (proxy servers) ──────────────────────
+
+export async function addToolRule(
+  server: string,
+  rule: { pattern: string; access: "none" | "active"; description?: string }
+) {
+  return fetchJSON<{ created: boolean; rule: { id: string } }>(
+    `${BASE}/config/${server}/tools`,
+    { method: "POST", body: JSON.stringify(rule) }
+  );
+}
+
+export async function updateToolRule(
+  server: string,
+  ruleId: string,
+  access: "none" | "active"
+) {
+  return fetchJSON<{ updated: boolean }>(
+    `${BASE}/config/${server}/tools/${ruleId}`,
+    { method: "PATCH", body: JSON.stringify({ access }) }
+  );
+}
+
+export async function deleteToolRule(server: string, ruleId: string) {
+  return fetchJSON<{ deleted: boolean }>(
+    `${BASE}/config/${server}/tools/${ruleId}`,
+    { method: "DELETE" }
+  );
+}
+
 // ── Auth ───────────────────────────────────────────
 
 export async function login(apiKey: string): Promise<{ success: boolean }> {

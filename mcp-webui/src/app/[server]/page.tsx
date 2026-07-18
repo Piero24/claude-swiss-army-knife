@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { AccessLevel, CommandAccess, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
-import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer } from "@/lib/api";
+import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer, addToolRule, updateToolRule, deleteToolRule } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
 import PageHeader from "@/components/PageHeader";
@@ -38,6 +38,7 @@ export default function ServerDetailPage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [showAddPath, setShowAddPath] = useState(false);
   const [showAddCmd, setShowAddCmd] = useState(false);
+  const [showAddTool, setShowAddTool] = useState(false);
   const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
   const [pathSearch, setPathSearch] = useState("");
   const [pathAccessFilter, setPathAccessFilter] = useState<AccessLevel | "all">("all");
@@ -183,6 +184,46 @@ export default function ServerDetailPage() {
     } catch (err) {
       toast.error("Failed to update");
     }
+  }
+
+  async function handleAddTool(data: { pattern: string; access: "none" | "active"; description?: string }) {
+    if (!config) return;
+    try {
+      const res = await addToolRule(server, data);
+      setConfig({
+        ...config,
+        permissions: {
+          ...config.permissions,
+          tools: [...(config.permissions.tools || []), { ...data, id: res.rule.id }],
+        },
+      });
+      toast.success("Tool rule added");
+    } catch { toast.error("Failed to add"); }
+  }
+
+  async function handleUpdateTool(ruleId: string, access: "none" | "active") {
+    if (!config) return;
+    const prev = structuredClone(config);
+    const tools = [...(config.permissions.tools || [])];
+    const idx = tools.findIndex((t) => t.id === ruleId);
+    if (idx >= 0) tools[idx] = { ...tools[idx], access };
+    setConfig({ ...config, permissions: { ...config.permissions, tools } });
+    try {
+      await updateToolRule(server, ruleId, access);
+    } catch { setConfig(prev); toast.error("Failed to update"); }
+  }
+
+  async function handleDeleteTool(ruleId: string) {
+    if (!config) return;
+    const prev = structuredClone(config);
+    setConfig({
+      ...config,
+      permissions: { ...config.permissions, tools: (config.permissions.tools || []).filter((t) => t.id !== ruleId) },
+    });
+    try {
+      await deleteToolRule(server, ruleId);
+      toast.success("Tool rule removed");
+    } catch { setConfig(prev); toast.error("Failed to delete"); }
   }
 
   async function handleScan() {
@@ -470,6 +511,39 @@ export default function ServerDetailPage() {
           />
         </section>}
 
+      {/* Tool Permissions (proxy servers) */}
+      {sectionVisible("tools") && <section className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">Tool Permissions</h2>
+          <button onClick={() => setShowAddTool(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
+            <Plus size={16} /> Add Tool
+          </button>
+        </div>
+        <DataTable
+          columns={[
+            { key: "pattern", header: "Pattern", render: (r) => <span className="font-mono text-xs">{r.pattern}</span> },
+            { key: "access", header: "Access", headerClassName: "w-[100px]", render: (r) => (
+              <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
+                {(["none","active"] as const).map((a) => (
+                  <button
+                    key={a}
+                    onClick={(e) => { e.stopPropagation(); handleUpdateTool(r.id, a); }}
+                    className={`px-2 py-0.5 text-xs font-medium ${r.access === a ? (a === "active" ? "bg-green-600 text-white" : "bg-gray-700 text-gray-400") : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
+                  >{a}</button>
+                ))}
+              </div>
+            )},
+            { key: "description", header: "Description", headerClassName: "hidden md:table-cell", cellClassName: "text-gray-500 text-xs hidden md:table-cell truncate", render: (r) => r.description || "" },
+            { key: "delete", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (r) => (
+              <button onClick={() => handleDeleteTool(r.id)} className="text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
+            )},
+          ]}
+          data={config?.permissions?.tools || []}
+          rowKey={(r) => r.id}
+          emptyMessage="No tool rules. Default: deny all."
+        />
+      </section>}
+
       {/* Audit Log */}
       {sectionVisible("audit") && <section>
         <h2 className="text-lg font-semibold mb-3">Audit Log</h2>
@@ -642,6 +716,16 @@ export default function ServerDetailPage() {
         fields={[{ name: "pattern", label: "Pattern", placeholder: "systemctl status *" }, { name: "description", label: "Description", placeholder: "Optional" }]}
         onSave={(data) => handleAddCommand(data as { pattern: string; access: CommandAccess; description?: string })}
         onClose={() => setShowAddCmd(false)}
+        commandAccess
+      />
+
+      {/* Add Tool Dialog */}
+      <AddRuleDialog
+        open={showAddTool}
+        title="Add Tool Rule"
+        fields={[{ name: "pattern", label: "Pattern", placeholder: "search_*" }, { name: "description", label: "Description", placeholder: "Optional" }]}
+        onSave={(data) => handleAddTool(data as { pattern: string; access: "none" | "active"; description?: string })}
+        onClose={() => setShowAddTool(false)}
         commandAccess
       />
 
