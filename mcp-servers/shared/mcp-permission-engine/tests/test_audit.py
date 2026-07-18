@@ -157,3 +157,37 @@ class TestAuditLogger:
         entries = read_audit_log(audit_logger._log_path)
         assert entries[0]["target_type"] == "command"
         assert entries[0]["target"] == "systemctl status nginx"
+
+    def test_read_log_with_malformed_lines(self, audit_logger):
+        """Malformed JSON lines should be silently skipped."""
+        # Write valid entries
+        audit_logger.allowed("test", "file", "/valid1")
+        audit_logger.denied("test", "file", "/valid2", reason="nope")
+
+        # Append a malformed line directly
+        with open(audit_logger._log_path, "a") as f:
+            f.write("this is not valid json\n")
+            f.write("nor is this {{{[\n")
+
+        # Append another valid entry
+        audit_logger.allowed("test", "file", "/valid3")
+
+        entries = read_audit_log(audit_logger._log_path)
+        # Only the 3 valid entries should be returned (malformed skipped)
+        assert len(entries) == 3
+        targets = {e["target"] for e in entries}
+        assert targets == {"/valid1", "/valid2", "/valid3"}
+
+    def test_read_log_with_empty_lines(self, audit_logger):
+        """Empty lines in the audit log should be skipped."""
+        audit_logger.allowed("test", "file", "/first")
+        audit_logger.allowed("test", "file", "/second")
+
+        # Append empty lines directly
+        with open(audit_logger._log_path, "a") as f:
+            f.write("\n")
+            f.write("   \n")
+            f.write("\n")
+
+        entries = read_audit_log(audit_logger._log_path)
+        assert len(entries) == 2

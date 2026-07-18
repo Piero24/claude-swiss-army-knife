@@ -9,6 +9,9 @@ build/
 .docusaurus/
 *.tsbuildinfo
 .pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
 *.log
 /var/log/mcp/
 mcp-servers/*/shared/
