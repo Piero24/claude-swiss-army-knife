@@ -20,6 +20,12 @@ export default function ServerDetailPage() {
   const router = useRouter();
   const server = params.server as string;
   const serverLabel = server.replace(/-server$/, "").replace(/-mcp$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  function sectionVisible(name: string): boolean {
+    if (!config) return true;
+    const ui = (config as Record<string, unknown>).ui as Record<string, unknown> | undefined;
+    const sections = (ui?.sections || {}) as Record<string, boolean>;
+    return sections[name] !== false;
+  }
 
   const [config, setConfig] = useState<ServerConfig | null>(null);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
@@ -330,7 +336,7 @@ export default function ServerDetailPage() {
       )}
 
       {/* Path Permissions — Tree View */}
-      <section className="mb-8">
+      {sectionVisible("paths") && <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Path Permissions</h2>
           <div className="flex items-center gap-2">
@@ -445,10 +451,10 @@ export default function ServerDetailPage() {
             emptyMessage={`No path rules. Default: ${config.permissions.default_access}`}
           />
         )}
-      </section>
+      </section>}
 
       {/* Command Rules */}
-        <section className="mb-8">
+      {sectionVisible("commands") && <section className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Command Permissions</h2>
             <button onClick={() => setShowAddCmd(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
@@ -461,9 +467,10 @@ export default function ServerDetailPage() {
             rowKey={(r) => r.id}
             emptyMessage="No command rules."
           />
-        </section>
+        </section>}
 
       {/* Audit Log */}
+      {sectionVisible("audit") && <section>
       <section>
         <h2 className="text-lg font-semibold mb-3">Audit Log</h2>
 
@@ -617,7 +624,7 @@ export default function ServerDetailPage() {
             })()}
           </div>
         )}
-      </section>
+      </section>}
 
       {/* Add Path Dialog */}
       <AddRuleDialog
