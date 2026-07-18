@@ -63,6 +63,23 @@ class CommandRule(BaseModel):
     )
 
 
+class ToolRule(BaseModel):
+    """A permission rule for an MCP tool name (used by proxy servers)."""
+
+    id: str = Field(default_factory=lambda: uuid4().hex[:12])
+    pattern: str = Field(
+        ...,
+        description="Glob pattern for matching MCP tool names (e.g., 'search_*')",
+    )
+    access: AccessLevel = Field(
+        default=AccessLevel.ACTIVE,
+        description="active = allowed, none = denied",
+    )
+    description: Optional[str] = Field(
+        default=None, description="Human-readable description"
+    )
+
+
 class ServerInfo(BaseModel):
     """Metadata about the MCP server."""
 
@@ -92,6 +109,26 @@ class PermissionsConfig(BaseModel):
         default=AccessLevel.NONE,
         description="Default command access when no rule matches",
     )
+    tools: list[ToolRule] = Field(
+        default_factory=list, description="Tool rules for proxy servers"
+    )
+    default_tool_access: AccessLevel = Field(
+        default=AccessLevel.NONE,
+        description="Default tool access when no rule matches (proxy servers)",
+    )
+
+
+class ProxyConfig(BaseModel):
+    """Configuration for spawning an external MCP server subprocess."""
+
+    command: str = Field(..., description="Executable to run (e.g., npx, node)")
+    args: list[str] = Field(
+        default_factory=list, description="Arguments passed to the command"
+    )
+    env: dict[str, str] = Field(
+        default_factory=dict,
+        description="Environment variables for the subprocess",
+    )
 
 
 class ServerConfig(BaseModel):
@@ -100,4 +137,7 @@ class ServerConfig(BaseModel):
     server: ServerInfo = Field(..., description="Server metadata")
     permissions: PermissionsConfig = Field(
         default_factory=PermissionsConfig, description="Permission rules"
+    )
+    proxy: Optional[ProxyConfig] = Field(
+        default=None, description="Proxy config (only for proxy MCP servers)"
     )

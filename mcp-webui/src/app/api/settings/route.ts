@@ -84,7 +84,7 @@ export async function PUT(request: Request) {
     // Remove excluded folders from all server configs
     let cleaned = 0;
     const configsDir = process.env.CONFIGS_PATH || "/app/configs";
-    const servers = ["ubuntu-server", "obsidian", "synology-nas"];
+    const servers = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp"];
     const { default: yaml } = await import("js-yaml");
 
     for (const server of servers) {

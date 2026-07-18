@@ -10,12 +10,14 @@ const CONTAINER_MAP: Record<string, string> = {
   "ubuntu-server": process.env.UBUNTU_MCP_CONTAINER || "ubuntu-mcp",
   obsidian: process.env.OBSIDIAN_MCP_CONTAINER || "obsidian-mcp",
   "synology-nas": process.env.SYNOLOGY_MCP_CONTAINER || "synology-mcp",
+  "github-mcp": process.env.GITHUB_MCP_CONTAINER || "github-mcp",
 };
 
 const LOG_DIRS: Record<string, string> = {
   "ubuntu-server": "ubuntu",
   obsidian: "obsidian",
   "synology-nas": "synology",
+  "github-mcp": "github",
 };
 
 const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
@@ -26,10 +28,12 @@ const PLACEHOLDER_PATTERNS = [
   /your-nas-(username|password)/,
   /your-obsidian-image/,
   /192\.168\.1\.100/,
+  /your-github-token/,
 ];
 
 const REQUIRED_ENV: Record<string, string[]> = {
   "synology-nas": ["SYNOLOGY_NAS_HOST", "SYNOLOGY_NAS_USER", "SYNOLOGY_NAS_PASSWORD"],
+  "github-mcp": ["GITHUB_PERSONAL_ACCESS_TOKEN"],
 };
 
 type HealthStatus = "healthy" | "idle" | "stopped" | "not-found" | "unconfigured" | "error";

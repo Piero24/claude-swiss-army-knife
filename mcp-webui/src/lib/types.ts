@@ -45,18 +45,20 @@ export interface AuditEntry {
   message?: string;
 }
 
-export type ServerName = "ubuntu-server" | "obsidian" | "synology-nas";
+export type ServerName = "ubuntu-server" | "obsidian" | "synology-nas" | "github-mcp";
 
 export const SERVER_LABELS: Record<ServerName, string> = {
   "ubuntu-server": "Ubuntu Server",
   "obsidian": "Obsidian",
   "synology-nas": "Synology NAS",
+  "github-mcp": "GitHub",
 };
 
 export const SERVER_ICONS: Record<ServerName, string> = {
   "ubuntu-server": "🖥",
   "obsidian": "📝",
   "synology-nas": "💾",
+  "github-mcp": "🐙",
 };
 
 export const ACCESS_COLORS: Record<AccessLevel, string> = {
