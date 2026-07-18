@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { getAgents, updateAgentsSettings, updateAgent } from "@/lib/api";
 import type { UserConfig, UsersConfig } from "@/lib/types";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Shield, X } from "lucide-react";
+import { Plus, Shield, X } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
+import Toggle from "@/components/Toggle";
+import EmptyState from "@/components/EmptyState";
+import DataTable from "@/components/DataTable";
+import Badge from "@/components/Badge";
+import type { Column } from "@/components/DataTable";
 
 const MODES = [
   { value: "open", label: "Open", desc: "Everyone can use tools — disable specific users" },
@@ -130,22 +135,47 @@ export default function AgentsPage() {
       </div>
     );
 
+  // ── Column definitions for user table ──
+  const userColumns: Column<UserConfig>[] = [
+    { key: "name", header: "Name", render: (u) => u.name },
+    { key: "id", header: "ID", cellClassName: "font-mono text-xs text-gray-500", render: (u) => u.id },
+    { key: "tools", header: "Tools", render: (u) => (
+      <input
+        type="text"
+        defaultValue={u.tools.includes("*") ? "*" : u.tools.join(", ")}
+        onBlur={(e) => handleToolsChange(u, e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") handleToolsChange(u, e.currentTarget.value); }}
+        className="w-full rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="*"
+      />
+    )},
+    { key: "key", header: "Key", headerClassName: "w-[80px]", render: (u) => (
+      <Badge variant="status" value={u.key ? "set" : "none"} label={u.key ? "Set" : "None"} />
+    )},
+    { key: "status", header: "Status", headerClassName: "w-[80px]", render: (u) => (
+      <Toggle checked={u.enabled} onChange={() => handleToggleUser(u)} label={`Toggle ${u.name}`} />
+    )},
+    { key: "remove", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (u) => (
+      <button onClick={() => handleRemoveUser(u.id)} className="text-gray-600 hover:text-red-400">
+        <X size={14} />
+      </button>
+    )},
+  ];
+
   return (
     <div className="max-w-4xl mx-auto p-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <Link href="/" className="text-gray-400 hover:text-white">
-          <ArrowLeft size={20} />
-        </Link>
-        <h1 className="text-2xl font-bold">Agents</h1>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="ml-auto px-4 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
+      <PageHeader
+        title="Agents"
+        actions={
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        }
+      />
 
       {/* Mode selector */}
       <section className="mb-8">
@@ -238,95 +268,26 @@ export default function AgentsPage() {
         )}
 
         {data.users.length === 0 ? (
-          <div className="rounded-lg border border-gray-800 p-12 text-center">
-            <Shield size={40} className="mx-auto mb-3 text-gray-600" />
-            <p className="text-gray-400 mb-2">No users configured</p>
-            <p className="text-sm text-gray-500 mb-4">
-              Agents will appear here after their first MCP request, or add one manually.
-            </p>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500"
-            >
-              Add your first user
-            </button>
-          </div>
+          <EmptyState
+            icon={<Shield size={40} />}
+            title="No users configured"
+            description="Agents will appear here after their first MCP request, or add one manually."
+            action={
+              <button
+                onClick={() => setShowAdd(true)}
+                className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500"
+              >
+                Add your first user
+              </button>
+            }
+          />
         ) : (
-          <div className="rounded-lg border border-gray-800 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-900 text-gray-400 text-left">
-                  <th className="px-4 py-2">Name</th>
-                  <th className="px-4 py-2">ID</th>
-                  <th className="px-4 py-2">Tools</th>
-                  <th className="px-4 py-2 w-[80px]">Key</th>
-                  <th className="px-4 py-2 w-[80px]">Status</th>
-                  <th className="px-4 py-2 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.users.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="border-t border-gray-800 hover:bg-gray-900/50"
-                  >
-                    <td className="px-4 py-2">{user.name}</td>
-                    <td className="px-4 py-2 font-mono text-xs text-gray-500">
-                      {user.id}
-                    </td>
-                    <td className="px-4 py-2">
-                      <input
-                        type="text"
-                        defaultValue={
-                          user.tools.includes("*") ? "*" : user.tools.join(", ")
-                        }
-                        onBlur={(e) => handleToolsChange(user, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter")
-                            handleToolsChange(user, e.currentTarget.value);
-                        }}
-                        className="w-full rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="*"
-                      />
-                    </td>
-                    <td className="px-4 py-2">
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded ${
-                          user.key
-                            ? "bg-green-900/50 text-green-400"
-                            : "bg-gray-800 text-gray-500"
-                        }`}
-                      >
-                        {user.key ? "Set" : "None"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => handleToggleUser(user)}
-                        className={`w-9 h-5 rounded-full relative transition-colors ${
-                          user.enabled ? "bg-green-600" : "bg-gray-600"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                            user.enabled ? "translate-x-4" : "translate-x-0"
-                          }`}
-                        />
-                      </button>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <button
-                        onClick={() => handleRemoveUser(user.id)}
-                        className="text-gray-600 hover:text-red-400"
-                      >
-                        <X size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={userColumns}
+            data={data.users}
+            rowKey={(u) => u.id}
+            emptyMessage="No users configured"
+          />
         )}
       </section>
     </div>

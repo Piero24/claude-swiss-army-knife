@@ -2,14 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import type { AccessLevel, CommandAccess, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName } from "@/lib/types";
 import { SERVER_LABELS } from "@/lib/types";
 import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
+import PageHeader from "@/components/PageHeader";
+import Modal from "@/components/Modal";
+import Badge from "@/components/Badge";
+import DataTable from "@/components/DataTable";
+import type { Column } from "@/components/DataTable";
+import { AccessToggles, CommandToggles } from "@/components/AccessToggles";
 import { toast } from "sonner";
-import { ArrowLeft, Folders, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Folders, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 export default function ServerDetailPage() {
   const params = useParams();
@@ -269,31 +274,50 @@ export default function ServerDetailPage() {
 
   const logFiltersActive = logAccessFilter !== "all" || logResultFilter !== "all" || logDateFilter !== "all";
   const totalAuditPages = Math.max(1, Math.ceil(auditTotal / auditPageSize));
-  const accessBadgeColors: Record<string, string> = {
-    read: "bg-blue-900/50 text-blue-400",
-    write: "bg-green-900/50 text-green-400",
-    none: "bg-gray-700 text-gray-400",
-  };
+
+  // ── Column definitions for DataTable ──
+  const pathColumns: Column<PathRule>[] = [
+    { key: "path", header: "Path", headerClassName: "w-[40%]", cellClassName: "font-mono text-xs truncate", render: (r) => r.path },
+    { key: "access", header: "Access", headerClassName: "w-[120px]", render: (r) => <AccessToggles value={r.access} onChange={(a) => handleTogglePath(r.id, a)} /> },
+    { key: "description", header: "Description", headerClassName: "hidden md:table-cell", cellClassName: "text-gray-500 text-xs hidden md:table-cell truncate", render: (r) => r.description || "" },
+    { key: "delete", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (r) => (
+      <button onClick={() => handleDeletePath(r.id)} className="text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
+    )},
+  ];
+
+  const commandColumns: Column<CommandRule>[] = [
+    { key: "pattern", header: "Pattern", headerClassName: "w-[40%]", cellClassName: "font-mono text-xs truncate", render: (r) => r.pattern },
+    { key: "access", header: "Access", headerClassName: "w-[130px]", render: (r) => <CommandToggles value={r.access} onChange={(a) => handleToggleCommand(r.id, a)} /> },
+    { key: "description", header: "Description", headerClassName: "hidden md:table-cell", cellClassName: "text-gray-500 text-xs hidden md:table-cell truncate", render: (r) => r.description || "" },
+    { key: "delete", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (r) => (
+      <button onClick={() => handleDeleteCommand(r.id)} className="text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
+    )},
+  ];
+
   return (
     <div className="max-w-7xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/" className="text-gray-400 hover:text-white"><ArrowLeft size={20} /></Link>
-        <h1 className="text-2xl font-bold">{SERVER_LABELS[server]}</h1>
-        <button
-          onClick={handleScan}
-          disabled={scanning}
-          className="flex items-center gap-1 ml-auto text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
-        >
-          <RefreshCw size={16} className={scanning ? "animate-spin" : ""} />
-          {scanning ? "Scanning…" : "Scan folders"}
-        </button>
-        {scanning && (
-          <button onClick={handleCancelScan} className="text-sm text-red-400 hover:text-red-300">
-            Cancel
-          </button>
-        )}
-        {lastScan && <span className="text-xs text-gray-500">{lastScan}</span>}
-      </div>
+      <PageHeader
+        title={SERVER_LABELS[server]}
+        backHref="/"
+        actions={
+          <>
+            <button
+              onClick={handleScan}
+              disabled={scanning}
+              className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={scanning ? "animate-spin" : ""} />
+              {scanning ? "Scanning…" : "Scan folders"}
+            </button>
+            {scanning && (
+              <button onClick={handleCancelScan} className="text-sm text-red-400 hover:text-red-300">
+                Cancel
+              </button>
+            )}
+            {lastScan && <span className="text-xs text-gray-500">{lastScan}</span>}
+          </>
+        }
+      />
 
       {!serverEnabled && (
         <div className="mb-6 rounded-lg border border-yellow-800 bg-yellow-900/30 p-4 flex items-center gap-3">
@@ -414,39 +438,12 @@ export default function ServerDetailPage() {
             }}
           />
         ) : (
-          <div className="rounded-lg border border-gray-800 overflow-hidden">
-            <table className="w-full text-sm table-fixed">
-              <thead>
-                <tr className="bg-gray-900 text-gray-400 text-left">
-                  <th className="px-4 py-2 w-[40%]">Path</th>
-                  <th className="px-4 py-2 w-[120px]">Access</th>
-                  <th className="px-4 py-2 hidden md:table-cell">Description</th>
-                  <th className="px-4 py-2 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {config.permissions.paths
-                  .filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))
-                  .map((rule) => (
-                  <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
-                    <td className="px-4 py-2 font-mono text-xs align-middle truncate">{rule.path}</td>
-                    <td className="px-4 py-2 align-middle">
-                      <AccessToggles value={rule.access} onChange={(a) => handleTogglePath(rule.id, a)} />
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs align-middle hidden md:table-cell truncate">{rule.description || ""}</td>
-                    <td className="px-4 py-2 align-middle text-center">
-                      <button onClick={() => handleDeletePath(rule.id)} className="text-gray-600 hover:text-red-400">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {config.permissions.paths.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No path rules. Default: {config.permissions.default_access}</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={pathColumns}
+            data={config.permissions.paths.filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))}
+            rowKey={(r) => r.id}
+            emptyMessage={`No path rules. Default: ${config.permissions.default_access}`}
+          />
         )}
       </section>
 
@@ -458,37 +455,12 @@ export default function ServerDetailPage() {
               <Plus size={16} /> Add Command
             </button>
           </div>
-          <div className="rounded-lg border border-gray-800 overflow-hidden">
-            <table className="w-full text-sm table-fixed">
-              <thead>
-                <tr className="bg-gray-900 text-gray-400 text-left">
-                  <th className="px-4 py-2 w-[40%]">Pattern</th>
-                  <th className="px-4 py-2 w-[130px]">Access</th>
-                  <th className="px-4 py-2 hidden md:table-cell">Description</th>
-                  <th className="px-4 py-2 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {config.permissions.commands.map((rule) => (
-                  <tr key={rule.id} className="border-t border-gray-800 hover:bg-gray-900/50">
-                    <td className="px-4 py-2 font-mono text-xs align-middle truncate">{rule.pattern}</td>
-                    <td className="px-4 py-2 align-middle">
-                      <CommandToggles value={rule.access} onChange={(a) => handleToggleCommand(rule.id, a)} />
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 text-xs align-middle hidden md:table-cell truncate">{rule.description || ""}</td>
-                    <td className="px-4 py-2 align-middle text-center">
-                      <button onClick={() => handleDeleteCommand(rule.id)} className="text-gray-600 hover:text-red-400">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {config.permissions.commands.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-4 text-gray-500 text-center">No command rules.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={commandColumns}
+            data={config.permissions.commands}
+            rowKey={(r) => r.id}
+            emptyMessage="No command rules."
+          />
         </section>
 
       {/* Audit Log */}
@@ -543,7 +515,7 @@ export default function ServerDetailPage() {
           )}
         </div>
 
-        {/* Table */}
+        {/* Table — audit log stays specialized (fixed header + scrollable body) */}
         <div className="rounded-lg border border-gray-800">
           {/* Fixed header */}
           <table className="w-full text-xs table-fixed">
@@ -572,15 +544,11 @@ export default function ServerDetailPage() {
                     <td className="px-2 py-1.5 font-mono truncate w-[13%]" title={entry.target || entry.command || ""}>{entry.target || entry.command || entry.target_type || ""}</td>
                     <td className="px-2 py-1.5 w-[62px]">
                       {entry.access ? (
-                        <span className={`px-1 py-0.5 rounded text-[10px] font-medium ${accessBadgeColors[entry.access] || "bg-gray-700 text-gray-400"}`}>
-                          {entry.access}
-                        </span>
+                        <Badge variant="access" value={entry.access} />
                       ) : <span className="text-gray-600">—</span>}
                     </td>
                     <td className="px-2 py-1.5 w-[62px]">
-                      <span className={`px-1 py-0.5 rounded text-[10px] font-medium ${entry.result === "allowed" ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"}`}>
-                        {entry.result}
-                      </span>
+                      <Badge variant="result" value={entry.result} />
                     </td>
                     <td className="px-2 py-1.5 text-gray-600 truncate hidden md:table-cell w-[35%]" title={entry.reason || undefined}>{entry.reason || ""}</td>
                     <td className="px-2 py-1.5 font-mono text-gray-500 truncate hidden md:table-cell w-[80px]" title={entry.user_id || undefined}>{entry.user_id || "—"}</td>
@@ -652,31 +620,33 @@ export default function ServerDetailPage() {
       </section>
 
       {/* Add Path Dialog */}
-      {showAddPath && (
-        <AddRuleDialog
-          title="Add Path Rule"
-          fields={[{ name: "path", label: "Path", placeholder: "/var/log/**" }, { name: "description", label: "Description", placeholder: "Optional" }]}
-          onSave={(data) => handleAddPath(data as { path: string; access: AccessLevel; description?: string })}
-          onClose={() => setShowAddPath(false)}
-        />
-      )}
+      <AddRuleDialog
+        open={showAddPath}
+        title="Add Path Rule"
+        fields={[{ name: "path", label: "Path", placeholder: "/var/log/**" }, { name: "description", label: "Description", placeholder: "Optional" }]}
+        onSave={(data) => handleAddPath(data as { path: string; access: AccessLevel; description?: string })}
+        onClose={() => setShowAddPath(false)}
+      />
 
       {/* Add Command Dialog */}
-      {showAddCmd && (
-        <AddRuleDialog
-          title="Add Command Rule"
-          fields={[{ name: "pattern", label: "Pattern", placeholder: "systemctl status *" }, { name: "description", label: "Description", placeholder: "Optional" }]}
-          onSave={(data) => handleAddCommand(data as { pattern: string; access: CommandAccess; description?: string })}
-          onClose={() => setShowAddCmd(false)}
-          commandAccess
-        />
-      )}
+      <AddRuleDialog
+        open={showAddCmd}
+        title="Add Command Rule"
+        fields={[{ name: "pattern", label: "Pattern", placeholder: "systemctl status *" }, { name: "description", label: "Description", placeholder: "Optional" }]}
+        onSave={(data) => handleAddCommand(data as { pattern: string; access: CommandAccess; description?: string })}
+        onClose={() => setShowAddCmd(false)}
+        commandAccess
+      />
 
       {/* Bulk Confirm Dialog */}
-      {bulkConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setBulkConfirm(null)}>
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2">Set all {bulkConfirm.type}?</h3>
+      <Modal
+        open={bulkConfirm !== null}
+        onClose={() => setBulkConfirm(null)}
+        title={bulkConfirm ? `Set all ${bulkConfirm.type}?` : ""}
+        maxWidth="max-w-sm"
+      >
+        {bulkConfirm && (
+          <>
             <p className="text-sm text-gray-400 mb-4">
               This will change{' '}
               <span className="text-white font-semibold">
@@ -697,56 +667,9 @@ export default function ServerDetailPage() {
                 Yes, set all
               </button>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Access Toggle Component ─────────────────────────── */
-
-function AccessToggles({ value, onChange }: { value: AccessLevel; onChange: (a: AccessLevel) => void }) {
-  const levels: AccessLevel[] = ["none", "read", "write"];
-  const colors: Record<AccessLevel, string> = {
-    none: "bg-gray-700 text-gray-400",
-    read: "bg-blue-600 text-white",
-    write: "bg-green-600 text-white",
-  };
-
-  return (
-    <div className="flex rounded overflow-hidden border border-gray-700">
-      {levels.map((level) => (
-        <button
-          key={level}
-          onClick={() => onChange(level)}
-          className={`px-2 py-0.5 text-xs font-medium transition-colors ${value === level ? colors[level] : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
-        >
-          {level}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function CommandToggles({ value, onChange }: { value: string; onChange: (a: CommandAccess) => void }) {
-  const levels: CommandAccess[] = ["none", "active"];
-  const colors: Record<string, string> = {
-    none: "bg-gray-700 text-gray-400",
-    active: "bg-green-600 text-white",
-  };
-
-  return (
-    <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
-      {levels.map((level) => (
-        <button
-          key={level}
-          onClick={() => onChange(level)}
-          className={`inline-flex items-center justify-center px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap ${value === level ? colors[level] : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
-        >
-          {level}
-        </button>
-      ))}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -754,12 +677,14 @@ function CommandToggles({ value, onChange }: { value: string; onChange: (a: Comm
 /* ── Add Rule Dialog ─────────────────────────────────── */
 
 function AddRuleDialog({
+  open,
   title,
   fields,
   onSave,
   onClose,
   commandAccess,
 }: {
+  open: boolean;
   title: string;
   fields: { name: string; label: string; placeholder: string }[];
   onSave: (data: Record<string, string>) => void;
@@ -777,39 +702,36 @@ function AddRuleDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold mb-4">{title}</h3>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {fields.map((f) => (
-            <div key={f.name}>
-              <label className="block text-xs text-gray-400 mb-1">{f.label}</label>
-              <input
-                type="text"
-                placeholder={f.placeholder}
-                required={f.name !== "description"}
-                value={formData[f.name] || ""}
-                onChange={(e) => setFormData({ ...formData, [f.name]: e.target.value })}
-                className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          ))}
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Access Level</label>
-            {commandAccess ? (
-              <CommandToggles value={formData.access || "active"} onChange={(a) => setFormData({ ...formData, access: a })} />
-            ) : (
-              <AccessToggles value={(formData.access as AccessLevel) || "read"} onChange={(a) => setFormData({ ...formData, access: a })} />
-            )}
+    <Modal open={open} onClose={onClose} title={title}>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {fields.map((f) => (
+          <div key={f.name}>
+            <label className="block text-xs text-gray-400 mb-1">{f.label}</label>
+            <input
+              type="text"
+              placeholder={f.placeholder}
+              required={f.name !== "description"}
+              value={formData[f.name] || ""}
+              onChange={(e) => setFormData({ ...formData, [f.name]: e.target.value })}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700">Cancel</button>
-            <button type="submit" disabled={saving} className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50">
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        ))}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Access Level</label>
+          {commandAccess ? (
+            <CommandToggles value={(formData.access as CommandAccess) || "active"} onChange={(a) => setFormData({ ...formData, access: a })} />
+          ) : (
+            <AccessToggles value={(formData.access as AccessLevel) || "read"} onChange={(a) => setFormData({ ...formData, access: a })} />
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700">Cancel</button>
+          <button type="submit" disabled={saving} className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50">
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

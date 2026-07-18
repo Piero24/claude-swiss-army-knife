@@ -1,21 +1,11 @@
 /** PATCH cascade — atomically update a path rule AND cascade restrictions
  *  to all child rules in a single YAML read+write cycle.
- *
- *  This replaces the old pattern of:
- *    1. PATCH /paths/:ruleId          (read YAML, parse, modify, write)
- *    2. GET  /folders/:server         (read YAML, parse, build tree)
- *    3. PATCH /bulk (child updates)   (read YAML, parse, modify, write)
- *    4. GET  /config/:server          (read YAML, parse)
- *    5. GET  /folders/:server         (read YAML, parse, build tree)
- *
- *  With a single PATCH that does everything at once.
  */
 
 import { NextResponse } from "next/server";
-import * as fs from "fs/promises";
-import * as yaml from "js-yaml";
 import { z } from "zod";
-import { getConfigPath } from "@/lib/config";
+import { withServerConfig } from "@/lib/yaml-config";
+import { apiHandler, withValidation } from "@/lib/api-helpers";
 
 const cascadeSchema = z.object({
   ruleId: z.string(),
@@ -35,41 +25,24 @@ function clampAccess(childAccess: string, parentAccess: AccessLevel): AccessLeve
   return childAccess as AccessLevel;
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ server: string }> }
-) {
+export const PATCH = apiHandler(async (request, { params }) => {
   const { server } = await params;
-  try {
-    const body = await request.json();
-    const { ruleId, access } = cascadeSchema.parse(body);
+  const { ruleId, access } = await withValidation(cascadeSchema, request);
 
-    const filePath = getConfigPath(server);
+  const updated: Array<{ id: string; access: string }> = [
+    { id: ruleId, access },
+  ];
 
-    // ── Single YAML read ──
-    const raw = await fs.readFile(filePath, "utf-8");
-    const config = yaml.load(raw) as Record<string, unknown>;
-    const perms = config.permissions as Record<string, unknown>;
-    const rules = perms.paths as Array<Record<string, unknown>>;
+  await withServerConfig(server, (config) => {
+    const rules = config.permissions?.paths as Array<Record<string, unknown>> | undefined;
+    if (!rules) throw new Error("No paths configured");
 
-    if (!rules) {
-      return NextResponse.json({ error: "No paths configured" }, { status: 400 });
-    }
-
-    // Find the target rule
     const targetIdx = rules.findIndex((r) => r.id === ruleId);
-    if (targetIdx === -1) {
-      return NextResponse.json({ error: "Rule not found" }, { status: 404 });
-    }
+    if (targetIdx === -1) throw new Error("Rule not found");
 
     const targetRule = rules[targetIdx];
     const oldAccess = targetRule.access as string;
     targetRule.access = access;
-
-    // Build list of all changes (for the response)
-    const updated: Array<{ id: string; access: string }> = [
-      { id: ruleId, access },
-    ];
 
     // ── Cascade to children ──
     // Only needed when making access MORE restrictive (lowering the level)
@@ -93,22 +66,10 @@ export async function PATCH(
         }
       }
     }
+  });
 
-    // ── Single YAML write ──
-    const yamlStr = yaml.dump(config, { noRefs: true, lineWidth: -1 });
-    await fs.writeFile(filePath, yamlStr, "utf-8");
-
-    return NextResponse.json({
-      updated: updated.length,
-      changes: updated,
-    });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Validation failed", details: err.errors },
-        { status: 400 }
-      );
-    }
-    return NextResponse.json({ error: String(err) }, { status: 500 });
-  }
-}
+  return NextResponse.json({
+    updated: updated.length,
+    changes: updated,
+  });
+});

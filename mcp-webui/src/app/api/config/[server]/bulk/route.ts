@@ -2,10 +2,9 @@
  *  or apply targeted updates to specific rules via the `updates` array. */
 
 import { NextResponse } from "next/server";
-import * as fs from "fs/promises";
-import * as yaml from "js-yaml";
 import { z } from "zod";
-import { getConfigPath } from "@/lib/config";
+import { withServerConfig } from "@/lib/yaml-config";
+import { apiHandler, withValidation } from "@/lib/api-helpers";
 
 const bulkSchema = z.object({
   access: z.enum(["none", "read", "write", "active"]).optional(),
@@ -16,57 +15,41 @@ const bulkSchema = z.object({
   })).optional(),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ server: string }> }
-) {
+export const PATCH = apiHandler(async (request, { params }) => {
   const { server } = await params;
-  try {
-    const body = await request.json();
-    const { access, type, updates } = bulkSchema.parse(body);
+  const validated = await withValidation(bulkSchema, request);
+  const { access, type, updates } = validated;
 
-    if (!access && !updates) {
-      return NextResponse.json({ error: "Provide `access` or `updates`" }, { status: 400 });
-    }
+  if (!access && !updates) {
+    throw new Error("Provide `access` or `updates`");
+  }
 
-    const filePath = getConfigPath(server);
-    const raw = await fs.readFile(filePath, "utf-8");
-    const config = yaml.load(raw) as Record<string, unknown>;
+  let updatedCount = 0;
+
+  await withServerConfig(server, (config) => {
     const perms = config.permissions as Record<string, unknown>;
-
-    const rules = perms[type] as Array<Record<string, unknown>> | undefined;
-    if (!rules) {
-      return NextResponse.json({ error: `No ${type} configured` }, { status: 400 });
-    }
-
-    let updated = 0;
+    const rules = perms[type as string] as Array<Record<string, unknown>> | undefined;
+    
+    if (!rules) throw new Error(`No ${type} configured`);
 
     if (updates) {
-      // Targeted updates: build a lookup map, apply in one pass
+      // Targeted updates
       const updateMap = new Map(updates.map((u) => [u.id, u.access]));
       for (const rule of rules) {
         const newAccess = updateMap.get(rule.id as string);
         if (newAccess !== undefined && rule.access !== newAccess) {
           rule.access = newAccess;
-          updated++;
+          updatedCount++;
         }
       }
     } else {
-      // Set all to one level (existing behavior)
+      // Bulk apply to all
       for (const rule of rules) {
         rule.access = access;
       }
-      updated = rules.length;
+      updatedCount = rules.length;
     }
+  });
 
-    const yamlStr = yaml.dump(config, { noRefs: true, lineWidth: -1 });
-    await fs.writeFile(filePath, yamlStr, "utf-8");
-
-    return NextResponse.json({ updated, access: access ?? "mixed", type });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: err.errors }, { status: 400 });
-    }
-    return NextResponse.json({ error: String(err) }, { status: 500 });
-  }
-}
+  return NextResponse.json({ updated: updatedCount, access: access ?? "mixed", type });
+});
