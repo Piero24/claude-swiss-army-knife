@@ -10,16 +10,18 @@ import { logout } from "@/lib/api";
 import type { HealthStatus } from "@/lib/api";
 import type { ServerStatus } from "@/lib/api";
 import { LogOut, Settings, Shield, Power } from "lucide-react";
+import Toggle from "@/components/Toggle";
+import Badge from "@/components/Badge";
 
 const SERVERS: ServerName[] = ["ubuntu-server", "obsidian", "synology-nas"];
 
-const HEALTH_BADGE: Record<HealthStatus["status"], { icon: string; color: string; label: string }> = {
-  healthy: { icon: "🟢", color: "bg-green-900/50 text-green-400", label: "Connected" },
-  idle: { icon: "🟡", color: "bg-yellow-900/50 text-yellow-400", label: "Idle" },
-  unconfigured: { icon: "🟠", color: "bg-orange-900/50 text-orange-400", label: "Unconfigured" },
-  stopped: { icon: "🔴", color: "bg-red-900/50 text-red-400", label: "Stopped" },
-  "not-found": { icon: "⚪", color: "bg-gray-800 text-gray-400", label: "Not found" },
-  error: { icon: "⚪", color: "bg-gray-800 text-gray-400", label: "Error" },
+const HEALTH_LABELS: Record<HealthStatus["status"], string> = {
+  healthy: "Connected",
+  idle: "Idle",
+  unconfigured: "Unconfigured",
+  stopped: "Stopped",
+  "not-found": "Not found",
+  error: "Error",
 };
 
 export default function DashboardPage() {
@@ -156,19 +158,16 @@ export default function DashboardPage() {
         {SERVERS.map((server) => {
           const config = configs[server];
           const h = health[server];
-          const badge = h ? HEALTH_BADGE[h.status] : null;
           const enabled = !serverStatus[server] || serverStatus[server].enabled !== false;
           const cardContent = (
             <div className={`rounded-lg border p-5 transition-colors h-full flex flex-col ${enabled ? "border-gray-800 bg-gray-900 hover:border-gray-600" : "border-gray-800/50 bg-gray-900/50 opacity-50"}`}>
               <div className="flex items-start justify-between mb-2">
                 <div className="text-3xl">{SERVER_ICONS[server]}</div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleToggleServer(server, !enabled); }}
-                  className={`shrink-0 w-9 h-5 rounded-full relative transition-colors ${enabled ? "bg-green-600" : "bg-gray-600"}`}
-                  title={enabled ? "Deactivate" : "Activate"}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${enabled ? "translate-x-4" : "translate-x-0"}`} />
-                </button>
+                <Toggle
+                  checked={enabled}
+                  onChange={(checked) => handleToggleServer(server, checked)}
+                  label={enabled ? "Deactivate" : "Activate"}
+                />
               </div>
               <h2 className="font-semibold mb-1">{SERVER_LABELS[server]}</h2>
               <div className="text-xs text-gray-400 space-y-0.5 flex-1">
@@ -176,13 +175,15 @@ export default function DashboardPage() {
                   <>
                     <p>{config.permissions.paths.length} path rules</p>
                     <p>{config.permissions.commands.length} command rules</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded bg-green-900/50 text-green-400 text-xs">📄 Config loaded</span>
+                    <Badge variant="status" value="loaded" label="📄 Config loaded" />
                   </>
                 ) : (
-                  <span className="inline-block px-2 py-0.5 rounded bg-red-900/50 text-red-400 text-xs">❌ No config</span>
+                  <Badge variant="status" value="missing" label="❌ No config" />
                 )}
-                {enabled && badge && (
-                  <span className={`inline-block ml-1 px-2 py-0.5 rounded text-xs ${badge.color}`}>{badge.icon} {badge.label}</span>
+                {enabled && h && (
+                  <span className="inline-block ml-1">
+                    <Badge variant="health" value={h.status} label={HEALTH_LABELS[h.status]} showIcon />
+                  </span>
                 )}
               </div>
             </div>

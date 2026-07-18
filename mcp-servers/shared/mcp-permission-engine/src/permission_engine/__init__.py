@@ -28,8 +28,11 @@ from .models import (
     ServerInfo,
 )
 from .users import AuthenticationError, UserConfig, UsersConfig, load_users, validate_user
+from .server import BaseMCPServer
 
 __all__ = [
+    # Server Base
+    "BaseMCPServer",
     # Enforcer
     "PermissionEnforcer",
     "ForbiddenError",
