@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ server: string }> }
 ) {
   const { server } = await params;
-  const valid = ["ubuntu-server", "obsidian", "synology-nas"];
+  const valid = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp"];
   if (!valid.includes(server)) {
     return NextResponse.json({ error: "Invalid server" }, { status: 400 });
   }
@@ -21,7 +21,7 @@ export async function GET(
   const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
 
   try {
-    const logDir = path.join(LOGS_PATH, server === "synology-nas" ? "synology" : server === "ubuntu-server" ? "ubuntu" : "obsidian");
+    const logDir = path.join(LOGS_PATH, server === "synology-nas" ? "synology" : server === "ubuntu-server" ? "ubuntu" : server === "github-mcp" ? "github" : "obsidian");
     const logFile = path.join(logDir, "audit.log");
 
     const raw = await fs.readFile(logFile, "utf-8").catch(() => "");

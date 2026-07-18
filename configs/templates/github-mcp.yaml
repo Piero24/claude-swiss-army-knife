@@ -1,0 +1,82 @@
+# GitHub MCP proxy config
+# Copy to ../github.yaml and set GITHUB_PERSONAL_ACCESS_TOKEN in .env
+
+server:
+  name: github-mcp
+  log_level: INFO
+  audit_log: /var/log/mcp/audit.log
+
+proxy:
+  command: npx
+  args:
+    - "-y"
+    - "@modelcontextprotocol/server-github"
+  env:
+    GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"
+
+permissions:
+  default_access: none
+  tools:
+    - pattern: "search_repositories"
+      access: active
+      description: "Search GitHub repos"
+    - pattern: "search_code"
+      access: active
+      description: "Search code across GitHub"
+    - pattern: "search_issues"
+      access: active
+      description: "Search issues and PRs"
+    - pattern: "search_users"
+      access: active
+      description: "Search GitHub users"
+    - pattern: "list_commits"
+      access: active
+      description: "List commits on a branch"
+    - pattern: "list_issues"
+      access: active
+      description: "List repository issues"
+    - pattern: "list_pull_requests"
+      access: active
+      description: "List repository PRs"
+    - pattern: "get_file_contents"
+      access: active
+      description: "Read file contents"
+    - pattern: "get_issue"
+      access: active
+      description: "Read a single issue"
+    - pattern: "get_pull_request"
+      access: active
+      description: "Read a single PR"
+    - pattern: "create_issue"
+      access: active
+      description: "Create issues"
+    - pattern: "create_pull_request"
+      access: active
+      description: "Create PRs from a branch"
+    - pattern: "create_or_update_file"
+      access: active
+      description: "Create or update a file"
+    - pattern: "create_repository"
+      access: active
+      description: "Create a new repo"
+    - pattern: "fork_repository"
+      access: active
+      description: "Fork a repository"
+    - pattern: "create_branch"
+      access: active
+      description: "Create a new branch"
+    - pattern: "merge_pull_request"
+      access: none
+      description: "Merge PRs — BLOCKED"
+    - pattern: "delete_file"
+      access: none
+      description: "Delete files — BLOCKED"
+    - pattern: "push_files"
+      access: none
+      description: "Push files — BLOCKED"
+    - pattern: "add_issue_comment"
+      access: active
+      description: "Comment on issues"
+  paths: []
+  commands: []
+  default_command_access: none

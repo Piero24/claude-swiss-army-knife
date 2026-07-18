@@ -13,7 +13,7 @@ import { LogOut, Settings, Shield, Power } from "lucide-react";
 import Toggle from "@/components/Toggle";
 import Badge from "@/components/Badge";
 
-const SERVERS: ServerName[] = ["ubuntu-server", "obsidian", "synology-nas"];
+const SERVERS: ServerName[] = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp"];
 
 const HEALTH_LABELS: Record<HealthStatus["status"], string> = {
   healthy: "Connected",

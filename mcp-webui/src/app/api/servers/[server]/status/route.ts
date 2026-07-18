@@ -9,7 +9,7 @@ const SETTINGS_PATH = process.env.CONFIGS_PATH
   ? path.join(process.env.CONFIGS_PATH, "settings.json")
   : "/app/configs/settings.json";
 
-const VALID_SERVERS = ["ubuntu-server", "obsidian", "synology-nas"];
+const VALID_SERVERS = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp"];
 
 const bodySchema = z.object({
   enabled: z.boolean(),
