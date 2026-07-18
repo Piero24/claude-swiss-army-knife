@@ -22,7 +22,8 @@ export default function ServerDetailPage() {
   const serverLabel = server.replace(/-server$/, "").replace(/-mcp$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   function sectionVisible(name: string): boolean {
     if (!config) return true;
-    const ui = (config as Record<string, unknown>).ui as Record<string, unknown> | undefined;
+    const raw = config as unknown as Record<string, unknown>;
+    const ui = raw.ui as Record<string, unknown> | undefined;
     const sections = (ui?.sections || {}) as Record<string, boolean>;
     return sections[name] !== false;
   }
@@ -471,7 +472,6 @@ export default function ServerDetailPage() {
 
       {/* Audit Log */}
       {sectionVisible("audit") && <section>
-      <section>
         <h2 className="text-lg font-semibold mb-3">Audit Log</h2>
 
         {/* Filters */}
