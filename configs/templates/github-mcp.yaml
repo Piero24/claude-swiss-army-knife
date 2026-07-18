@@ -6,6 +6,15 @@ server:
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
 
+ui:
+  label: GitHub
+  icon: "🐙"
+  sections:
+    paths: false
+    commands: false
+    tools: true
+    audit: true
+
 proxy:
   command: npx
   args:

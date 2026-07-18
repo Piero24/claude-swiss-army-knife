@@ -49,7 +49,7 @@ export async function PATCH(
     return NextResponse.json({ server, enabled });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: "Validation failed", details: err.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation failed", details: err.issues }, { status: 400 });
     }
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
