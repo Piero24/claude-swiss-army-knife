@@ -56,9 +56,9 @@ async function discoverServers(): Promise<Array<{ name: string; label: string; i
   const configsDir = process.env.CONFIGS_PATH || "/app/configs";
   const { default: yaml } = await import("js-yaml");
   const map: Record<string, { label: string; icon: string }> = {
-    "ubuntu-mcp": { label: "Ubuntu Server", icon: "🖥" },
-    "obsidian-mcp": { label: "Obsidian", icon: "📝" },
-    "synology-mcp": { label: "Synology NAS", icon: "💾" },
+    "ubuntu-server": { label: "Ubuntu Server", icon: "🖥" },
+    "obsidian": { label: "Obsidian", icon: "📝" },
+    "synology-nas": { label: "Synology NAS", icon: "💾" },
     "github-mcp": { label: "GitHub", icon: "🐙" },
   };
   const servers: Array<{ name: string; label: string; icon: string }> = [];
@@ -70,9 +70,8 @@ async function discoverServers(): Promise<Array<{ name: string; label: string; i
       try {
         const raw = await fs.readFile(path.join(configsDir, file), "utf-8");
         const config = yaml.load(raw) as Record<string, unknown> | null;
-        const server = (config?.server || {}) as Record<string, unknown>;
         const ui = (config?.ui || {}) as Record<string, string>;
-        const name = (server.name as string) || file.replace(".yaml", "");
+        const name = file.replace(".yaml", "");
         const derived = map[name] || { label: name, icon: "🔌" };
         servers.push({
           name,
@@ -87,10 +86,10 @@ async function discoverServers(): Promise<Array<{ name: string; label: string; i
 
 export async function GET() {
   try {
-    const [settings, servers] = await Promise.all([load(), discoverServers()]);
-    return NextResponse.json({ ...settings, servers });
+    const [settings, discoveredServers] = await Promise.all([load(), discoverServers()]);
+    return NextResponse.json({ ...settings, serverList: discoveredServers });
   } catch {
-    return NextResponse.json({ ...DEFAULTS, servers: [] });
+    return NextResponse.json({ ...DEFAULTS, serverList: [] });
   }
 }
 
@@ -122,7 +121,7 @@ export async function PUT(request: Request) {
     let servers: string[] = [];
     try {
       const files = await fs.readdir(configsDir);
-      servers = files.filter((f) => f.endsWith(".yaml")).map((f) => f.replace(".yaml", ""));
+      servers = files.filter((f) => f.endsWith(".yaml") && f !== "users.yaml").map((f) => f.replace(".yaml", ""));
     } catch { /* directory missing */ }
 
     for (const server of servers) {

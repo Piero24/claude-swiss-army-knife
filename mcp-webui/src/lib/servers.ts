@@ -14,7 +14,7 @@ export async function getServers(): Promise<ServerMeta[]> {
     const res = await fetch("/api/settings");
     if (!res.ok) return [];
     const data = await res.json();
-    _cache = (data.servers || []) as ServerMeta[];
+    _cache = (data.serverList || []) as ServerMeta[];
   } catch {
     return [];
   }
