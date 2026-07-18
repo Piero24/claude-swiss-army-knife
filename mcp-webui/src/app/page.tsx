@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { ServerConfig, ServerName } from "@/lib/types";
-import { SERVER_ICONS, SERVER_LABELS } from "@/lib/types";
+import type { ServerConfig } from "@/lib/types";
 import { getConfig, getHealth, getServersStatus, toggleServerStatus } from "@/lib/api";
 import { logout } from "@/lib/api";
 import type { HealthStatus } from "@/lib/api";
@@ -12,8 +11,8 @@ import type { ServerStatus } from "@/lib/api";
 import { LogOut, Settings, Shield, Power } from "lucide-react";
 import Toggle from "@/components/Toggle";
 import Badge from "@/components/Badge";
-
-const SERVERS: ServerName[] = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp"];
+import type { ServerMeta } from "@/lib/servers";
+import { getServers } from "@/lib/servers";
 
 const HEALTH_LABELS: Record<HealthStatus["status"], string> = {
   healthy: "Connected",
@@ -25,8 +24,9 @@ const HEALTH_LABELS: Record<HealthStatus["status"], string> = {
 };
 
 export default function DashboardPage() {
-  const [configs, setConfigs] = useState<Partial<Record<ServerName, ServerConfig>>>({});
-  const [health, setHealth] = useState<Partial<Record<ServerName, HealthStatus>>>({});
+  const [servers, setServers] = useState<ServerMeta[]>([]);
+  const [configs, setConfigs] = useState<Record<string, ServerConfig>>({});
+  const [health, setHealth] = useState<Record<string, HealthStatus>>({});
   const [serverStatus, setServerStatus] = useState<Record<string, ServerStatus>>({});
   const [isScanning, setIsScanning] = useState(false);
   const [scanServer, setScanServer] = useState("");
@@ -36,7 +36,10 @@ export default function DashboardPage() {
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
-    const [c, h, st] = await Promise.all([loadConfigs(), loadHealth(), loadServersStatus()]);
+    const svrs = await getServers();
+    setServers(svrs);
+    const names = svrs.map((s) => s.name);
+    const [c, h, st] = await Promise.all([loadConfigs(names), loadHealth(names), loadServersStatus()]);
     loadScanStatus();
     setConfigs(c); setHealth(h); setServerStatus(st); setLoading(false);
   }
@@ -56,14 +59,14 @@ export default function DashboardPage() {
       setScanServer(data.server || "");
     } catch { /* */ }
   }
-  async function loadConfigs() {
-    const r: Partial<Record<ServerName, ServerConfig>> = {};
-    for (const s of SERVERS) { try { r[s] = await getConfig(s); } catch { /* */ } }
+  async function loadConfigs(names: string[]) {
+    const r: Record<string, ServerConfig> = {};
+    for (const s of names) { try { r[s] = await getConfig(s); } catch { /* */ } }
     return r;
   }
-  async function loadHealth() {
-    const r: Partial<Record<ServerName, HealthStatus>> = {};
-    for (const s of SERVERS) { try { r[s] = await getHealth(s); } catch { /* */ } }
+  async function loadHealth(names: string[]) {
+    const r: Record<string, HealthStatus> = {};
+    for (const s of names) { try { r[s] = await getHealth(s); } catch { /* */ } }
     return r;
   }
 
@@ -93,24 +96,26 @@ export default function DashboardPage() {
     }
   }
 
+  function meta(name: string): ServerMeta {
+    return servers.find((s) => s.name === name) || { name, label: name, icon: "🔌" };
+  }
+
   async function handleBulkToggle(enabled: boolean) {
-    // Optimistic update for all servers
+    const names = servers.map((s) => s.name);
     setServerStatus((prev) => {
       const next = { ...prev };
-      for (const s of SERVERS) {
+      for (const s of names) {
         next[s] = { ...(next[s] || {}), enabled };
       }
       return next;
     });
-    // Fire all toggles in parallel (best-effort)
-    await Promise.allSettled(SERVERS.map((s) => toggleServerStatus(s, enabled)));
-    // Refresh from server to sync
+    await Promise.allSettled(names.map((s) => toggleServerStatus(s, enabled)));
     loadServersStatus().then(setServerStatus);
   }
 
-  // Check if any server is disabled
-  const hasEnabled = SERVERS.some((s) => !serverStatus[s] || serverStatus[s].enabled !== false);
-  const hasDisabled = SERVERS.some((s) => serverStatus[s] && serverStatus[s].enabled === false);
+  const names = servers.map((s) => s.name);
+  const hasEnabled = names.some((s) => !serverStatus[s] || serverStatus[s].enabled !== false);
+  const hasDisabled = names.some((s) => serverStatus[s] && serverStatus[s].enabled === false);
 
   if (loading) {
     return (
@@ -155,21 +160,21 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {SERVERS.map((server) => {
-          const config = configs[server];
-          const h = health[server];
-          const enabled = !serverStatus[server] || serverStatus[server].enabled !== false;
+        {servers.map((srv) => {
+          const config = configs[srv.name];
+          const h = health[srv.name];
+          const enabled = !serverStatus[srv.name] || serverStatus[srv.name].enabled !== false;
           const cardContent = (
             <div className={`rounded-lg border p-5 transition-colors h-full flex flex-col ${enabled ? "border-gray-800 bg-gray-900 hover:border-gray-600" : "border-gray-800/50 bg-gray-900/50 opacity-50"}`}>
               <div className="flex items-start justify-between mb-2">
-                <div className="text-3xl">{SERVER_ICONS[server]}</div>
+                <div className="text-3xl">{srv.icon}</div>
                 <Toggle
                   checked={enabled}
-                  onChange={(checked) => handleToggleServer(server, checked)}
+                  onChange={(checked) => handleToggleServer(srv.name, checked)}
                   label={enabled ? "Deactivate" : "Activate"}
                 />
               </div>
-              <h2 className="font-semibold mb-1">{SERVER_LABELS[server]}</h2>
+              <h2 className="font-semibold mb-1">{srv.label}</h2>
               <div className="text-xs text-gray-400 space-y-0.5 flex-1">
                 {config ? (
                   <>
@@ -189,11 +194,11 @@ export default function DashboardPage() {
             </div>
           );
           return enabled ? (
-            <Link key={server} href={`/${server}`} className="block h-full">
+            <Link key={srv.name} href={`/${srv.name}`} className="block h-full">
               {cardContent}
             </Link>
           ) : (
-            <div key={server} className="h-full">{cardContent}</div>
+            <div key={srv.name} className="h-full">{cardContent}</div>
           );
         })}
       </div>
