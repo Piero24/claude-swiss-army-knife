@@ -8,7 +8,7 @@ import { z } from "zod";
 export function handleApiError(err: unknown): NextResponse {
   if (err instanceof z.ZodError) {
     return NextResponse.json(
-      { error: "Validation failed", details: err.errors },
+      { error: "Validation failed", details: err.issues },
       { status: 400 }
     );
   }
