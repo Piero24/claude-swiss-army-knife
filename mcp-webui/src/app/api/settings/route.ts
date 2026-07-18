@@ -52,12 +52,45 @@ async function load(): Promise<AppSettings> {
   }
 }
 
+async function discoverServers(): Promise<Array<{ name: string; label: string; icon: string }>> {
+  const configsDir = process.env.CONFIGS_PATH || "/app/configs";
+  const { default: yaml } = await import("js-yaml");
+  const map: Record<string, { label: string; icon: string }> = {
+    "ubuntu-mcp": { label: "Ubuntu Server", icon: "🖥" },
+    "obsidian-mcp": { label: "Obsidian", icon: "📝" },
+    "synology-mcp": { label: "Synology NAS", icon: "💾" },
+    "github-mcp": { label: "GitHub", icon: "🐙" },
+  };
+  const servers: Array<{ name: string; label: string; icon: string }> = [];
+  try {
+    const files = await fs.readdir(configsDir);
+    for (const file of files) {
+      if (!file.endsWith(".yaml")) continue;
+      if (file === "users.yaml") continue;
+      try {
+        const raw = await fs.readFile(path.join(configsDir, file), "utf-8");
+        const config = yaml.load(raw) as Record<string, unknown> | null;
+        const server = (config?.server || {}) as Record<string, unknown>;
+        const ui = (config?.ui || {}) as Record<string, string>;
+        const name = (server.name as string) || file.replace(".yaml", "");
+        const derived = map[name] || { label: name, icon: "🔌" };
+        servers.push({
+          name,
+          label: ui.label || derived.label,
+          icon: ui.icon || derived.icon,
+        });
+      } catch { /* skip */ }
+    }
+  } catch { /* dir missing */ }
+  return servers;
+}
+
 export async function GET() {
   try {
-    const settings = await load();
-    return NextResponse.json(settings);
+    const [settings, servers] = await Promise.all([load(), discoverServers()]);
+    return NextResponse.json({ ...settings, servers });
   } catch {
-    return NextResponse.json(DEFAULTS);
+    return NextResponse.json({ ...DEFAULTS, servers: [] });
   }
 }
 
@@ -84,8 +117,13 @@ export async function PUT(request: Request) {
     // Remove excluded folders from all server configs
     let cleaned = 0;
     const configsDir = process.env.CONFIGS_PATH || "/app/configs";
-    const servers = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp"];
     const { default: yaml } = await import("js-yaml");
+    // Discover servers dynamically from configs directory
+    let servers: string[] = [];
+    try {
+      const files = await fs.readdir(configsDir);
+      servers = files.filter((f) => f.endsWith(".yaml")).map((f) => f.replace(".yaml", ""));
+    } catch { /* directory missing */ }
 
     for (const server of servers) {
       try {

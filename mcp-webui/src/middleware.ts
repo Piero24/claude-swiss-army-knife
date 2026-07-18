@@ -20,6 +20,7 @@ export async function middleware(request: NextRequest) {
   // Allow health check endpoints
   if (pathname.startsWith("/api/health")) return NextResponse.next();
 
+
   // Protect all other /api/* routes
   if (pathname.startsWith("/api/")) {
     // Allow internal callers with the API key in a header (scheduler, etc.)
