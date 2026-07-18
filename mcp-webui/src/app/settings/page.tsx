@@ -1,20 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSettings, updateSettings } from "@/lib/api";
+import { getSettings, updateSettings, getConfig, updateConfig } from "@/lib/api";
 import type { AppSettings } from "@/lib/api";
+import type { ServerConfig } from "@/lib/types";
+import { getServers } from "@/lib/servers";
+import type { ServerMeta } from "@/lib/servers";
 import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import Toggle from "@/components/Toggle";
+
+interface ServerSections {
+  paths: boolean;
+  commands: boolean;
+  tools: boolean;
+  audit: boolean;
+}
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [servers, setServers] = useState<ServerMeta[]>([]);
+  const [serverConfigs, setServerConfigs] = useState<Record<string, ServerConfig>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newExclude, setNewExclude] = useState("");
 
   useEffect(() => {
-    getSettings().then(setSettings).catch(() => toast.error("Failed to load settings")).finally(() => setLoading(false));
+    Promise.all([
+      getSettings().catch(() => null),
+      getServers(),
+    ]).then(([s, svrs]) => {
+      setSettings(s);
+      setServers(svrs);
+      return Promise.all(svrs.map((sv) => getConfig(sv.name).then((cfg) => [sv.name, cfg] as const).catch(() => null)));
+    }).then((cfgs) => {
+      const map: Record<string, ServerConfig> = {};
+      for (const entry of cfgs) { if (entry) map[entry[0]] = entry[1]; }
+      setServerConfigs(map);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   async function handleSave() {
@@ -28,6 +52,32 @@ export default function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSectionToggle(server: string, section: string, value: boolean) {
+    const cfg = serverConfigs[server];
+    if (!cfg) return;
+    const raw = cfg as unknown as Record<string, unknown>;
+    const ui = (raw.ui || {}) as Record<string, unknown>;
+    const sections = (ui.sections || {}) as Record<string, boolean>;
+    const updated = {
+      ...cfg,
+      ui: { ...ui, sections: { ...sections, [section]: value } },
+    } as ServerConfig;
+    setServerConfigs((prev) => ({ ...prev, [server]: updated }));
+    try {
+      await updateConfig(server, updated);
+    } catch {
+      toast.error("Failed to update");
+    }
+  }
+
+  function getSections(name: string): ServerSections {
+    const cfg = serverConfigs[name];
+    if (!cfg) return { paths: true, commands: true, tools: true, audit: true };
+    const raw = cfg as unknown as Record<string, unknown>;
+    const ui = raw.ui as Record<string, unknown> | undefined;
+    return { paths: true, commands: true, tools: true, audit: true, ...(ui?.sections || {}) };
   }
 
   function addExclude() {
@@ -145,6 +195,37 @@ export default function SettingsPage() {
           </select>
         </div>
       </section>
+
+      {/* Server Sections */}
+      {servers.length > 0 && <section className="mb-8">
+        <h2 className="text-lg font-semibold mb-4">Server Page Sections</h2>
+        <p className="text-xs text-gray-500 mb-4">Choose which sections appear on each server detail page.</p>
+        <div className="space-y-3">
+          {servers.map((srv) => {
+            const sec = getSections(srv.name);
+            return (
+              <div key={srv.name} className="rounded-lg border border-gray-800 bg-gray-900 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">{srv.icon}</span>
+                  <span className="font-medium text-sm">{srv.label}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["paths", "commands", "tools", "audit"] as const).map((key) => (
+                    <label key={key} className="flex items-center justify-between px-2 py-1 rounded hover:bg-gray-800/50 cursor-pointer">
+                      <span className="text-xs text-gray-400 capitalize">{key}</span>
+                      <Toggle
+                        checked={sec[key]}
+                        onChange={(v) => handleSectionToggle(srv.name, key, v)}
+                        label={`Show ${key}`}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>}
     </div>
   );
 }
