@@ -71,6 +71,7 @@ export interface UserConfig {
   name: string;
   enabled: boolean;
   tools: string[];
+  lastSeen?: string | null;
 }
 
 export interface UsersConfig {

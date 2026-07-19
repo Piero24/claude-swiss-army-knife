@@ -7,6 +7,7 @@ import { z } from "zod";
 import * as yaml from "js-yaml";
 
 const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
+const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
 const USERS_PATH = path.join(CONFIGS_PATH, "users.yaml");
 
 const userSchema = z.object({
@@ -32,15 +33,44 @@ async function load(): Promise<z.infer<typeof usersSchema>> {
   }
 }
 
+async function getLastSeenMap(): Promise<Record<string, string>> {
+  const lastSeen: Record<string, string> = {};
+  try {
+    const dirs = await fs.readdir(LOGS_PATH, { withFileTypes: true });
+    for (const dirent of dirs) {
+      if (!dirent.isDirectory()) continue;
+      const logFile = path.join(LOGS_PATH, dirent.name, "audit.log");
+      const raw = await fs.readFile(logFile, "utf-8").catch(() => "");
+      if (!raw) continue;
+      const lines = raw.split("\n").filter(Boolean);
+      // Only scan the most recent ~1000 entries per server
+      const recent = lines.slice(-1000);
+      for (const line of recent) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.user_id && entry.ts) {
+            if (!lastSeen[entry.user_id] || entry.ts > lastSeen[entry.user_id]) {
+              lastSeen[entry.user_id] = entry.ts;
+            }
+          }
+        } catch { /* skip malformed lines */ }
+      }
+    }
+  } catch { /* log dir may not exist yet */ }
+  return lastSeen;
+}
+
 export async function GET() {
   try {
     const data = await load();
+    const lastSeen = await getLastSeenMap();
     // Strip keys — never expose hashes to the frontend
     const safe = {
       mode: data.mode,
       users: data.users.map((u) => ({
         ...u,
         key: u.key ? "set" : "",
+        lastSeen: lastSeen[u.id] || null,
       })),
     };
     return NextResponse.json(safe);
