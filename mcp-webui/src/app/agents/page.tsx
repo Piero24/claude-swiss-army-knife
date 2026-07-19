@@ -24,6 +24,7 @@ export default function AgentsPage() {
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [newUser, setNewUser] = useState({ id: "", name: "", key: "" });
+  const [generatedSecret, setGeneratedSecret] = useState("");
 
   useEffect(() => {
     getAgents()
@@ -93,7 +94,7 @@ export default function AgentsPage() {
 
   function handleAddUser() {
     if (!data || !newUser.id.trim() || !newUser.key.trim()) return;
-    const keyHash = newUser.key; // will be hashed on save via API
+    const keyHash = newUser.key; // already hashed if generated, or plaintext from manual entry
     setData({
       ...data,
       users: [
@@ -108,8 +109,27 @@ export default function AgentsPage() {
       ],
     });
     setNewUser({ id: "", name: "", key: "" });
+    setGeneratedSecret("");
     setShowAdd(false);
     toast.success("User added — click Save to persist");
+  }
+
+  async function generateKey() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    let secret = "";
+    for (let i = 0; i < 32; i++) {
+      secret += chars[array[i] % chars.length];
+    }
+
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+    const hex = Array.from(new Uint8Array(hash))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    setNewUser((prev) => ({ ...prev, key: `sha256$${hex}` }));
+    setGeneratedSecret(secret);
   }
 
   function handleRemoveUser(userId: string) {
@@ -238,21 +258,36 @@ export default function AgentsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Key (plaintext)</label>
-                <input
-                  type="text"
-                  placeholder="shared-secret"
-                  value={newUser.key}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, key: e.target.value })
-                  }
-                  className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <label className="block text-xs text-gray-400 mb-1">Key (sha256 hash)</label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="sha256$..."
+                    value={newUser.key}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, key: e.target.value })
+                    }
+                    className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={generateKey}
+                    className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 whitespace-nowrap"
+                  >
+                    Generate
+                  </button>
+                </div>
+                {generatedSecret && (
+                  <div className="mt-2 p-2 rounded border border-yellow-600/50 bg-yellow-900/20">
+                    <p className="text-xs text-yellow-400 font-medium mb-1">Copy this key now — it cannot be shown again:</p>
+                    <code className="block text-xs text-yellow-300 break-all select-all">{generatedSecret}</code>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setShowAdd(false)}
+                onClick={() => { setShowAdd(false); setGeneratedSecret(""); }}
                 className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700"
               >
                 Cancel
