@@ -273,3 +273,17 @@ export async function updateAgent(
     body: JSON.stringify(data),
   });
 }
+
+// ── Stats ──────────────────────────────────────────
+
+export interface StatsResponse {
+  totals: { all_time: number; today: number; this_week: number };
+  by_server: Record<string, number>;
+  by_tool: Array<{ name: string; count: number }>;
+  by_day: Array<{ date: string; count: number }>;
+  result_ratio: { allowed: number; denied: number };
+}
+
+export async function getStats(): Promise<StatsResponse> {
+  return fetchJSON<StatsResponse>(`${BASE}/stats`);
+}
