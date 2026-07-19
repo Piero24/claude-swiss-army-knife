@@ -121,7 +121,7 @@ export default function StatsCards() {
                     innerRadius={40}
                     strokeWidth={0}
                     labelLine={false}
-                    label={({ name, percent }: { name: string; percent: number }) =>
+                    label={({ name, percent }: any) =>
                       `${name} ${(percent * 100).toFixed(0)}%`
                     }
                   >
