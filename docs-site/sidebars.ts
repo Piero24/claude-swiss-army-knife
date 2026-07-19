@@ -20,6 +20,11 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Developer Guide",
+      items: ["developer-guide/overview", "developer-guide/creating-mcp-server", "developer-guide/adding-existing-mcp", "developer-guide/permission-engine-api"],
+    },
+    {
+      type: "category",
       label: "Security",
       items: ["security/model", "security/permissions", "security/hardening"],
     },
