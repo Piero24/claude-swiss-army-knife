@@ -29,7 +29,7 @@ from .models import (
     ServerInfo,
     ToolRule,
 )
-from .users import AuthenticationError, UserConfig, UsersConfig, load_users, validate_user
+from .users import AuthenticationError, UserConfig, UsersConfig, hash_key, load_users, validate_user
 from .server import BaseMCPServer
 
 __all__ = [
@@ -59,6 +59,7 @@ __all__ = [
     "AuthenticationError",
     "UserConfig",
     "UsersConfig",
+    "hash_key",
     "load_users",
     "validate_user",
 ]

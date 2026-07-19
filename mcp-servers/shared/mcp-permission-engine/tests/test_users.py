@@ -1,6 +1,7 @@
 """Tests for user authentication."""
 
 import hashlib
+import secrets
 import tempfile
 from pathlib import Path
 
@@ -10,13 +11,14 @@ from permission_engine.users import (
     AuthenticationError,
     UserConfig,
     UsersConfig,
+    hash_key,
     load_users,
     validate_user,
 )
 
 
-def _hash_key(plaintext: str) -> str:
-    """Helper to hash a key for test configs."""
+def _hash_key_legacy(plaintext: str) -> str:
+    """Helper to create a legacy (unsalted) key hash for test configs."""
     return "sha256$" + hashlib.sha256(plaintext.encode()).hexdigest()
 
 
@@ -52,12 +54,12 @@ class TestLoadUsers:
                 [
                     {
                         "id": "alice",
-                        "key": _hash_key("secret1"),
+                        "key": _hash_key_legacy("secret1"),
                         "name": "Alice",
                     },
                     {
                         "id": "bob",
-                        "key": _hash_key("secret2"),
+                        "key": _hash_key_legacy("secret2"),
                         "name": "Bob",
                         "enabled": False,
                     },
@@ -91,13 +93,13 @@ class TestValidateUser:
             users=[
                 UserConfig(
                     id="alice",
-                    key=_hash_key("alice-secret"),
+                    key=_hash_key_legacy("alice-secret"),
                     name="Alice",
                     enabled=True,
                 ),
                 UserConfig(
                     id="bob",
-                    key=_hash_key("bob-secret"),
+                    key=_hash_key_legacy("bob-secret"),
                     name="Bob",
                     enabled=False,
                 ),
@@ -170,3 +172,64 @@ class TestAccessControlFields:
         )
         assert "ubuntu_read_file" in user.tools
         assert len(user.tools) == 2
+
+
+class TestSaltedKeys:
+    """Tests for salted key hashing (v2 format: sha256$<salt>$<hash>)."""
+
+    def test_hash_key_generates_salt(self):
+        """hash_key() without salt should auto-generate one."""
+        result = hash_key("my-secret")
+        parts = result.split("$")
+        assert len(parts) == 3
+        assert parts[0] == "sha256"
+        assert len(parts[1]) == 32  # 16-byte hex salt
+        assert len(parts[2]) == 64  # sha256 hex digest
+
+    def test_hash_key_with_explicit_salt(self):
+        """hash_key() with explicit salt should be deterministic."""
+        salt = "a" * 32
+        result1 = hash_key("secret", salt=salt)
+        result2 = hash_key("secret", salt=salt)
+        assert result1 == result2
+        assert salt in result1
+
+    def test_salted_key_validation(self):
+        """validate_user() should accept salted keys."""
+        key = hash_key("my-secret")
+        config = UsersConfig(
+            users=[UserConfig(id="alice", key=key, enabled=True)]
+        )
+        user = validate_user(config, "alice", "my-secret")
+        assert user.id == "alice"
+
+    def test_salted_key_wrong_password(self):
+        """Salted key should reject wrong password."""
+        key = hash_key("correct-secret")
+        config = UsersConfig(
+            users=[UserConfig(id="alice", key=key, enabled=True)]
+        )
+        with pytest.raises(AuthenticationError, match="Invalid key"):
+            validate_user(config, "alice", "wrong-secret")
+
+    def test_legacy_key_still_works(self):
+        """Legacy sha256$<hex> keys (no salt) should still validate."""
+        legacy_key = _hash_key_legacy("old-secret")
+        config = UsersConfig(
+            users=[UserConfig(id="bob", key=legacy_key, enabled=True)]
+        )
+        user = validate_user(config, "bob", "old-secret")
+        assert user.id == "bob"
+
+    def test_mixed_salted_and_legacy_users(self):
+        """A config can mix salted and legacy keys."""
+        salted = hash_key("new-secret")
+        legacy = _hash_key_legacy("old-secret")
+        config = UsersConfig(
+            users=[
+                UserConfig(id="new-user", key=salted, enabled=True),
+                UserConfig(id="old-user", key=legacy, enabled=True),
+            ]
+        )
+        assert validate_user(config, "new-user", "new-secret").id == "new-user"
+        assert validate_user(config, "old-user", "old-secret").id == "old-user"

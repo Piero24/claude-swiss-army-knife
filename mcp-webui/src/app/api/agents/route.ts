@@ -1,12 +1,18 @@
-/** GET/PUT users.yaml — agent access control config. */
+/** GET/PUT users.yaml — agent access control config.
+ *
+ * GET also scans audit logs to attach lastSeen timestamps per user.
+ */
 
 import { NextResponse } from "next/server";
 import * as fs from "fs/promises";
+import { createReadStream } from "fs";
 import path from "path";
+import { createInterface } from "readline";
 import { z } from "zod";
 import * as yaml from "js-yaml";
 
 const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
+const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
 const USERS_PATH = path.join(CONFIGS_PATH, "users.yaml");
 
 const userSchema = z.object({
@@ -32,15 +38,69 @@ async function load(): Promise<z.infer<typeof usersSchema>> {
   }
 }
 
+/** Scan recent audit log entries to find the most recent timestamp per user_id.
+ *  Only scans the last ~2000 lines across all audit log files for performance. */
+async function getUserLastSeen(): Promise<Map<string, string>> {
+  const lastSeen = new Map<string, string>();
+
+  try {
+    const entries = await fs.readdir(LOGS_PATH, { withFileTypes: true });
+    const auditDirs = entries.filter((e) => e.isDirectory());
+
+    for (const dir of auditDirs) {
+      const auditFile = path.join(LOGS_PATH, dir.name, "audit.log");
+      try {
+        await fs.access(auditFile);
+      } catch {
+        continue;
+      }
+
+      // Read last ~2000 lines (tail) per file
+      const lines: string[] = [];
+      const rl = createInterface({
+        input: createReadStream(auditFile, { encoding: "utf-8" }),
+        crlfDelay: Infinity,
+      });
+
+      for await (const line of rl) {
+        const trimmed = line.trim();
+        if (trimmed) lines.push(trimmed);
+        // Keep only the last 2000 lines in memory
+        if (lines.length > 2000) lines.shift();
+      }
+
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.user_id && entry.ts) {
+            const existing = lastSeen.get(entry.user_id);
+            if (!existing || entry.ts > existing) {
+              lastSeen.set(entry.user_id, entry.ts);
+            }
+          }
+        } catch {
+          // Skip malformed lines
+        }
+      }
+    }
+  } catch {
+    // If logs directory doesn't exist or is unreadable, return empty map
+  }
+
+  return lastSeen;
+}
+
 export async function GET() {
   try {
-    const data = await load();
+    const [data, lastSeen] = await Promise.all([load(), getUserLastSeen()]);
+
     // Strip keys — never expose hashes to the frontend
     const safe = {
       mode: data.mode,
       users: data.users.map((u) => ({
         ...u,
         key: u.key ? "set" : "",
+        lastSeen: lastSeen.get(u.id) || null,
       })),
     };
     return NextResponse.json(safe);
