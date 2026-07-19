@@ -1,136 +1,282 @@
-# docker-compose.casaos.yml — MCP stack adapted for CasaOS
+# CasaOS docker-compose — MCP permission management stack
 #
-# Differences from the standard docker-compose.yml:
-#   - Removes host networking (not supported by CasaOS)
-#   - Removes pid: host (not supported by CasaOS)
-#   - Uses bridge networking with explicit port mappings
-#   - Volume paths follow CasaOS conventions (/DATA/AppData/...)
-#   - ubuntu-mcp uses bind mounts instead of host-mode for filesystem access
+# Designed for CasaOS import. Uses bridge networking, explicit port mappings,
+# and LONG volume/port syntax required by the CasaOS UI parser.
 #
-# Usage:
-#   1. Copy .env.example to .env and fill in your values
-#   2. Run: docker compose -f docker-compose.casaos.yml up -d --build
-#
-# Notes:
-#   - ubuntu-mcp without host networking cannot manage host systemd services
-#     directly. File operations, docker commands (via docker.sock), and
-#     container management still work.
-#   - For full systemd management, consider running ubuntu-mcp on the host
-#     or using SSH tunneling instead.
+# Usage: Import this file into CasaOS or run:
+#   docker compose -f docker-compose.casaos.yml up -d --build
 
 services:
-  # ============================================================
-  # Obsidian Stack
-  # ============================================================
-
-  obsidian-livesync:
-    image: big-bear-obsidian-livesync:latest
-    container_name: obsidian-livesync
-    volumes:
-      - ${OBSIDIAN_LIVESYNC_DATA:-/DATA/AppData/big-bear-obsidian-livesync/data}:/data
-    restart: unless-stopped
-
-  obsidian:
-    image: your-obsidian-image:latest
-    container_name: obsidian
-    volumes:
-      - ${OBSIDIAN_VAULT_PATH:-/DATA/obsidian-vaults}:/vault
-    restart: unless-stopped
-
-  # ============================================================
-  # MCP Servers (Python 3.12)
-  # ============================================================
-
   ubuntu-mcp:
     build:
       context: ./mcp-servers/ubuntu-server
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-    image: ubuntu-mcp:${UBUNTU_MCP_IMAGE_TAG:-latest}
-    container_name: ${UBUNTU_MCP_CONTAINER:-ubuntu-mcp}
-    volumes:
-      # CasaOS data typically lives under /DATA. Adjust source paths
-      # to match your host filesystem layout.
-      - /home:/mnt/host/home:rw
-      - /var/www:/mnt/host/var/www:rw
-      - /var/log:/mnt/host/var/log:ro
-      - /etc/nginx:/mnt/host/etc/nginx:rw
-      # Docker socket for container management
-      - /var/run/docker.sock:/var/run/docker.sock
-      # Config and logs
-      - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
-      - ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}/ubuntu:/var/log/mcp
+    image: ubuntu-mcp:latest
+    container_name: ubuntu-mcp
+    cpu_shares: 90
+    command: []
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     stdin_open: true
     restart: unless-stopped
-    # CasaOS note: host networking and pid: host are not available.
-    # ubuntu-mcp can still manage files, run docker commands, and
-    # control containers via the docker socket mount above.
-    # Systemd management of the host is not available in this mode.
+    volumes:
+      - type: bind
+        source: /home
+        target: /mnt/host/home
+      - type: bind
+        source: /var/www
+        target: /mnt/host/var/www
+      - type: bind
+        source: /var/log
+        target: /mnt/host/var/log
+        read_only: true
+      - type: bind
+        source: /etc/nginx
+        target: /mnt/host/etc/nginx
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: bind
+        source: ./configs/ubuntu-server.yaml
+        target: /app/config.yaml
+        read_only: true
+      - type: bind
+        source: ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}/ubuntu
+        target: /var/log/mcp
+    x-casaos:
+      volumes:
+        - container: /mnt/host/home
+          description:
+            en_us: Host home directory (read-write)
+        - container: /mnt/host/var/www
+          description:
+            en_us: Host web root (read-write)
+        - container: /mnt/host/var/log
+          description:
+            en_us: Host system logs (read-only)
+        - container: /mnt/host/etc/nginx
+          description:
+            en_us: Host nginx config (read-write)
+        - container: /var/run/docker.sock
+          description:
+            en_us: Docker socket for container management
+        - container: /app/config.yaml
+          description:
+            en_us: Permission config file (read-only)
+        - container: /var/log/mcp
+          description:
+            en_us: Audit log directory
 
   obsidian-mcp:
     build:
       context: ./mcp-servers/obsidian
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-    image: obsidian-mcp:${OBSIDIAN_MCP_IMAGE_TAG:-latest}
-    container_name: ${OBSIDIAN_MCP_CONTAINER:-obsidian-mcp}
-    volumes:
-      - ${OBSIDIAN_VAULT_PATH:-/DATA/obsidian-vaults}:/data/vaults:rw
-      - ./configs/obsidian.yaml:/app/config.yaml:ro
-      - ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}/obsidian:/var/log/mcp
+    image: obsidian-mcp:latest
+    container_name: obsidian-mcp
+    cpu_shares: 90
+    command: []
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     stdin_open: true
     restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${OBSIDIAN_VAULT_PATH:-/DATA/obsidian-vaults}
+        target: /data/vaults
+      - type: bind
+        source: ./configs/obsidian.yaml
+        target: /app/config.yaml
+        read_only: true
+      - type: bind
+        source: ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}/obsidian
+        target: /var/log/mcp
+    x-casaos:
+      volumes:
+        - container: /data/vaults
+          description:
+            en_us: Obsidian vault directory
+        - container: /app/config.yaml
+          description:
+            en_us: Permission config file (read-only)
+        - container: /var/log/mcp
+          description:
+            en_us: Audit log directory
 
   synology-mcp:
     build:
       context: ./mcp-servers/synology-nas
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-    image: synology-mcp:${SYNOLOGY_MCP_IMAGE_TAG:-latest}
-    container_name: ${SYNOLOGY_MCP_CONTAINER:-synology-mcp}
+    image: synology-mcp:latest
+    container_name: synology-mcp
+    cpu_shares: 90
+    command: []
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    stdin_open: true
+    restart: unless-stopped
     volumes:
-      - ./configs/synology-nas.yaml:/app/config.yaml:ro
-      - ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}/synology:/var/log/mcp
+      - type: bind
+        source: ./configs/synology-nas.yaml
+        target: /app/config.yaml
+        read_only: true
+      - type: bind
+        source: ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}/synology
+        target: /var/log/mcp
     environment:
       - SYNOLOGY_NAS_HOST=${SYNOLOGY_NAS_HOST}
       - SYNOLOGY_NAS_PORT=${SYNOLOGY_NAS_PORT}
       - SYNOLOGY_NAS_USER=${SYNOLOGY_NAS_USER}
       - SYNOLOGY_NAS_PASSWORD=${SYNOLOGY_NAS_PASSWORD}
       - SYNOLOGY_NAS_OTP_SECRET=${SYNOLOGY_NAS_OTP_SECRET:-}
+    x-casaos:
+      envs:
+        - container: SYNOLOGY_NAS_HOST
+          description:
+            en_us: NAS hostname or IP address
+        - container: SYNOLOGY_NAS_PORT
+          description:
+            en_us: NAS DSM port (default 5001)
+        - container: SYNOLOGY_NAS_USER
+          description:
+            en_us: NAS login username
+        - container: SYNOLOGY_NAS_PASSWORD
+          description:
+            en_us: NAS login password
+      volumes:
+        - container: /app/config.yaml
+          description:
+            en_us: Permission config file (read-only)
+        - container: /var/log/mcp
+          description:
+            en_us: Audit log directory
+
+  github-mcp:
+    build:
+      context: ./mcp-servers/github
+      args:
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+        PROXY_PATH: shared/mcp-proxy
+    image: github-mcp:latest
+    container_name: github-mcp
+    cpu_shares: 90
+    command: []
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     stdin_open: true
     restart: unless-stopped
-
-  # ============================================================
-  # Web UI — Permission Manager (Next.js 15 / TypeScript)
-  # ============================================================
+    volumes:
+      - type: bind
+        source: ./configs/github-mcp.yaml
+        target: /app/config.yaml
+        read_only: true
+      - type: bind
+        source: ./configs/users.yaml
+        target: /app/users.yaml
+        read_only: true
+      - type: bind
+        source: ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}/github
+        target: /var/log/mcp
+    environment:
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN:-}
+    x-casaos:
+      envs:
+        - container: GITHUB_PERSONAL_ACCESS_TOKEN
+          description:
+            en_us: GitHub personal access token
+      volumes:
+        - container: /app/config.yaml
+          description:
+            en_us: Permission config file (read-only)
+        - container: /app/users.yaml
+          description:
+            en_us: User authentication config (read-only)
+        - container: /var/log/mcp
+          description:
+            en_us: Audit log directory
 
   mcp-webui:
     build:
       context: ./mcp-webui
-    image: mcp-webui:${WEBUI_IMAGE_TAG:-latest}
+    image: mcp-webui:latest
     container_name: mcp-webui
+    cpu_shares: 90
+    command: []
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
     volumes:
-      - ./configs:/app/configs:rw
-      - ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}:/var/log/mcp:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - type: bind
+        source: ./configs
+        target: /app/configs
+      - type: bind
+        source: ${MCP_LOG_DIR:-/DATA/AppData/mcp-logs}
+        target: /var/log/mcp
+        read_only: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
     environment:
       - WEBUI_API_KEY=${WEBUI_API_KEY}
       - WEBUI_AUTH_SECRET=${WEBUI_AUTH_SECRET}
       - CONFIGS_PATH=/app/configs
       - LOGS_PATH=/var/log/mcp
     ports:
-      - "${WEBUI_PORT:-8280}:8280"
-    restart: unless-stopped
+      - mode: ingress
+        target: 8280
+        published: "${WEBUI_PORT:-8280}"
+        protocol: tcp
+    x-casaos:
+      envs:
+        - container: WEBUI_API_KEY
+          description:
+            en_us: API key for internal service communication
+        - container: WEBUI_AUTH_SECRET
+          description:
+            en_us: Session encryption secret
+      ports:
+        - container: "8280"
+          description:
+            en_us: Web UI port
+      volumes:
+        - container: /app/configs
+          description:
+            en_us: Server config files (read-write)
+        - container: /var/log/mcp
+          description:
+            en_us: Audit logs (read-only)
 
-  # ============================================================
-  # Documentation Site (Docusaurus 3)
-  # ============================================================
+networks:
+  default:
+    name: mcp-stack_default
 
-  docs-site:
-    build:
-      context: ./docs-site
-    image: docs-site:${DOCS_IMAGE_TAG:-latest}
-    container_name: docs-site
-    ports:
-      - "${DOCS_PORT:-3000}:3000"
-    restart: unless-stopped
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  author: Piero24
+  category: Developer Tools
+  description:
+    en_us: MCP Permission Manager — secure gating, audit logging, and access control for Claude Code MCP servers. Includes Ubuntu, Obsidian, Synology NAS, and GitHub proxy servers with a web dashboard.
+  developer: Piero24
+  icon: https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/mcp-webui/public/favicon.ico
+  main: mcp-webui
+  port_map: "${WEBUI_PORT:-8280}"
+  scheme: http
+  tagline:
+    en_us: Secure MCP access control
+  title:
+    en_us: MCP Permission Manager

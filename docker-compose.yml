@@ -1,4 +1,4 @@
-# docker-compose.yml — Complete MCP stack + Obsidian + Web UI + Docs
+# docker-compose.yml — Complete MCP stack + Web UI
 #
 # Usage:
 #   cp .env.example .env
@@ -8,24 +8,6 @@
 #   docker compose up -d --build
 
 services:
-  # ============================================================
-  # Existing: Obsidian Stack
-  # ============================================================
-
-  obsidian-livesync:
-    image: big-bear-obsidian-livesync:latest
-    container_name: obsidian-livesync
-    volumes:
-      - ${OBSIDIAN_LIVESYNC_DATA:-/DATA/AppData/big-bear-obsidian-livesync/data}:/data
-    restart: unless-stopped
-
-  obsidian:
-    image: your-obsidian-image:latest
-    container_name: obsidian
-    volumes:
-      - ${OBSIDIAN_VAULT_PATH:-/DATA/obsidian-vaults}:/vault
-    restart: unless-stopped
-
   # ============================================================
   # MCP Servers (Python 3.12)
   # ============================================================
@@ -127,17 +109,4 @@ services:
     environment:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN:-}
     stdin_open: true
-    restart: unless-stopped
-
-  # ============================================================
-  # Documentation Site (Docusaurus 3)
-  # ============================================================
-
-  docs-site:
-    build:
-      context: ./docs-site
-    image: docs-site:${DOCS_IMAGE_TAG:-latest}
-    container_name: docs-site
-    ports:
-      - "${DOCS_PORT:-3000}:3000"
     restart: unless-stopped
