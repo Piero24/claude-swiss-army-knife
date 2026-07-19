@@ -11,6 +11,7 @@ import type { ServerStatus } from "@/lib/api";
 import { LogOut, Settings, Shield, Power } from "lucide-react";
 import Toggle from "@/components/Toggle";
 import Badge from "@/components/Badge";
+import StatsCards from "@/components/StatsCards";
 import type { ServerMeta } from "@/lib/servers";
 import { getServers } from "@/lib/servers";
 
@@ -158,6 +159,9 @@ export default function DashboardPage() {
           <Power size={12} /> Deactivate all
         </button>
       </div>
+
+      {/* Stats overview */}
+      <StatsCards />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {servers.map((srv) => {
