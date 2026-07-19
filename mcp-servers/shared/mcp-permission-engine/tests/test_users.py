@@ -16,8 +16,16 @@ from permission_engine.users import (
 
 
 def _hash_key(plaintext: str) -> str:
-    """Helper to hash a key for test configs."""
-    return "sha256$" + hashlib.sha256(plaintext.encode()).hexdigest()
+    """Helper to hash a key for test configs (salted format)."""
+    import secrets
+
+    salt = secrets.token_hex(16)
+    return (
+        "sha256$"
+        + salt
+        + "$"
+        + hashlib.sha256((salt + plaintext).encode()).hexdigest()
+    )
 
 
 def _write_users_yaml(users: list[dict], dir_path: str) -> str:
@@ -134,9 +142,24 @@ class TestValidateUser:
         with pytest.raises(AuthenticationError, match="No user identity"):
             validate_user(users_config, "", "")
 
-    def test_bad_key_format(self, users_config):
+    def test_bad_key_format_no_dollar(self, users_config):
         with pytest.raises(AuthenticationError, match="Invalid key format"):
             validate_user(users_config, "carol", "whatever")
+
+    def test_bad_key_format_legacy_two_part(self):
+        """Legacy 'sha256$<hash>' format without salt should be rejected."""
+        config = UsersConfig(
+            users=[
+                UserConfig(
+                    id="dave",
+                    key="sha256$abc123",
+                    name="Dave",
+                    enabled=True,
+                )
+            ]
+        )
+        with pytest.raises(AuthenticationError, match="Invalid key format"):
+            validate_user(config, "dave", "whatever")
 
     def test_constant_time_comparison(self, users_config):
         """hmac.compare_digest should not leak timing info."""
