@@ -18,6 +18,22 @@ const MODES = [
   { value: "blocklist", label: "Blocklist", desc: "Everyone except disabled users" },
 ] as const;
 
+function relativeTime(ts: string | null | undefined): string {
+  if (!ts) return "Never";
+  const diff = Date.now() - new Date(ts).getTime();
+  if (diff < 0) return "Just now";
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return "Just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
 export default function AgentsPage() {
   const [data, setData] = useState<UsersConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -171,6 +187,9 @@ export default function AgentsPage() {
     )},
     { key: "key", header: "Key", headerClassName: "w-[80px]", render: (u) => (
       <Badge variant="status" value={u.key ? "set" : "none"} label={u.key ? "Set" : "None"} />
+    )},
+    { key: "lastSeen", header: "Last seen", headerClassName: "w-[90px]", render: (u) => (
+      <span className="text-xs text-gray-500">{relativeTime(u.lastSeen)}</span>
     )},
     { key: "status", header: "Status", headerClassName: "w-[80px]", render: (u) => (
       <Toggle checked={u.enabled} onChange={() => handleToggleUser(u)} label={`Toggle ${u.name}`} />
