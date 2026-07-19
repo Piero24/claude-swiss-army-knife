@@ -7,7 +7,7 @@ import type { ServerConfig } from "@/lib/types";
 import { getServers } from "@/lib/servers";
 import type { ServerMeta } from "@/lib/servers";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import Toggle from "@/components/Toggle";
 
@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const [serverConfigs, setServerConfigs] = useState<Record<string, ServerConfig>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newExclude, setNewExclude] = useState("");
+  const [excludeInput, setExcludeInput] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -80,14 +80,18 @@ export default function SettingsPage() {
     return { paths: true, commands: true, tools: true, audit: true, ...(ui?.sections || {}) };
   }
 
-  function addExclude() {
-    if (!settings || !newExclude.trim()) return;
-    if (settings.scan.excludePatterns.includes(newExclude.trim())) return;
+  function addExcludeTag() {
+    if (!settings) return;
+    const value = excludeInput.trim().replace(/,$/, "");
+    if (!value || settings.scan.excludePatterns.includes(value)) {
+      setExcludeInput("");
+      return;
+    }
     setSettings({
       ...settings,
-      scan: { ...settings.scan, excludePatterns: [...settings.scan.excludePatterns, newExclude.trim()] },
+      scan: { ...settings.scan, excludePatterns: [...settings.scan.excludePatterns, value] },
     });
-    setNewExclude("");
+    setExcludeInput("");
   }
 
   function removeExclude(pattern: string) {
@@ -148,33 +152,33 @@ export default function SettingsPage() {
                 <span className="text-xs text-gray-500">No patterns</span>
               )}
             </div>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                placeholder="e.g. .venv"
-                value={newExclude}
-                onChange={(e) => setNewExclude(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addExclude()}
-                className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button onClick={addExclude} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700"><Plus size={16} /></button>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Bulk paste (one per line):</p>
-              <textarea
-                rows={4}
-                placeholder={"env\nsite-packages\nlib\nsrc"}
-                onChange={(e) => {
-                  const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
+            <input
+              type="text"
+              placeholder="Type a pattern and press Enter or comma. Paste multiple lines to bulk add."
+              value={excludeInput}
+              onChange={(e) => setExcludeInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addExcludeTag();
+                } else if (e.key === ",") {
+                  e.preventDefault();
+                  addExcludeTag();
+                }
+              }}
+              onPaste={(e) => {
+                const pasted = e.clipboardData.getData("text");
+                if (pasted.includes("\n")) {
+                  e.preventDefault();
+                  const lines = pasted.split("\n").map((l) => l.trim()).filter(Boolean);
                   if (lines.length > 0) {
                     const merged = [...new Set([...settings.scan.excludePatterns, ...lines])];
                     setSettings({ ...settings, scan: { ...settings.scan, excludePatterns: merged } });
-                    e.target.value = "";
                   }
-                }}
-                className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-              />
-            </div>
+                }
+              }}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
       </section>
