@@ -13,7 +13,9 @@ class UserConfig(BaseModel):
     """A single user definition from users.yaml."""
 
     id: str = Field(..., description="Unique user identifier")
-    key: str = Field(..., description="Hashed key in format 'sha256$<hex>'")
+    key: str = Field(
+        ..., description="Hashed key in format 'sha256$<salt>$<hex>' (or legacy 'sha256$<hex>')"
+    )
     name: str = Field(default="", description="Display name")
     enabled: bool = Field(
         default=True, description="Whether this user is active"
@@ -81,16 +83,20 @@ def validate_user(
             if not user.enabled:
                 raise AuthenticationError(f"User '{user_id}' is disabled")
 
-            # Parse stored key: "sha256$<hex>"
-            if "$" in user.key:
-                algo, stored_hash = user.key.split("$", 1)
+            # Parse stored key: "sha256$<salt>$<hash>" (new) or "sha256$<hash>" (old)
+            parts = user.key.split("$")
+            if len(parts) == 2:
+                algo, stored_hash = parts
+                salt = ""
+            elif len(parts) == 3:
+                algo, salt, stored_hash = parts
             else:
                 raise AuthenticationError(
                     f"Invalid key format for user '{user_id}'"
                 )
 
             if algo == "sha256":
-                computed = hashlib.sha256(provided_key.encode()).hexdigest()
+                computed = hashlib.sha256((salt + provided_key).encode()).hexdigest()
                 if hmac.compare_digest(computed, stored_hash):
                     return user
 
