@@ -92,7 +92,9 @@ def validate_user(
             algo, salt, stored_hash = parts
 
             if algo == "sha256":
-                computed = hashlib.sha256((salt + provided_key).encode()).hexdigest()
+                computed = hashlib.sha256(
+                    (salt + provided_key).encode()
+                ).hexdigest()
                 if hmac.compare_digest(computed, stored_hash):
                     return user
 
