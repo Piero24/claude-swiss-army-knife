@@ -2,9 +2,8 @@
 #
 # Copy this to ../users.yaml and edit with real values.
 #
-# Key format: "sha256$<salt>$<hash>" (salted) or legacy "sha256$<hash>" (unsalted).
-# Generate salted keys via the Web UI (Agents → Add User → Generate).
-# Legacy format without salt still works for backward compatibility.
+# Key format: "sha256$<salt>$<hash>".
+# Generate keys via the Web UI (Agents → Add User → Generate).
 #
 # mode: "open" (default) | "allowlist" | "blocklist"
 #   - open:       everyone can use tools (users can be disabled individually)

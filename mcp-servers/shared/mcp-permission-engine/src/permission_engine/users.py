@@ -14,7 +14,7 @@ class UserConfig(BaseModel):
 
     id: str = Field(..., description="Unique user identifier")
     key: str = Field(
-        ..., description="Hashed key in format 'sha256$<salt>$<hex>' (or legacy 'sha256$<hex>')"
+        ..., description="Hashed key in format 'sha256$<salt>$<hex>'"
     )
     name: str = Field(default="", description="Display name")
     enabled: bool = Field(
@@ -83,17 +83,13 @@ def validate_user(
             if not user.enabled:
                 raise AuthenticationError(f"User '{user_id}' is disabled")
 
-            # Parse stored key: "sha256$<salt>$<hash>" (new) or "sha256$<hash>" (old)
+            # Parse stored key: "sha256$<salt>$<hash>"
             parts = user.key.split("$")
-            if len(parts) == 2:
-                algo, stored_hash = parts
-                salt = ""
-            elif len(parts) == 3:
-                algo, salt, stored_hash = parts
-            else:
+            if len(parts) != 3:
                 raise AuthenticationError(
                     f"Invalid key format for user '{user_id}'"
                 )
+            algo, salt, stored_hash = parts
 
             if algo == "sha256":
                 computed = hashlib.sha256((salt + provided_key).encode()).hexdigest()
