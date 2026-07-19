@@ -1,0 +1,257 @@
+# compose-casaos.yaml — MCP Stack for CasaOS
+#
+# Before starting:
+#   1. Create the configs directory on your host:
+#        mkdir -p /DATA/AppData/mcp/configs /DATA/AppData/mcp/logs/{ubuntu,obsidian,synology,github}
+#   2. Copy and edit config templates:
+#        cp configs/templates/users.yaml /DATA/AppData/mcp/configs/
+#        cp configs/templates/ubuntu-server.yaml /DATA/AppData/mcp/configs/
+#        cp configs/templates/obsidian.yaml /DATA/AppData/mcp/configs/
+#        cp configs/templates/synology-nas.yaml /DATA/AppData/mcp/configs/
+#        cp configs/templates/github-mcp.yaml /DATA/AppData/mcp/configs/
+#   3. Fill in env vars in the CasaOS UI or edit them below.
+#   4. Generate API keys for the Web UI:
+#        WEBUI_API_KEY=$(openssl rand -hex 32)
+#        WEBUI_AUTH_SECRET=$(openssl rand -hex 32)
+#
+# Services are built from local Dockerfiles on first start.
+# Set image: tags to pull from a registry instead of building locally.
+
+name: mcp-stack
+services:
+  # ============================================================
+  # UBUNTU MCP — Remote Linux server management
+  # ============================================================
+  ubuntu-mcp:
+    build:
+      context: ./mcp-servers/ubuntu-server
+      args:
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+    image: ubuntu-mcp:latest
+    container_name: ubuntu-mcp
+    stdin_open: true
+    restart: unless-stopped
+    pid: "host"
+    network_mode: "host"
+    environment:
+      UBUNTU_SERVER_HOST: ""
+      UBUNTU_SERVER_SSH_PORT: "22"
+      UBUNTU_SERVER_USER: ""
+    x-casaos:
+      envs:
+        - container: UBUNTU_SERVER_HOST
+          description:
+            en_us: Hostname or IP of the Ubuntu server to manage.
+        - container: UBUNTU_SERVER_SSH_PORT
+          description:
+            en_us: SSH port on the target server (default 22).
+        - container: UBUNTU_SERVER_USER
+          description:
+            en_us: SSH username for connecting to the target server.
+    volumes:
+      - type: bind
+        source: /home
+        target: /mnt/host/home
+      - type: bind
+        source: /var/www
+        target: /mnt/host/var/www
+      - type: bind
+        source: /var/log
+        target: /mnt/host/var/log
+        read_only: true
+      - type: bind
+        source: /etc/nginx
+        target: /mnt/host/etc/nginx
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: bind
+        source: /DATA/AppData/mcp/configs/ubuntu-server.yaml
+        target: /app/config.yaml
+        read_only: true
+      - type: bind
+        source: /DATA/AppData/mcp/configs/users.yaml
+        target: /app/users.yaml
+        read_only: true
+      - type: bind
+        source: /DATA/AppData/mcp/logs/ubuntu
+        target: /var/log/mcp
+
+  # ============================================================
+  # OBSIDIAN MCP — Vault file access
+  # ============================================================
+  obsidian-mcp:
+    build:
+      context: ./mcp-servers/obsidian
+      args:
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+    image: obsidian-mcp:latest
+    container_name: obsidian-mcp
+    stdin_open: true
+    restart: unless-stopped
+    environment:
+      OBSIDIAN_VAULT_PATH: /DATA/obsidian-vaults
+    x-casaos:
+      envs:
+        - container: OBSIDIAN_VAULT_PATH
+          description:
+            en_us: Path to your Obsidian vault on the host. Mounted read-write so the MCP can read and edit notes.
+    volumes:
+      - type: bind
+        source: /DATA/obsidian-vaults
+        target: /data/vaults
+      - type: bind
+        source: /DATA/AppData/mcp/configs/obsidian.yaml
+        target: /app/config.yaml
+        read_only: true
+      - type: bind
+        source: /DATA/AppData/mcp/configs/users.yaml
+        target: /app/users.yaml
+        read_only: true
+      - type: bind
+        source: /DATA/AppData/mcp/logs/obsidian
+        target: /var/log/mcp
+
+  # ============================================================
+  # SYNOLOGY MCP — NAS management via DSM API
+  # ============================================================
+  synology-mcp:
+    build:
+      context: ./mcp-servers/synology-nas
+      args:
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+    image: synology-mcp:latest
+    container_name: synology-mcp
+    stdin_open: true
+    restart: unless-stopped
+    environment:
+      SYNOLOGY_NAS_HOST: ""
+      SYNOLOGY_NAS_PORT: "5001"
+      SYNOLOGY_NAS_USER: ""
+      SYNOLOGY_NAS_PASSWORD: ""
+      SYNOLOGY_NAS_OTP_SECRET: ""
+    x-casaos:
+      envs:
+        - container: SYNOLOGY_NAS_HOST
+          description:
+            en_us: IP address or hostname of your Synology NAS.
+        - container: SYNOLOGY_NAS_PORT
+          description:
+            en_us: DSM port (default 5001 for HTTPS).
+        - container: SYNOLOGY_NAS_USER
+          description:
+            en_us: Username for DSM login.
+        - container: SYNOLOGY_NAS_PASSWORD
+          description:
+            en_us: Password for DSM login.
+        - container: SYNOLOGY_NAS_OTP_SECRET
+          description:
+            en_us: "Base32 TOTP secret if 2FA is enabled. Copy only the secret= value from your otpauth:// URL. Leave empty if 2FA is disabled."
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mcp/configs/synology-nas.yaml
+        target: /app/config.yaml
+        read_only: true
+      - type: bind
+        source: /DATA/AppData/mcp/configs/users.yaml
+        target: /app/users.yaml
+        read_only: true
+      - type: bind
+        source: /DATA/AppData/mcp/logs/synology
+        target: /var/log/mcp
+
+  # ============================================================
+  # MCP WEB UI — Permission manager dashboard
+  # ============================================================
+  mcp-webui:
+    build:
+      context: ./mcp-webui
+    image: mcp-webui:latest
+    container_name: mcp-webui
+    restart: unless-stopped
+    environment:
+      WEBUI_API_KEY: ""
+      WEBUI_AUTH_SECRET: ""
+      CONFIGS_PATH: /app/configs
+      LOGS_PATH: /var/log/mcp
+    x-casaos:
+      envs:
+        - container: WEBUI_API_KEY
+          description:
+            en_us: "API key for the Web UI login. Generate with: openssl rand -hex 32"
+        - container: WEBUI_AUTH_SECRET
+          description:
+            en_us: "Session encryption secret. Generate with: openssl rand -hex 32"
+    ports:
+      - target: 8280
+        published: 8280
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mcp/configs
+        target: /app/configs
+      - type: bind
+        source: /DATA/AppData/mcp/logs
+        target: /var/log/mcp
+        read_only: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+
+  # ============================================================
+  # GITHUB MCP — GitHub API proxy
+  # ============================================================
+  github-mcp:
+    build:
+      context: ./mcp-servers/github
+      args:
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+        PROXY_PATH: shared/mcp-proxy
+    image: github-mcp:latest
+    container_name: github-mcp
+    stdin_open: true
+    restart: unless-stopped
+    environment:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ""
+    x-casaos:
+      envs:
+        - container: GITHUB_PERSONAL_ACCESS_TOKEN
+          description:
+            en_us: "GitHub personal access token for API operations. Create at GitHub → Settings → Developer settings → Personal access tokens."
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mcp/configs/github-mcp.yaml
+        target: /app/config.yaml
+        read_only: true
+      - type: bind
+        source: /DATA/AppData/mcp/configs/users.yaml
+        target: /app/users.yaml
+        read_only: true
+      - type: bind
+        source: /DATA/AppData/mcp/logs/github
+        target: /var/log/mcp
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: mcp-webui
+  developer: Andrea Pietrobon
+  author: Piero24
+  icon: https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/.github/icon.png
+  thumbnail: https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/.github/icon.png
+  title:
+    en_us: MCP Stack
+  category: Development
+  description:
+    en_us: >
+      A full MCP (Model Context Protocol) server stack with permission management.
+      Includes Ubuntu Server MCP for remote Linux management, Obsidian MCP for vault
+      access, Synology NAS MCP for DSM control, GitHub MCP for API proxy access,
+      and a Web UI dashboard for managing users, permissions, and audit logs.
+  tagline:
+    en_us: >
+      Complete MCP server stack with Web UI.
+      Ubuntu, Obsidian, Synology, GitHub — all with permission control.
+  port_map: "8280"
