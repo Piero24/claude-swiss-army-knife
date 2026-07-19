@@ -113,3 +113,7 @@ Use the **Web UI** at `http://your-server:8280` to manage permissions via toggle
 ## License
 
 MIT
+
+---
+
+> **Tip:** Check out the [documentation site](docs-site/) for in-depth setup guides and architecture docs.
