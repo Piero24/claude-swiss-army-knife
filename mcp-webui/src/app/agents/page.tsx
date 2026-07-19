@@ -139,12 +139,20 @@ export default function AgentsPage() {
       secret += chars[array[i] % chars.length];
     }
 
-    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+    // Generate a random 16-byte salt
+    const saltBytes = new Uint8Array(16);
+    crypto.getRandomValues(saltBytes);
+    const salt = Array.from(saltBytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // Hash salt + secret together
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + secret));
     const hex = Array.from(new Uint8Array(hash))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-    setNewUser((prev) => ({ ...prev, key: `sha256$${hex}` }));
+    setNewUser((prev) => ({ ...prev, key: `sha256$${salt}$${hex}` }));
     setGeneratedSecret(secret);
   }
 
