@@ -140,6 +140,11 @@ export interface AppSettings {
     excludePatterns: string[];
   };
   auditPageSize?: number;
+  providerKeys?: {
+    anthropicAdminKey?: string;
+    deepseekKey?: string;
+    openrouterKey?: string;
+  };
 }
 
 export async function getSettings(): Promise<AppSettings> {
@@ -282,8 +287,48 @@ export interface StatsResponse {
   by_tool: Array<{ name: string; count: number }>;
   by_day: Array<{ date: string; count: number }>;
   result_ratio: { allowed: number; denied: number };
+  by_user?: Array<{ user_id: string; count: number }>;
+  top_denied?: Array<{ target: string; count: number }>;
+}
+
+export interface ProviderModelStats {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cost: number;
+  currency: string;
+  requests: number;
+}
+
+export interface ProviderStatsEntry {
+  provider: string;
+  label: string;
+  status: "ok" | "error" | "unconfigured";
+  error?: string;
+  tokens: { input: number; output: number; total: number };
+  cost: { total: number; currency: string };
+  requests: number;
+  models: ProviderModelStats[];
+  period: { start: string; end: string };
+  raw?: Record<string, unknown>;
+}
+
+export interface AllStatsResponse {
+  audit: StatsResponse;
+  providers: ProviderStatsEntry[];
+  combined: {
+    totalCost: number;
+    currency: string;
+    totalTokens: number;
+    totalRequests: number;
+  };
 }
 
 export async function getStats(): Promise<StatsResponse> {
   return fetchJSON<StatsResponse>(`${BASE}/stats`);
+}
+
+export async function getAllStats(): Promise<AllStatsResponse> {
+  return fetchJSON<AllStatsResponse>(`${BASE}/stats?providers=true`);
 }
