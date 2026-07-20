@@ -181,6 +181,21 @@ export default function StatsCards() {
             </div>
           )}
 
+          {/* By user */}
+          {stats.by_user && stats.by_user.length > 0 && (
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
+              <h3 className="text-sm font-medium text-gray-300 mb-3">By user</h3>
+              <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                {stats.by_user.slice(0, 8).map((u) => (
+                  <div key={u.user_id} className="flex justify-between text-xs">
+                    <span className="text-gray-300 font-medium">{u.user_id}</span>
+                    <span className="text-blue-300 font-mono">{u.count.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Denied targets */}
           {stats.top_denied && stats.top_denied.length > 0 && (
             <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
