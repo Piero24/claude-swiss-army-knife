@@ -833,35 +833,24 @@ function AddRuleDialog({
 /** Compact per-server stats bar shown at the top of each server detail page. */
 function ServerStatsBar({ server }: { server: string }) {
   const [stats, setStats] = useState<{
-    total: number; today: number; allowed: number; denied: number; topTools: Array<{ name: string; count: number }>;
+    total: number; today: number; thisWeek: number;
+    allowed: number; denied: number;
+    topTools: Array<{ name: string; count: number }>;
+    byUser: Array<{ user_id: string; count: number }>;
   } | null>(null);
 
   useEffect(() => {
-    fetch("/api/stats")
+    fetch(`/api/stats?server=${encodeURIComponent(server)}`)
       .then((r) => r.json())
       .then((data) => {
-        const byServer = data.by_server || {};
-        const serverTotal = byServer[server] || 0;
-
-        // Count today's and tool stats from the raw response
-        const today = data.totals?.today || 0;
-        const allowed = data.result_ratio?.allowed || 0;
-        const denied = data.result_ratio?.denied || 0;
-        const topTools = (data.by_tool || []).slice(0, 5);
-
-        // Scale: estimate this server's share of today's/allowed/denied
-        const allTime = data.totals?.all_time || 1;
-        const share = serverTotal / allTime;
-
         setStats({
-          total: serverTotal,
-          today: Math.round(today * share),
-          allowed: Math.round(allowed * share),
-          denied: Math.round(denied * share),
-          topTools: topTools.filter((t: { name: string }) =>
-            // Filter tools that look like they belong to this server
-            t.name.includes(server.replace(/-mcp$/, "").replace(/-server$/, ""))
-          ),
+          total: data.totals?.all_time || 0,
+          today: data.totals?.today || 0,
+          thisWeek: data.totals?.this_week || 0,
+          allowed: data.result_ratio?.allowed || 0,
+          denied: data.result_ratio?.denied || 0,
+          topTools: (data.by_tool || []).slice(0, 5),
+          byUser: (data.by_user || []).slice(0, 5),
         });
       })
       .catch(() => {});
@@ -872,8 +861,9 @@ function ServerStatsBar({ server }: { server: string }) {
   return (
     <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900/70 p-3">
       <div className="flex items-center gap-6 flex-wrap">
-        <MiniStat label="Total requests" value={stats.total.toLocaleString()} />
-        <MiniStat label="Today (est.)" value={stats.today.toLocaleString()} />
+        <MiniStat label="Requests" value={stats.total.toLocaleString()} />
+        <MiniStat label="Today" value={stats.today.toLocaleString()} />
+        <MiniStat label="This week" value={stats.thisWeek.toLocaleString()} />
         <MiniStat
           label="Allowed"
           value={stats.allowed.toLocaleString()}
@@ -886,7 +876,7 @@ function ServerStatsBar({ server }: { server: string }) {
         />
         {stats.topTools.length > 0 && (
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span>Top:</span>
+            <span>Top tools:</span>
             {stats.topTools.slice(0, 3).map((t) => (
               <span key={t.name} className="text-gray-400 font-mono text-[11px]" title={t.name}>
                 {t.name.length > 30 ? t.name.slice(0, 27) + "…" : t.name}
@@ -895,6 +885,20 @@ function ServerStatsBar({ server }: { server: string }) {
           </div>
         )}
       </div>
+      {stats.byUser.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-4 text-xs">
+          <span className="text-gray-500">By user:</span>
+          {stats.byUser.map((u) => (
+            <span key={u.user_id} className="text-gray-400">
+              <span className="text-gray-300 font-medium">{u.user_id}</span>
+              <span className="text-gray-600 ml-1">({u.count})</span>
+            </span>
+          ))}
+          {stats.byUser.length > 5 && (
+            <span className="text-gray-600">+{stats.byUser.length - 5} more</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

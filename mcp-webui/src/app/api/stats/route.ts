@@ -27,12 +27,15 @@ let providerCache: CacheEntry<unknown> | null = null;
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const includeProviders = searchParams.get("providers") === "true";
+  const serverFilter = searchParams.get("server") || undefined;
 
   const now = Date.now();
 
-  // Audit stats (always computed, cached 60s)
+  // Server-filtered stats bypass cache (they're targeted queries)
   let auditStats: unknown;
-  if (auditCache && now - auditCache.ts < CACHE_TTL) {
+  if (serverFilter) {
+    auditStats = await computeAuditStats(serverFilter);
+  } else if (auditCache && now - auditCache.ts < CACHE_TTL) {
     auditStats = auditCache.data;
   } else {
     auditStats = await computeAuditStats();
