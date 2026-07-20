@@ -377,6 +377,9 @@ export default function ServerDetailPage() {
         </div>
       )}
 
+      {/* Server stats bar */}
+      <ServerStatsBar server={server} />
+
       {/* Path Permissions — Tree View */}
       {sectionVisible("paths") && <section className="mb-8">
         <div className="flex items-center justify-between mb-3">
@@ -824,5 +827,93 @@ function AddRuleDialog({
         </div>
       </form>
     </Modal>
+  );
+}
+
+/** Compact per-server stats bar shown at the top of each server detail page. */
+function ServerStatsBar({ server }: { server: string }) {
+  const [stats, setStats] = useState<{
+    total: number; today: number; allowed: number; denied: number; topTools: Array<{ name: string; count: number }>;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((data) => {
+        const byServer = data.by_server || {};
+        const serverTotal = byServer[server] || 0;
+
+        // Count today's and tool stats from the raw response
+        const today = data.totals?.today || 0;
+        const allowed = data.result_ratio?.allowed || 0;
+        const denied = data.result_ratio?.denied || 0;
+        const topTools = (data.by_tool || []).slice(0, 5);
+
+        // Scale: estimate this server's share of today's/allowed/denied
+        const allTime = data.totals?.all_time || 1;
+        const share = serverTotal / allTime;
+
+        setStats({
+          total: serverTotal,
+          today: Math.round(today * share),
+          allowed: Math.round(allowed * share),
+          denied: Math.round(denied * share),
+          topTools: topTools.filter((t: { name: string }) =>
+            // Filter tools that look like they belong to this server
+            t.name.includes(server.replace(/-mcp$/, "").replace(/-server$/, ""))
+          ),
+        });
+      })
+      .catch(() => {});
+  }, [server]);
+
+  if (!stats || stats.total === 0) return null;
+
+  return (
+    <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900/70 p-3">
+      <div className="flex items-center gap-6 flex-wrap">
+        <MiniStat label="Total requests" value={stats.total.toLocaleString()} />
+        <MiniStat label="Today (est.)" value={stats.today.toLocaleString()} />
+        <MiniStat
+          label="Allowed"
+          value={stats.allowed.toLocaleString()}
+          cls="text-green-400"
+        />
+        <MiniStat
+          label="Denied"
+          value={stats.denied.toLocaleString()}
+          cls="text-red-400"
+        />
+        {stats.topTools.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span>Top:</span>
+            {stats.topTools.slice(0, 3).map((t) => (
+              <span key={t.name} className="text-gray-400 font-mono text-[11px]" title={t.name}>
+                {t.name.length > 30 ? t.name.slice(0, 27) + "…" : t.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  cls = "",
+}: {
+  label: string;
+  value: string;
+  cls?: string;
+}) {
+  return (
+    <div>
+      <span className="text-[10px] text-gray-500">{label}</span>
+      <span className={`text-sm font-semibold ml-1.5 ${cls || "text-gray-200"}`}>
+        {value}
+      </span>
+    </div>
   );
 }

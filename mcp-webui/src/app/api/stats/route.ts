@@ -73,6 +73,9 @@ async function loadProviderConfig(): Promise<ProviderConfig> {
   if (process.env.OPENROUTER_API_KEY) {
     config.openrouterKey = process.env.OPENROUTER_API_KEY;
   }
+  if (process.env.OPENAI_ADMIN_KEY) {
+    config.openaiAdminKey = process.env.OPENAI_ADMIN_KEY;
+  }
 
   // Also check settings.json for keys (allows per-deployment config via UI)
   try {
@@ -94,6 +97,9 @@ async function loadProviderConfig(): Promise<ProviderConfig> {
       }
       if (!config.openrouterKey && settings.providerKeys.openrouterKey) {
         config.openrouterKey = settings.providerKeys.openrouterKey;
+      }
+      if (!config.openaiAdminKey && settings.providerKeys.openaiAdminKey) {
+        config.openaiAdminKey = settings.providerKeys.openaiAdminKey;
       }
     }
   } catch {

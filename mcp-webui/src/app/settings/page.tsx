@@ -269,6 +269,29 @@ export default function SettingsPage() {
               providerKeys: { ...(settings.providerKeys || {}), openrouterKey: v },
             })}
           />
+          <ProviderKeyInput
+            label="OpenAI Admin Key"
+            provider="openai"
+            description="Admin API key from platform.openai.com (sk-admin-..., NOT standard sk-...). Required for the Usage API."
+            value={settings.providerKeys?.openaiAdminKey || ""}
+            onChange={(v) => setSettings({
+              ...settings,
+              providerKeys: { ...(settings.providerKeys || {}), openaiAdminKey: v },
+            })}
+          />
+          <div className="rounded-lg border border-gray-800/50 bg-gray-900/50 p-4 opacity-75">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-gray-500">Ollama</span>
+              <span className="text-xs text-gray-600">Proxy needed</span>
+            </div>
+            <p className="text-xs text-gray-600">
+              Ollama has no usage API. Deploy{" "}
+              <a href="https://github.com/elliotfehr/ollama-metrics-proxy" target="_blank" rel="noopener" className="text-blue-500 underline">
+                ollama-metrics-proxy
+              </a>{" "}
+              to expose Prometheus metrics for token tracking. Models are free — tracking is for capacity planning.
+            </p>
+          </div>
           <div className="rounded-lg border border-gray-800/50 bg-gray-900/50 p-4 opacity-75">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-gray-500">Google Gemini</span>

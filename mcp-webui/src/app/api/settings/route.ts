@@ -17,6 +17,7 @@ const providerKeysSchema = z.object({
   anthropicAdminKey: z.string().optional(),
   deepseekKey: z.string().optional(),
   openrouterKey: z.string().optional(),
+  openaiAdminKey: z.string().optional(),
 }).optional();
 
 const settingsSchema = z.object({
