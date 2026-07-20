@@ -16,7 +16,9 @@ export interface AuditStats {
   top_denied: Array<{ target: string; count: number }>;
 }
 
-export async function computeAuditStats(): Promise<AuditStats> {
+export async function computeAuditStats(
+  serverFilter?: string
+): Promise<AuditStats> {
   const now = new Date();
   const todayStart = new Date(
     now.getFullYear(),
@@ -42,6 +44,8 @@ export async function computeAuditStats(): Promise<AuditStats> {
     const dirs = await fs.readdir(LOGS_PATH, { withFileTypes: true });
     for (const dirent of dirs) {
       if (!dirent.isDirectory()) continue;
+      // If server filter is set, skip directories that don't match
+      if (serverFilter && dirent.name !== serverFilter) continue;
       const logFile = path.join(LOGS_PATH, dirent.name, "audit.log");
       const raw = await fs.readFile(logFile, "utf-8").catch(() => "");
       if (!raw) continue;
