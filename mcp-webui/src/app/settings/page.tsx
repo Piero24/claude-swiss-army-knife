@@ -230,6 +230,99 @@ export default function SettingsPage() {
           })}
         </div>
       </section>}
+
+      {/* Provider API Keys */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold mb-4">AI Provider API Keys</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Add API keys to enable token usage and cost tracking on the dashboard stats.
+          Keys are stored in settings.json and never sent to third parties.
+        </p>
+        <div className="space-y-4">
+          <ProviderKeyInput
+            label="Anthropic Admin Key"
+            provider="anthropic"
+            description="Admin API key from console.anthropic.com (NOT your inference key). Required for the Messages Usage API."
+            value={settings.providerKeys?.anthropicAdminKey || ""}
+            onChange={(v) => setSettings({
+              ...settings,
+              providerKeys: { ...(settings.providerKeys || {}), anthropicAdminKey: v },
+            })}
+          />
+          <ProviderKeyInput
+            label="DeepSeek API Key"
+            provider="deepseek"
+            description="Standard API key from platform.deepseek.com. Used to query the /v1/usage endpoint."
+            value={settings.providerKeys?.deepseekKey || ""}
+            onChange={(v) => setSettings({
+              ...settings,
+              providerKeys: { ...(settings.providerKeys || {}), deepseekKey: v },
+            })}
+          />
+          <ProviderKeyInput
+            label="OpenRouter API Key"
+            provider="openrouter"
+            description="Standard API key from openrouter.ai. Used to query the /auth/key and activity endpoints."
+            value={settings.providerKeys?.openrouterKey || ""}
+            onChange={(v) => setSettings({
+              ...settings,
+              providerKeys: { ...(settings.providerKeys || {}), openrouterKey: v },
+            })}
+          />
+          <div className="rounded-lg border border-gray-800/50 bg-gray-900/50 p-4 opacity-75">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-gray-500">Google Gemini</span>
+              <span className="text-xs text-gray-600">Not available</span>
+            </div>
+            <p className="text-xs text-gray-600">
+              Google does not expose a simple usage REST API. Track Gemini usage via{" "}
+              <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener" className="text-blue-500 underline">
+                Google Cloud Console → Billing Reports
+              </a>.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ProviderKeyInput({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: string;
+  provider: string;
+  description: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium">{label}</span>
+        <button
+          onClick={() => setShow(!show)}
+          className="text-xs text-gray-500 hover:text-gray-300"
+        >
+          {show ? "Hide" : "Show"}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-2">{description}</p>
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={show ? `sk-...` : "••••••••"}
+        className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+        autoComplete="off"
+      />
+      {value && (
+        <p className="text-xs text-green-500/70 mt-1">Key configured ✓</p>
+      )}
     </div>
   );
 }
