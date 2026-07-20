@@ -144,6 +144,7 @@ export interface AppSettings {
     anthropicAdminKey?: string;
     deepseekKey?: string;
     openrouterKey?: string;
+    openaiAdminKey?: string;
   };
 }
 

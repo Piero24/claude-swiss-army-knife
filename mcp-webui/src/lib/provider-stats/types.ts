@@ -41,6 +41,8 @@ export interface ProviderConfig {
   deepseekKey?: string;
   /** OpenRouter API key */
   openrouterKey?: string;
+  /** OpenAI Admin API key (sk-admin-..., not standard sk-...) */
+  openaiAdminKey?: string;
 }
 
 export interface AllProviderStats {
