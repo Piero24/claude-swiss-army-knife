@@ -176,7 +176,9 @@ class ProxyServer(BaseMCPServer):
 
             try:
                 # Trigger before-tool-call hook — can modify name/arguments
-                hook_result = await self._trigger("on_before_tool_call", name, arguments)
+                hook_result = await self._trigger(
+                    "on_before_tool_call", name, arguments
+                )
                 if hook_result:
                     name, arguments = hook_result
 
@@ -191,7 +193,9 @@ class ProxyServer(BaseMCPServer):
                 content = result.get("content", [])
 
                 # Trigger after-tool-call hook
-                modified = await self._trigger("on_after_tool_call", name, result)
+                modified = await self._trigger(
+                    "on_after_tool_call", name, result
+                )
                 if modified:
                     result = modified
                     content = result.get("content", content)
