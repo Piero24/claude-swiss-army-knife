@@ -13,13 +13,6 @@ const serverEntrySchema = z.object({
   enabled: z.boolean().default(true),
 });
 
-const providerKeysSchema = z.object({
-  anthropicAdminKey: z.string().optional(),
-  deepseekKey: z.string().optional(),
-  openrouterKey: z.string().optional(),
-  openaiAdminKey: z.string().optional(),
-}).optional();
-
 const settingsSchema = z.object({
   scan: z.object({
     intervalMinutes: z.number().min(1).max(1440).default(60),
@@ -27,7 +20,6 @@ const settingsSchema = z.object({
   }),
   servers: z.record(z.string(), serverEntrySchema).default({}),
   auditPageSize: z.number().refine((n) => [50, 100, 150].includes(n), { message: "Must be 50, 100, or 150" }).default(50),
-  providerKeys: providerKeysSchema,
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;

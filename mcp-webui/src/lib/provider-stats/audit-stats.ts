@@ -25,9 +25,7 @@ export async function computeAuditStats(
     now.getMonth(),
     now.getDate()
   );
-  const weekStart = new Date(
-    todayStart.getTime() - 7 * 24 * 60 * 60 * 1000
-  );
+  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const byServer: Record<string, number> = {};
   const byTool: Record<string, number> = {};
@@ -108,11 +106,22 @@ export async function computeAuditStats(
     .slice(0, 20)
     .map(([name, count]) => ({ name, count }));
 
-  // Sort days chronologically, last 7
-  const sortedDays = Object.entries(byDay)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-7)
-    .map(([date, count]) => ({ date, count }));
+  // Sort and pad days — fill zeroes from first entry to today
+  const todayStr = now.toISOString().slice(0, 10);
+  const dayEntries = Object.entries(byDay);
+  let firstDate = todayStr;
+  if (dayEntries.length > 0) {
+    dayEntries.sort((a, b) => a[0].localeCompare(b[0]));
+    firstDate = dayEntries[0][0];
+  }
+  const sortedDays: Array<{ date: string; count: number }> = [];
+  const cursor = new Date(firstDate + "T00:00:00Z");
+  const end = new Date(todayStr + "T00:00:00Z");
+  while (cursor <= end) {
+    const key = cursor.toISOString().slice(0, 10);
+    sortedDays.push({ date: key, count: byDay[key] || 0 });
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
   // Top users
   const topUsers = Object.entries(byUser)

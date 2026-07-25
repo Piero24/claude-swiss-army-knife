@@ -377,6 +377,7 @@ export default function ServerDetailPage() {
         </div>
       )}
 
+
       {/* Server stats bar */}
       <ServerStatsBar server={server} />
 
@@ -525,13 +526,13 @@ export default function ServerDetailPage() {
         <DataTable
           columns={[
             { key: "pattern", header: "Pattern", render: (r) => <span className="font-mono text-xs">{r.pattern}</span> },
-            { key: "access", header: "Access", headerClassName: "w-[100px]", render: (r) => (
+            { key: "access", header: "Access", headerClassName: "w-[120px]", render: (r) => (
               <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
                 {(["none","active"] as const).map((a) => (
                   <button
                     key={a}
                     onClick={(e) => { e.stopPropagation(); handleUpdateTool(r.id, a); }}
-                    className={`px-2 py-0.5 text-xs font-medium ${r.access === a ? (a === "active" ? "bg-green-600 text-white" : "bg-gray-700 text-gray-400") : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
+                    className={`px-3 py-0.5 text-xs font-medium ${r.access === a ? (a === "active" ? "bg-green-600 text-white" : "bg-gray-700 text-gray-400") : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
                   >{a}</button>
                 ))}
               </div>
@@ -830,7 +831,6 @@ function AddRuleDialog({
   );
 }
 
-/** Compact per-server stats bar shown at the top of each server detail page. */
 function ServerStatsBar({ server }: { server: string }) {
   const [stats, setStats] = useState<{
     total: number; today: number; thisWeek: number;
@@ -842,17 +842,15 @@ function ServerStatsBar({ server }: { server: string }) {
   useEffect(() => {
     fetch(`/api/stats?server=${encodeURIComponent(server)}`)
       .then((r) => r.json())
-      .then((data) => {
-        setStats({
-          total: data.totals?.all_time || 0,
-          today: data.totals?.today || 0,
-          thisWeek: data.totals?.this_week || 0,
-          allowed: data.result_ratio?.allowed || 0,
-          denied: data.result_ratio?.denied || 0,
-          topTools: (data.by_tool || []).slice(0, 5),
-          byUser: (data.by_user || []).slice(0, 5),
-        });
-      })
+      .then((data) => setStats({
+        total: data.totals?.all_time || 0,
+        today: data.totals?.today || 0,
+        thisWeek: data.totals?.this_week || 0,
+        allowed: data.result_ratio?.allowed || 0,
+        denied: data.result_ratio?.denied || 0,
+        topTools: (data.by_tool || []).slice(0, 5),
+        byUser: (data.by_user || []).slice(0, 5),
+      }))
       .catch(() => {});
   }, [server]);
 
@@ -863,17 +861,9 @@ function ServerStatsBar({ server }: { server: string }) {
       <div className="flex items-center gap-6 flex-wrap">
         <MiniStat label="Requests" value={stats.total.toLocaleString()} />
         <MiniStat label="Today" value={stats.today.toLocaleString()} />
-        <MiniStat label="This week" value={stats.thisWeek.toLocaleString()} />
-        <MiniStat
-          label="Allowed"
-          value={stats.allowed.toLocaleString()}
-          cls="text-green-400"
-        />
-        <MiniStat
-          label="Denied"
-          value={stats.denied.toLocaleString()}
-          cls="text-red-400"
-        />
+        <MiniStat label="7 days" value={stats.thisWeek.toLocaleString()} />
+        <MiniStat label="Allowed" value={stats.allowed.toLocaleString()} cls="text-green-400" />
+        <MiniStat label="Denied" value={stats.denied.toLocaleString()} cls="text-red-400" />
         {stats.topTools.length > 0 && (
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <span>Top tools:</span>
@@ -894,30 +884,17 @@ function ServerStatsBar({ server }: { server: string }) {
               <span className="text-gray-600 ml-1">({u.count})</span>
             </span>
           ))}
-          {stats.byUser.length > 5 && (
-            <span className="text-gray-600">+{stats.byUser.length - 5} more</span>
-          )}
         </div>
       )}
     </div>
   );
 }
 
-function MiniStat({
-  label,
-  value,
-  cls = "",
-}: {
-  label: string;
-  value: string;
-  cls?: string;
-}) {
+function MiniStat({ label, value, cls = "" }: { label: string; value: string; cls?: string }) {
   return (
     <div>
       <span className="text-[10px] text-gray-500">{label}</span>
-      <span className={`text-sm font-semibold ml-1.5 ${cls || "text-gray-200"}`}>
-        {value}
-      </span>
+      <span className={`text-sm font-semibold ml-1.5 ${cls || "text-gray-200"}`}>{value}</span>
     </div>
   );
 }

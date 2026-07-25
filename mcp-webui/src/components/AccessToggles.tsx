@@ -69,7 +69,7 @@ export function CommandToggles({ value, onChange }: CommandTogglesProps) {
           <button
             key={level}
             onClick={() => onChange(level)}
-            className={`inline-flex items-center justify-center px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap ${
+            className={`inline-flex items-center justify-center px-3 py-1 text-xs font-medium transition-colors whitespace-nowrap ${
               active ? ACCESS_COLORS[level] : "bg-gray-800 text-gray-500 hover:bg-gray-700"
             }`}
           >
