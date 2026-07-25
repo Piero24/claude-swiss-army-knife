@@ -82,8 +82,10 @@ export const GET = apiHandler(async (_request, { params }) => {
 
 export const PUT = apiHandler(async (request, { params }) => {
   const { server } = await params;
-  const validated = await withValidation(serverConfigSchema, request);
-  await writeServerConfig(server, validated);
+  const body = await request.json();
+  // Validate required structure but preserve ALL fields
+  serverConfigSchema.parse(body);
+  await writeServerConfig(server, body);
   return NextResponse.json({ saved: true, server });
 });
 

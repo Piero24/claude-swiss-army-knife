@@ -548,6 +548,45 @@ export default function ServerDetailPage() {
         />
       </section>}
 
+      {/* Custom sections from proxy hooks */}
+      {(() => {
+        const raw = config as unknown as Record<string, unknown> | null;
+        const sections = (raw?.custom_sections || []) as Array<{ key: string; title: string; data: Record<string, unknown> }>;
+        if (!sections.length) return null;
+        return sections.map((s) => (
+          <section key={s.key} className="mb-8">
+            <h2 className="text-lg font-semibold mb-3">{s.title}</h2>
+            <DataTable
+              columns={[
+                { key: "key", header: "Name", render: (r) => <span className="font-mono text-xs">{r.key}</span> },
+                { key: "value", header: "Access", headerClassName: "w-[140px]", render: (r) => (
+                  <select
+                    value={String(r.value)}
+                    onChange={(e) => {
+                      if (!config) return;
+                      const newData = { ...s.data, [r.key]: e.target.value };
+                      const newSections = sections.map((sec) =>
+                        sec.key === s.key ? { ...sec, data: newData } : sec
+                      );
+                      setConfig({ ...config, custom_sections: newSections } as unknown as ServerConfig);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {["read", "write", "none"].map((a) => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                  </select>
+                )},
+              ]}
+              data={Object.entries(s.data).map(([k, v]) => ({ key: k, value: String(v) }))}
+              rowKey={(r) => r.key}
+              emptyMessage="No entries"
+            />
+          </section>
+        ));
+      })()}
+
       {/* Audit Log */}
       {sectionVisible("audit") && <section>
         <h2 className="text-lg font-semibold mb-3">Audit Log</h2>
