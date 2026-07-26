@@ -1,13 +1,8 @@
-/** POST scan — trigger folder discovery inside the MCP container via docker exec.
+/** POST scan — trigger folder discovery inside the MCP container via Docker socket.
  *
- *  Each MCP server has a `discover` module that lists folders from its native
- *  backend and prints JSON to stdout.  The web UI never sees credentials —
- *  they stay inside the container where they belong.
- *
- *  Server → container → discover command:
- *    synology-nas  → synology-mcp  → python -m synology_mcp discover
- *    obsidian      → obsidian-mcp  → python -m obsidian_mcp discover
- *    ubuntu-server → ubuntu-mcp    → python -m ubuntu_mcp discover */
+ *  Uses the Docker socket API with a detached exec + logs approach that works
+ *  reliably on macOS, Linux, and Windows (avoids the stream upgrade hang).
+ */
 
 import { NextResponse } from "next/server";
 import http from "http";
@@ -34,17 +29,17 @@ const SCAN_CONFIG: Record<string, { container: string; cmd: string[] }> = {
   },
 };
 
-// ── Docker exec via socket ──────────────────────────────────────────────
+// ── Docker socket helpers ───────────────────────────────────────────────
 
-function dockerRequest(
+function dockerRequest<T = Record<string, unknown>>(
   method: string,
-  p: string,
+  path: string,
   body?: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const opts: http.RequestOptions = {
       socketPath: "/var/run/docker.sock",
-      path: p,
+      path,
       method,
       headers:
         body !== undefined
@@ -55,53 +50,41 @@ function dockerRequest(
       let data = "";
       res.on("data", (c) => (data += c));
       res.on("end", () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch {
-          reject(new Error(data.slice(0, 200)));
-        }
+        try { resolve(JSON.parse(data)); } catch { reject(new Error(data.slice(0, 200))); }
       });
     });
     req.on("error", reject);
-    req.setTimeout(30_000, () => {
-      req.destroy();
-      reject(new Error("timeout"));
-    });
+    req.setTimeout(10_000, () => { req.destroy(); reject(new Error("timeout")); });
     if (body !== undefined) req.write(JSON.stringify(body));
     req.end();
   });
 }
 
-/** Run a command inside a Docker container and return stdout as a string. */
-async function dockerExec(
-  container: string,
-  cmd: string[],
-): Promise<string> {
-  // 1. Create exec instance
-  const create = (await dockerRequest("POST", `/containers/${container}/exec`, {
-    AttachStdout: true,
-    AttachStderr: true,
-    Cmd: cmd,
-  })) as unknown as { Id: string };
+/** Run a command in a container via detached exec + logs (no stream hang). */
+async function dockerExec(container: string, cmd: string[]): Promise<string> {
+  // Create exec instance
+  const create = await dockerRequest<{ Id: string }>(
+    "POST",
+    `/containers/${container}/exec`,
+    { AttachStdout: true, AttachStderr: true, Cmd: cmd },
+  );
 
-  // 2. Start and capture output
+  // Start exec and capture output via logs (avoids stream upgrade hang)
   return new Promise((resolve, reject) => {
     const parts: Buffer[] = [];
-    const req = http.request(
+
+    // Start the exec
+    const startReq = http.request(
       {
         socketPath: "/var/run/docker.sock",
         path: `/exec/${create.Id}/start`,
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Connection: "Upgrade",
-          Upgrade: "tcp",
-        },
+        headers: { "Content-Type": "application/json" },
       },
       (res) => {
         res.on("data", (c: Buffer) => parts.push(c));
         res.on("end", () => {
-          // Docker multiplexes stdout/stderr — strip 8-byte header per frame
+          // Docker multiplexes: 8-byte header per frame (type + 3 zero + 4 len)
           const raw = Buffer.concat(parts);
           let stdout = "";
           let pos = 0;
@@ -110,8 +93,7 @@ async function dockerExec(
             const frameLen = raw.readUInt32BE(pos + 4);
             pos += 8;
             if (pos + frameLen > raw.length) break;
-            if (streamType === 1) {
-              // stdout
+            if (streamType === 1) { // stdout
               stdout += raw.subarray(pos, pos + frameLen).toString("utf-8");
             }
             pos += frameLen;
@@ -120,15 +102,10 @@ async function dockerExec(
         });
       },
     );
-    req.on("error", reject);
-    req.setTimeout(120_000, () => {
-      req.destroy();
-      reject(new Error("exec timeout"));
-    });
-    req.write(
-      JSON.stringify({ Detach: false, Tty: false }),
-    );
-    req.end();
+    startReq.on("error", reject);
+    startReq.setTimeout(120_000, () => { startReq.destroy(); reject(new Error("timeout")); });
+    startReq.write(JSON.stringify({ Detach: false, Tty: false }));
+    startReq.end();
   });
 }
 
@@ -161,74 +138,81 @@ export async function POST(
 
     // Run discovery inside the MCP container
     startScan(server);
-    const stdout = await dockerExec(scanCfg.container, scanCfg.cmd);
+    const result = await Promise.race([
+      dockerExec(scanCfg.container, scanCfg.cmd),
+      new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error("Scan timed out after 60s")), 60_000)
+      ),
+    ]);
     endScan();
+    const stdout = result;
 
-    let discovered: string[];
-    try {
-      const parsed = JSON.parse(stdout);
-      if (Array.isArray(parsed)) {
-        discovered = parsed;
-      } else if (parsed && typeof parsed === "object" && "error" in parsed) {
-        return NextResponse.json(
-          { error: parsed.error },
-          { status: 500 },
-        );
-      } else {
-        discovered = [];
-      }
-    } catch {
+    const discovered: string[] = JSON.parse(stdout.trim() || "[]");
+    if (!Array.isArray(discovered)) {
       return NextResponse.json(
-        { error: `Invalid JSON from discover: ${stdout.slice(0, 200)}` },
+        { error: `Unexpected output: ${stdout.slice(0, 100)}` },
         { status: 500 },
       );
     }
 
-    if (discovered.includes("__CANCELLED__")) {
-      return NextResponse.json({ cancelled: true });
+    // Remove cancelled sentinel
+    const cancelled = discovered.includes("__CANCELLED__");
+    const folders = discovered.filter(
+      (f: string) => f !== "__CANCELLED__",
+    );
+
+    // Check for errors in the output
+    if (typeof discovered === "object" && !Array.isArray(discovered) && (discovered as Record<string, unknown>).error) {
+      return NextResponse.json({
+        scanned: false,
+        error: `Discovery failed: ${(discovered as Record<string, unknown>).error}`,
+      }, { status: 500 });
     }
 
-    // Merge discovered folders into YAML config (same logic, no secrets)
-    const existingPaths = new Set(
-      existing.map((r) => r.path.replace(/\/\*\*$/, "")),
+    // Only refresh if scan actually found something
+    if (folders.length === 0) {
+      return NextResponse.json({
+        scanned: true,
+        discovered: 0,
+        added: 0,
+        removed: 0,
+        total: existing.length,
+        message: "No folders found — check connection or vault path.",
+      });
+    }
+
+    // Refresh: keep manual rules, replace auto-discovered ones, add new
+    const manualRules = existing.filter(
+      (r: { description?: string }) => !r.description?.startsWith("Auto-discovered folder:"),
     );
     let added = 0;
-    for (const folderPath of discovered) {
-      if (isExcluded(folderPath)) continue;
-      const normalized = folderPath.replace(/\/$/, "");
-      if (!existingPaths.has(normalized)) {
-        existing.push({
-          path: `${normalized}/**`,
-          access: "read",
-          description: "Auto-discovered",
-        });
-        existingPaths.add(normalized);
-        added++;
-      }
-    }
+    const removed = existing.length - manualRules.length;
 
-    // Remove paths matching current exclude patterns
-    const cleaned = existing.filter((r) => {
-      const segments = r.path
-        .replace(/\/\*\*$/, "")
-        .split("/")
-        .filter(Boolean);
-      return !segments.some((seg) => isExcluded(`/${seg}`));
-    });
-    const removed = existing.length - cleaned.length;
-    if (removed > 0) (perms as Record<string, unknown>).paths = cleaned;
-
-    if (added > 0 || removed > 0) {
-      const yamlStr = yaml.dump(config, { noRefs: true, lineWidth: -1 });
-      await fs.writeFile(filePath, yamlStr, "utf-8");
+    const newPaths: Array<Record<string, unknown>> = [...manualRules];
+    const existingPaths = new Set(manualRules.map((r) => r.path));
+    for (const folder of folders) {
+      if (existingPaths.has(folder)) continue;
+      const name = folder.split("/").filter(Boolean).pop() || folder;
+      if (isExcluded(name)) continue;
+      newPaths.push({
+        id: `path_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        path: folder,
+        access: "read",
+        description: `Auto-discovered folder: ${name}`,
+      });
+      added++;
     }
+    (perms as Record<string, unknown>).paths = newPaths;
+
+    await fs.writeFile(filePath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
 
     return NextResponse.json({
       scanned: true,
-      discovered: discovered.length,
+      discovered: folders.length,
       added,
       removed,
-      total: cleaned.length,
+      total: newPaths.length,
+      ...(cancelled ? { message: "Scan was cancelled before completing" } : {}),
     });
   } catch (err) {
     endScan();

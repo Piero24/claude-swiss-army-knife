@@ -40,10 +40,13 @@ services:
     image: obsidian-mcp:${OBSIDIAN_MCP_IMAGE_TAG:-latest}
     container_name: ${OBSIDIAN_MCP_CONTAINER:-obsidian-mcp}
     volumes:
-      - ${OBSIDIAN_VAULT_PATH:-/DATA/obsidian-vaults}:/data/vaults:rw
+      # Vault mount: use host path when set, empty volume otherwise (for remote/livesync modes)
+      - ${OBSIDIAN_LOCAL_VAULT_PATH:-obsidian-vault-data}:/data/vaults:rw
       - ./configs/obsidian.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/obsidian:/var/log/mcp
+    environment:
+      - OBSIDIAN_LOCAL_VAULT_PATH=${OBSIDIAN_LOCAL_VAULT_PATH:-}
     stdin_open: true
     restart: unless-stopped
 
@@ -109,3 +112,6 @@ services:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN:-}
     stdin_open: true
     restart: unless-stopped
+
+volumes:
+  obsidian-vault-data:

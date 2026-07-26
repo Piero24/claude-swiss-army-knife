@@ -1,32 +1,23 @@
 # Obsidian MCP — Permission Configuration Template
 # Copy to configs/obsidian.yaml and customize for your environment.
-#
-# Paths are relative to the vault root.
 
 server:
   name: obsidian-mcp
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
 
+# Local vault path (mounted via docker-compose)
+connection:
+  local:
+    vault_path: ${OBSIDIAN_LOCAL_VAULT_PATH:-/data/vaults}
+
 permissions:
   # Default: deny all paths
   default_access: none
 
-  paths:
-    # Example: full access to personal vault area
-    - path: /personal/**
-      access: write
-      description: "Personal notes — full access"
-
-    # Example: read-only access to a shared work vault
-    - path: /work/**
-      access: read
-      description: "Work notes — read-only"
-
-    # Example: deny access to private subfolder (overrides /personal/**)
-    - path: /personal/private/**
-      access: none
-      description: "Private notes — always denied"
+  paths: []
+    # Run a scan from the Web UI to auto-discover folders.
+    # Or add path rules manually — glob patterns supported (e.g. /Projects/**).
 
   # Obsidian MCP has no commands
   commands: []
