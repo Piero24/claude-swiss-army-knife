@@ -231,6 +231,67 @@ export default function SettingsPage() {
         </div>
       </section>}
 
+      {/* Obsidian Connection Mode */}
+      {(() => {
+        const obsConfig = serverConfigs["obsidian"];
+        if (!obsConfig) return null;
+        const raw = obsConfig as unknown as Record<string, unknown>;
+        const conn = (raw.connection || {}) as Record<string, unknown>;
+        const mode = (conn.mode || "local") as string;
+
+        async function setMode(m: string) {
+          const updated = { ...obsConfig, connection: { ...conn, mode: m } } as ServerConfig;
+          setServerConfigs((prev) => ({ ...prev, obsidian: updated }));
+          try { await updateConfig("obsidian", updated); } catch { toast.error("Failed to update"); }
+        }
+
+        function missingForMode(m: string): string[] {
+          const c = (conn[m] || {}) as Record<string, string>;
+          if (m === "local") return c.vault_path ? [] : ["vault_path"];
+          if (m === "remote") {
+            const missing: string[] = [];
+            if (!c.host) missing.push("host");
+            if (!c.user) missing.push("user");
+            if (!c.vault_path) missing.push("vault_path");
+            return missing;
+          }
+          return [];
+        }
+
+        const missing = missingForMode(mode);
+        return (
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold mb-4">Obsidian Connection</h2>
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-4 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Mode</label>
+                <div className="flex rounded overflow-hidden border border-gray-700 w-fit">
+                  {(["local", "remote"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setMode(m)}
+                      className={`px-3 py-1.5 text-xs font-medium ${mode === m ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {missing.length > 0 && (
+                <div className="rounded bg-yellow-900/30 border border-yellow-700/50 p-3 text-xs text-yellow-400">
+                  Missing credentials for &quot;{mode}&quot;: {missing.join(", ")}.
+                  Set them in .env or the obsidian.yaml config file.
+                </div>
+              )}
+              {missing.length === 0 && (
+                <div className="rounded bg-green-900/30 border border-green-700/50 p-3 text-xs text-green-400">
+                  {mode} mode configured ✓
+                </div>
+              )}
+            </div>
+          </section>
+        );
+      })()}
     </div>
   );
 }

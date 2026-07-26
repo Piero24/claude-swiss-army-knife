@@ -1,7 +1,7 @@
 """Folder discovery for Obsidian — called via `python -m obsidian_mcp discover`.
 
-Walks the vault filesystem at /data/vaults and prints folder paths as JSON to stdout.
-No credentials needed — purely filesystem-based.
+Walks the vault (local or remote) and prints folder paths as JSON.
+Supports cancellation via sentinel file.
 
 Usage:
     python -m obsidian_mcp discover
@@ -9,12 +9,16 @@ Usage:
 """
 
 import argparse
+import asyncio
 import json
 import os
 import sys
 from pathlib import Path
 
-VAULT_PATH = "/data/vaults"
+import yaml
+
+from .vault_backend import VaultBackend, create_backend
+
 CANCEL_FILE = "/tmp/scan-cancel"
 
 EXCLUDES = {
@@ -31,25 +35,41 @@ EXCLUDES = {
 }
 
 
-def discover_folders(root: str, max_depth: int = 5) -> list[str]:
-    """Recursively walk the vault directory and return folder paths.
+def _extract_folders(entries: list[dict]) -> list[str]:
+    """Extract unique folder paths from vault entries."""
+    folders: set[str] = set()
+    for entry in entries:
+        if entry.get("is_dir"):
+            name = entry["name"]
+            if name in EXCLUDES or name.startswith("."):
+                continue
+            p = entry["path"]
+            folders.add(p if p.startswith("/") else "/" + p)
+        # Also collect parent dirs
+        p = entry["path"]
+        parent = str(Path(p).parent)
+        if parent and parent != ".":
+            folders.add("/" + parent.lstrip("/"))
+    return sorted(folders)
 
-    Args:
-        root: Root directory to scan.
-        max_depth: Maximum depth relative to root.
 
-    Returns:
-        List of relative folder paths (e.g. ['/personal', '/personal/private', '/work']).
-    """
-    root_path = Path(root).resolve()
+async def discover_via_backend(backend: VaultBackend) -> list[str]:
+    """Discover folders using the backend's list_vault method."""
+    entries = await backend.list_vault("", depth=5)
+    return _extract_folders(entries)
+
+
+def discover_local(vault_path: str) -> list[str]:
+    """Recursively walk a local vault directory."""
+    root_path = Path(vault_path).resolve()
     if not root_path.exists():
-        print(json.dumps({"error": f"Vault path not found: {root}"}))
+        print(json.dumps({"error": f"Vault path not found: {vault_path}"}))
         sys.exit(1)
 
     folders: list[str] = []
 
     def walk(current: Path, depth: int) -> None:
-        if depth > max_depth:
+        if depth > 5:
             return
         if Path(CANCEL_FILE).exists():
             return
@@ -57,13 +77,12 @@ def discover_folders(root: str, max_depth: int = 5) -> list[str]:
             for entry in sorted(current.iterdir()):
                 if not entry.is_dir():
                     continue
-                if entry.name.startswith(".") and entry.name not in (".trash",):
+                if entry.name.startswith(".") and entry.name != ".trash":
                     continue
                 if entry.name in EXCLUDES:
                     continue
                 rel = "/" + str(entry.relative_to(root_path))
                 folders.append(rel)
-                # Don't recurse into .trash
                 if entry.name != ".trash":
                     walk(entry, depth + 1)
         except PermissionError:
@@ -76,9 +95,9 @@ def discover_folders(root: str, max_depth: int = 5) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Obsidian folder discovery")
     parser.add_argument(
-        "--vault",
-        default=os.environ.get("OBSIDIAN_VAULT_PATH", VAULT_PATH),
-        help="Path to vault root",
+        "--config",
+        default="/app/config.yaml",
+        help="Path to obsidian.yaml config",
     )
     parser.add_argument(
         "--cancel",
@@ -92,8 +111,27 @@ def main() -> None:
         print(json.dumps({"cancelled": True}))
         return
 
-    folders = discover_folders(args.vault)
-    # Clean up cancel file after successful scan
+    # Read config to determine connection mode
+    config = {}
+    try:
+        with open(args.config, "r") as f:
+            config = yaml.safe_load(f) or {}
+    except Exception:
+        pass
+
+    connection = config.get("connection", {})
+    mode = connection.get("mode", "local")
+
+    if mode == "local":
+        vault_path = connection.get("local", {}).get(
+            "vault_path",
+            os.environ.get("OBSIDIAN_VAULT_PATH", "/data/vaults"),
+        )
+        folders = discover_local(vault_path)
+    else:
+        backend = create_backend(config)
+        folders = asyncio.run(discover_via_backend(backend))
+
     if Path(CANCEL_FILE).exists():
         Path(CANCEL_FILE).unlink()
     print(json.dumps(folders))

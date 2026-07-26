@@ -90,10 +90,10 @@ services:
     stdin_open: true
     restart: unless-stopped
     environment:
-      OBSIDIAN_VAULT_PATH: /DATA/obsidian-vaults
+      OBSIDIAN_LOCAL_VAULT_PATH: /DATA/obsidian-vaults
     x-casaos:
       envs:
-        - container: OBSIDIAN_VAULT_PATH
+        - container: OBSIDIAN_LOCAL_VAULT_PATH
           description:
             en_us: Path to your Obsidian vault on the host. Mounted read-write so the MCP can read and edit notes.
     volumes:

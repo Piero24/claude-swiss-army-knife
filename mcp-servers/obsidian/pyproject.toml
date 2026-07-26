@@ -22,6 +22,9 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=5.0",
 ]
+remote = [
+    "asyncssh>=2.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

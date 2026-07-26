@@ -14,19 +14,28 @@ from permission_engine import BaseMCPServer
 
 from .config_watcher import watch_config
 from .frontmatter import build_frontmatter, get_tags, get_title, parse_frontmatter
-from .vault import Vault
+from .vault_backend import VaultBackend, create_backend
 from .wikilinks import extract_links, find_backlinks
 
 logger = logging.getLogger("obsidian-mcp")
-
-VAULT_PATH = "/data/vaults"
 
 
 class ObsidianServer(BaseMCPServer):
 
     def __init__(self, config_path: str):
         super().__init__("obsidian-mcp", config_path)
-        self.vault = Vault(VAULT_PATH)
+        # Read raw config with env var substitution for connection settings
+        import re, os as _os
+        import yaml as _yaml
+        with open(config_path, "r") as f:
+            raw = f.read()
+        # Substitute ${VAR} and ${VAR:-default}
+        def _sub(m):
+            var, _, default = m.group(1).partition(":-")
+            return _os.environ.get(var, default)
+        raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
+        config = _yaml.safe_load(raw) or {}
+        self.vault: VaultBackend = create_backend(config)
         self.setup()
 
     def setup(self):
@@ -184,14 +193,14 @@ class ObsidianServer(BaseMCPServer):
             case "obsidian_list_vault":
                 subfolder = arguments.get("subfolder", "")
                 self.enforcer.check("read", subfolder or "/", name)
-                entries = self.vault.list_vault(
+                entries = await self.vault.list_vault(
                     subfolder, arguments.get("depth", 3)
                 )
                 return {"entries": entries, "count": len(entries)}
 
             case "obsidian_read_note":
                 self.enforcer.check("read", arguments["path"], name)
-                content = self.vault.read_note(arguments["path"])
+                content = await self.vault.read_note(arguments["path"])
                 fm, body = parse_frontmatter(content)
                 return {
                     "path": arguments["path"],
@@ -206,7 +215,7 @@ class ObsidianServer(BaseMCPServer):
                 if user_fm:
                     fm_text = build_frontmatter(user_fm)
                     body = fm_text + body
-                filepath = self.vault.write_note(arguments["path"], body)
+                filepath = await self.vault.write_note(arguments["path"], body)
                 return {
                     "written": True,
                     "path": arguments["path"],
@@ -215,7 +224,7 @@ class ObsidianServer(BaseMCPServer):
 
             case "obsidian_delete_note":
                 self.enforcer.check("write", arguments["path"], name)
-                result = self.vault.delete_note(
+                result = await self.vault.delete_note(
                     arguments["path"], arguments.get("permanent", False)
                 )
                 return result
@@ -234,7 +243,7 @@ class ObsidianServer(BaseMCPServer):
             case "obsidian_search_by_tag":
                 self.enforcer.check("read", "/", name)
                 tag = arguments["tag"]
-                results = _search_by_tag(self.vault, tag)
+                results = await _search_by_tag(self.vault, tag)
                 return {
                     "tag": tag,
                     "results": results,
@@ -252,12 +261,12 @@ class ObsidianServer(BaseMCPServer):
 
             case "obsidian_get_tags":
                 self.enforcer.check("read", "/", name)
-                all_tags = _get_all_tags(self.vault)
+                all_tags = await _get_all_tags(self.vault)
                 return {"tags": all_tags}
 
             case "obsidian_get_frontmatter":
                 self.enforcer.check("read", arguments["path"], name)
-                content = self.vault.read_note(arguments["path"])
+                content = await self.vault.read_note(arguments["path"])
                 fm, _ = parse_frontmatter(content)
                 return {"path": arguments["path"], "frontmatter": fm}
 
@@ -299,10 +308,10 @@ def _ripgrep_search(
         return [{"error": str(e)}]
 
 
-def _search_by_tag(vault: Vault, tag: str) -> list[dict]:
+async def _search_by_tag(vault: VaultBackend, tag: str) -> list[dict]:
     """Find all notes containing a specific tag."""
     results = []
-    for note_path in vault.get_all_notes():
+    for note_path in await vault.get_all_notes():
         try:
             content = note_path.read_text(encoding="utf-8")
             tags = get_tags(content)
@@ -320,10 +329,10 @@ def _search_by_tag(vault: Vault, tag: str) -> list[dict]:
     return results
 
 
-def _get_all_tags(vault: Vault) -> list[dict]:
+async def _get_all_tags(vault: VaultBackend) -> list[dict]:
     """Get all unique tags with counts."""
     tag_counts: dict[str, int] = {}
-    for note_path in vault.get_all_notes():
+    for note_path in await vault.get_all_notes():
         try:
             content = note_path.read_text(encoding="utf-8")
             tags = get_tags(content)
@@ -349,9 +358,8 @@ async def main() -> None:
 
     app = ObsidianServer(str(config_path))
     logger.info(
-        "Vault opened at %s (%d notes)",
-        VAULT_PATH,
-        len(app.vault.get_all_notes()),
+        "Vault opened at %s",
+        app.vault.root,
     )
 
     watch_task = asyncio.create_task(
