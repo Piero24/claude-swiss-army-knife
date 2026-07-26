@@ -14,7 +14,7 @@ from permission_engine import BaseMCPServer
 
 from .config_watcher import watch_config
 from .frontmatter import build_frontmatter, get_tags, get_title, parse_frontmatter
-from .vault_backend import VaultBackend, create_backend
+from .vault_backend import LocalVaultBackend, create_backend
 from .wikilinks import extract_links, find_backlinks
 
 logger = logging.getLogger("obsidian-mcp")
@@ -32,10 +32,10 @@ class ObsidianServer(BaseMCPServer):
         # Substitute ${VAR} and ${VAR:-default}
         def _sub(m):
             var, _, default = m.group(1).partition(":-")
-            return _os.environ.get(var, default)
+            return _os.environ.get(var, default) or default
         raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
         config = _yaml.safe_load(raw) or {}
-        self.vault: VaultBackend = create_backend(config)
+        self.vault: LocalVaultBackend= create_backend(config)
         self.setup()
 
     def setup(self):
@@ -308,7 +308,7 @@ def _ripgrep_search(
         return [{"error": str(e)}]
 
 
-async def _search_by_tag(vault: VaultBackend, tag: str) -> list[dict]:
+async def _search_by_tag(vault: LocalVaultBackend, tag: str) -> list[dict]:
     """Find all notes containing a specific tag."""
     results = []
     for note_path in await vault.get_all_notes():
@@ -329,7 +329,7 @@ async def _search_by_tag(vault: VaultBackend, tag: str) -> list[dict]:
     return results
 
 
-async def _get_all_tags(vault: VaultBackend) -> list[dict]:
+async def _get_all_tags(vault: LocalVaultBackend) -> list[dict]:
     """Get all unique tags with counts."""
     tag_counts: dict[str, int] = {}
     for note_path in await vault.get_all_notes():

@@ -45,8 +45,8 @@ services:
       - ./configs/obsidian.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/obsidian:/var/log/mcp
-      # Optional: SSH key for remote vault access
-      # - ${OBSIDIAN_SSH_KEY_PATH:-~/.ssh/id_rsa}:/app/keys/ssh_key:ro
+    environment:
+      - OBSIDIAN_LOCAL_VAULT_PATH=${OBSIDIAN_LOCAL_VAULT_PATH:-}
     stdin_open: true
     restart: unless-stopped
 

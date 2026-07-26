@@ -14,7 +14,7 @@ WORKDIR /app
 
 COPY pyproject.toml .
 COPY src/ ./src/
-RUN pip install --no-cache-dir -e ".[remote]"
+RUN pip install --no-cache-dir -e .
 
 ENTRYPOINT ["python", "-m", "obsidian_mcp"]
 CMD ["--config", "/app/config.yaml"]

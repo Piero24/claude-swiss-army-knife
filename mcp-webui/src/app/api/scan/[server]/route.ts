@@ -161,7 +161,15 @@ export async function POST(
       (f: string) => f !== "__CANCELLED__",
     );
 
-    // Only refresh if scan actually found something (protects against connection errors)
+    // Check for errors in the output
+    if (typeof discovered === "object" && !Array.isArray(discovered) && (discovered as Record<string, unknown>).error) {
+      return NextResponse.json({
+        scanned: false,
+        error: `Discovery failed: ${(discovered as Record<string, unknown>).error}`,
+      }, { status: 500 });
+    }
+
+    // Only refresh if scan actually found something
     if (folders.length === 0) {
       return NextResponse.json({
         scanned: true,
@@ -169,7 +177,7 @@ export async function POST(
         added: 0,
         removed: 0,
         total: existing.length,
-        message: "No folders found — check connection or vault.",
+        message: "No folders found — check connection or vault path.",
       });
     }
 

@@ -6,28 +6,18 @@ server:
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
 
-# Connection mode: "local" | "remote"
-# Only the section matching 'mode' is used — the other is ignored.
+# Local vault path (mounted via docker-compose)
 connection:
-  mode: ${OBSIDIAN_CONNECTION_MODE:-local}
-
   local:
     vault_path: ${OBSIDIAN_LOCAL_VAULT_PATH:-/data/vaults}
-
-  remote:
-    host: ${OBSIDIAN_REMOTE_HOST:-}
-    port: ${OBSIDIAN_REMOTE_PORT:-22}
-    user: ${OBSIDIAN_REMOTE_USER:-}
-    key: ${OBSIDIAN_REMOTE_KEY:-/app/keys/ssh_key}
-    vault_path: ${OBSIDIAN_REMOTE_VAULT_PATH:-}
 
 permissions:
   # Default: deny all paths
   default_access: none
 
-  paths:
+  paths: []
     # Run a scan from the Web UI to auto-discover folders.
-    # Or add rules manually — glob patterns supported (e.g. /Projects/**).
+    # Or add path rules manually — glob patterns supported (e.g. /Projects/**).
 
   # Obsidian MCP has no commands
   commands: []
