@@ -11,6 +11,13 @@ const config: Config = {
   projectName: "claude-swiss-army-knife",
   onBrokenLinks: "warn",
 
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: "warn",
+      onBrokenMarkdownImages: "warn",
+    },
+  },
+
   presets: [
     [
       "classic",
@@ -29,23 +36,47 @@ const config: Config = {
     navbar: {
       title: "MCP Suite Docs",
       items: [
-        { to: "/intro", label: "Introduction", position: "left" },
-        { to: "/mcp-servers/overview", label: "MCP Servers", position: "left" },
-        { to: "/webui/overview", label: "Web UI", position: "left" },
-        { to: "/security/model", label: "Security", position: "left" },
+        { to: "/user/intro", label: "Introduction", position: "left" },
+        {
+          type: "dropdown",
+          label: "User Guide",
+          position: "left",
+          items: [
+            { to: "/user/getting-started/installation", label: "Getting Started" },
+            { to: "/user/mcp-servers/overview", label: "MCP Servers" },
+            { to: "/user/webui/overview", label: "Web UI" },
+            { to: "/user/security/model", label: "Security" },
+            { to: "/user/deployment/docker-compose", label: "Deployment" },
+            { to: "/user/troubleshooting/common-issues", label: "Troubleshooting" },
+          ],
+        },
+        {
+          type: "dropdown",
+          label: "Developer Guide",
+          position: "left",
+          items: [
+            { to: "/dev/architecture/system-design", label: "Architecture" },
+            { to: "/dev/permission-engine/overview", label: "Permission Engine" },
+            { to: "/dev/mcp-servers/base-server", label: "MCP Server Dev" },
+            { to: "/dev/webui/tech-stack", label: "Web UI Dev" },
+            { to: "/dev/contributing/dev-environment", label: "Contributing" },
+          ],
+        },
       ],
     },
     footer: {
       style: "dark",
       links: [
-        { title: "Docs", items: [
-          { label: "Introduction", to: "/intro" },
-          { label: "Getting Started", to: "/getting-started/installation" },
+        { title: "User Guide", items: [
+          { label: "Introduction", to: "/user/intro" },
+          { label: "Getting Started", to: "/user/getting-started/installation" },
+          { label: "Ubuntu MCP", to: "/user/mcp-servers/ubuntu-server" },
+          { label: "Web UI", to: "/user/webui/overview" },
         ]},
-        { title: "Reference", items: [
-          { label: "Ubuntu MCP", to: "/mcp-servers/ubuntu-server" },
-          { label: "Obsidian MCP", to: "/mcp-servers/obsidian" },
-          { label: "Synology MCP", to: "/mcp-servers/synology-nas" },
+        { title: "Developer Guide", items: [
+          { label: "Architecture", to: "/dev/architecture/system-design" },
+          { label: "Permission Engine", to: "/dev/permission-engine/overview" },
+          { label: "Contributing", to: "/dev/contributing/dev-environment" },
         ]},
       ],
       copyright: "Built with Docusaurus",
