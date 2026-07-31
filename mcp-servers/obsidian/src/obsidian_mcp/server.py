@@ -27,15 +27,18 @@ class ObsidianServer(BaseMCPServer):
         # Read raw config with env var substitution for connection settings
         import re, os as _os
         import yaml as _yaml
+
         with open(config_path, "r") as f:
             raw = f.read()
+
         # Substitute ${VAR} and ${VAR:-default}
         def _sub(m):
             var, _, default = m.group(1).partition(":-")
             return _os.environ.get(var, default) or default
+
         raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
         config = _yaml.safe_load(raw) or {}
-        self.vault: LocalVaultBackend= create_backend(config)
+        self.vault: LocalVaultBackend = create_backend(config)
         self.setup()
 
     def setup(self):

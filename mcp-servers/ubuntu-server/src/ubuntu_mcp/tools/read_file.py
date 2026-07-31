@@ -15,7 +15,10 @@ async def read_file(
     except FileNotFoundError:
         return {"error": f"File not found: {requested}", "path": requested}
     except PermissionError:
-        return {"error": f"Permission denied reading: {requested}", "path": requested}
+        return {
+            "error": f"Permission denied reading: {requested}",
+            "path": requested,
+        }
     except Exception as e:
         return {"error": f"Cannot read file: {e}", "path": requested}
 

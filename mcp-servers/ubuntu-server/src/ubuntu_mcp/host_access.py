@@ -10,12 +10,23 @@ logger = logging.getLogger("ubuntu-mcp")
 class HostAccess:
     """Abstract interface for host filesystem and command access."""
 
-    def read_file(self, path: str) -> str: ...
-    async def write_file(self, path: str, content: str) -> None: ...
-    async def list_dir(self, path: str) -> list[dict]: ...
-    async def run_command(self, cmd: str, timeout: int = 30) -> dict: ...
-    def host_path(self, path: str) -> str: ...
-    def container_path(self, path: str) -> Path: ...
+    def read_file(self, path: str) -> str:
+        ...
+
+    async def write_file(self, path: str, content: str) -> None:
+        ...
+
+    async def list_dir(self, path: str) -> list[dict]:
+        ...
+
+    async def run_command(self, cmd: str, timeout: int = 30) -> dict:
+        ...
+
+    def host_path(self, path: str) -> str:
+        ...
+
+    def container_path(self, path: str) -> Path:
+        ...
 
 
 # ── Local (bind-mount) access ─────────────────────────
@@ -54,13 +65,15 @@ class LocalHostAccess(HostAccess):
         for entry in sorted(cp.iterdir()):
             try:
                 st = entry.stat()
-                entries.append({
-                    "name": entry.name,
-                    "path": str(entry),
-                    "is_dir": entry.is_dir(),
-                    "size": st.st_size if entry.is_file() else 0,
-                    "modified": st.st_mtime,
-                })
+                entries.append(
+                    {
+                        "name": entry.name,
+                        "path": str(entry),
+                        "is_dir": entry.is_dir(),
+                        "size": st.st_size if entry.is_file() else 0,
+                        "modified": st.st_mtime,
+                    }
+                )
             except OSError:
                 pass
         return entries
@@ -90,7 +103,11 @@ class LocalHostAccess(HostAccess):
                 "exit_code": proc.returncode or 0,
             }
         except asyncio.TimeoutError:
-            return {"stdout": "", "stderr": "Command timed out", "exit_code": -1}
+            return {
+                "stdout": "",
+                "stderr": "Command timed out",
+                "exit_code": -1,
+            }
 
 
 # ── Remote (SSH) access ───────────────────────────────
@@ -110,6 +127,7 @@ class RemoteHostAccess(HostAccess):
     def _resolve_key(self) -> str:
         import os as _os
         import tempfile
+
         data = self._key_data
         if _os.path.isfile(data):
             return data
@@ -123,9 +141,13 @@ class RemoteHostAccess(HostAccess):
         if self._conn is not None:
             return
         import asyncssh
+
         self._conn = await asyncssh.connect(
-            self._host, port=self._port, username=self._user,
-            client_keys=[self._resolve_key()], known_hosts=None,
+            self._host,
+            port=self._port,
+            username=self._user,
+            client_keys=[self._resolve_key()],
+            known_hosts=None,
         )
         self._sftp = await self._conn.start_sftp_client()
 
@@ -170,13 +192,18 @@ class RemoteHostAccess(HostAccess):
                     st = await self._sftp.stat(full)
                 except Exception:
                     continue
-                entries.append({
-                    "name": name,
-                    "path": full,
-                    "is_dir": hasattr(st, 'is_dir') and st.is_dir,
-                    "size": st.size if hasattr(st, 'size') and not (hasattr(st, 'is_dir') and st.is_dir) else 0,
-                    "modified": st.mtime if hasattr(st, 'mtime') else 0,
-                })
+                entries.append(
+                    {
+                        "name": name,
+                        "path": full,
+                        "is_dir": hasattr(st, "is_dir") and st.is_dir,
+                        "size": st.size
+                        if hasattr(st, "size")
+                        and not (hasattr(st, "is_dir") and st.is_dir)
+                        else 0,
+                        "modified": st.mtime if hasattr(st, "mtime") else 0,
+                    }
+                )
         except Exception:
             pass
         return entries
@@ -193,7 +220,11 @@ class RemoteHostAccess(HostAccess):
                 "exit_code": result.exit_status or 0,
             }
         except asyncio.TimeoutError:
-            return {"stdout": "", "stderr": "Command timed out", "exit_code": -1}
+            return {
+                "stdout": "",
+                "stderr": "Command timed out",
+                "exit_code": -1,
+            }
 
     async def run_host_command(self, cmd: str, timeout: int = 30) -> dict:
         """Same as run_command — already on the host via SSH."""
@@ -210,7 +241,9 @@ def create_host_access(config: dict | None = None) -> HostAccess:
 
     if mode == "remote":
         remote = connection.get("remote", {})
-        key_data = remote.get("key", "") or remote.get("key_path", "/app/keys/ssh_key")
+        key_data = remote.get("key", "") or remote.get(
+            "key_path", "/app/keys/ssh_key"
+        )
         return RemoteHostAccess(
             host=remote.get("host", ""),
             port=remote.get("port", 22),
@@ -219,5 +252,7 @@ def create_host_access(config: dict | None = None) -> HostAccess:
         )
 
     return LocalHostAccess(
-        mount_prefix=connection.get("local", {}).get("mount_prefix", "/mnt/host"),
+        mount_prefix=connection.get("local", {}).get(
+            "mount_prefix", "/mnt/host"
+        ),
     )

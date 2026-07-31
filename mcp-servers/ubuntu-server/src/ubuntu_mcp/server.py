@@ -42,11 +42,14 @@ class UbuntuServer(BaseMCPServer):
         config = {}
         try:
             import yaml, re
+
             with open(config_path, "r") as f:
                 raw = f.read()
+
             def _sub(m):
                 var, _, default = m.group(1).partition(":-")
                 return os.environ.get(var, default) or default
+
             raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
             config = yaml.safe_load(raw) or {}
         except Exception:
@@ -276,7 +279,9 @@ class UbuntuServer(BaseMCPServer):
                     arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_exec":
-                return await execute.execute(arguments, self.enforcer, self.host, name)
+                return await execute.execute(
+                    arguments, self.enforcer, self.host, name
+                )
             case "ubuntu_system_info":
                 return await system_info.system_info(arguments)
             case "ubuntu_service_status":

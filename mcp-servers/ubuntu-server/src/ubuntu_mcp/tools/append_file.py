@@ -16,4 +16,8 @@ async def append_file(
         await host.write_file(requested, existing + args["content"])
     except Exception as e:
         return {"error": str(e), "path": requested}
-    return {"appended": True, "path": requested, "size": len(existing) + len(args["content"])}
+    return {
+        "appended": True,
+        "path": requested,
+        "size": len(existing) + len(args["content"]),
+    }
