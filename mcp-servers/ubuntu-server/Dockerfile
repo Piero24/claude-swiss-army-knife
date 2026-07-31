@@ -24,7 +24,7 @@ COPY pyproject.toml .
 COPY src/ ./src/
 
 # Install the package in development mode so it can be run
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e ".[remote]"
 
 # MCP server communicates over stdio — no port needed
 ENTRYPOINT ["python", "-m", "ubuntu_mcp"]
