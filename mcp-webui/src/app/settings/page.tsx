@@ -139,6 +139,21 @@ export default function SettingsPage() {
           </div>
 
           <div>
+            <label className="block text-sm text-gray-400 mb-1">Max scan duration (seconds)</label>
+            <p className="text-xs text-gray-500 mb-1">Set to -1 for unlimited scan time until complete, or enter max seconds (e.g. 60, 300).</p>
+            <input
+              type="number"
+              min={-1}
+              value={settings.scan.timeoutSeconds ?? -1}
+              onChange={(e) => setSettings({
+                ...settings,
+                scan: { ...settings.scan, timeoutSeconds: isNaN(parseInt(e.target.value)) ? -1 : parseInt(e.target.value) },
+              })}
+              className="w-32 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm text-gray-400 mb-1">Exclude patterns</label>
             <p className="text-xs text-gray-500 mb-2">Folder names matching these patterns are skipped during scans.</p>
             <div className="flex flex-wrap gap-1.5 mb-2">

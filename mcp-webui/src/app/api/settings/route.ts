@@ -18,6 +18,7 @@ const serverEntrySchema = z.object({
 const settingsSchema = z.object({
   scan: z.object({
     intervalMinutes: z.number().min(1).max(1440).default(60),
+    timeoutSeconds: z.number().default(-1),
     excludePatterns: z.array(z.string()).default([]),
   }),
   servers: z.record(z.string(), serverEntrySchema).default({}),
@@ -29,6 +30,7 @@ export type AppSettings = z.infer<typeof settingsSchema>;
 const DEFAULTS: AppSettings = {
   scan: {
     intervalMinutes: 60,
+    timeoutSeconds: -1,
     excludePatterns: [
       ".venv", "venv", "__pycache__", ".git", "node_modules",
       ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
