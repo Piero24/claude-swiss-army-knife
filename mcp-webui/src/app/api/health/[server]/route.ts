@@ -63,7 +63,7 @@ async function getContainerInfo(container: string): Promise<{ status: string; en
     const info = await dockerRequest(`/containers/${encodeURIComponent(container)}/json`);
     const state = info.State as { Status?: string } | undefined;
     const config = info.Config as { Env?: string[] } | undefined;
-    return { status: state?.Status === "running" ? "running" : "stopped", env: config?.Env || [] };
+    return { status: state?.Status || "stopped", env: config?.Env || [] };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("no such container") || msg.includes("404")) return { status: "not-found", env: [] };
@@ -125,6 +125,8 @@ export async function GET(
     status = "not-found"; detail = "Container not found";
   } else if (containerInfo.status === "error") {
     status = "error"; detail = "Could not check Docker socket";
+  } else if (containerInfo.status === "restarting") {
+    status = "error"; detail = "Container is crashing (restarting loop)";
   } else if (containerInfo.status !== "running") {
     status = "stopped"; detail = "Container is not running";
   } else {
