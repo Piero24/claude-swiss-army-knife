@@ -160,13 +160,13 @@ export async function POST(
         stdout = await dockerExec(scanCfg.container, scanCfg.cmd, -1);
       }
     } catch (execErr) {
-      endScan();
+      endScan(server);
       return NextResponse.json(
         { error: `Discovery exec failed: ${String(execErr)}` },
         { status: 500 },
       );
     }
-    endScan();
+    endScan(server);
 
     // Parse the output — could be a JSON array or an error object
     let parsed: unknown;

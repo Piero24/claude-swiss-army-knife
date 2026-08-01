@@ -13,6 +13,10 @@ let _intervalMs = 60 * 60 * 1000;
 let _timer: ReturnType<typeof setInterval> | null = null;
 
 async function runScanForServer(server: string) {
+  if (isScanning(server)) {
+    console.log(`[scheduler] ${server} — skipped: scan already in progress`);
+    return;
+  }
   try {
     const resp = await fetch(`http://localhost:${PORT}/api/scan/${server}`, {
       method: "POST",
@@ -23,7 +27,7 @@ async function runScanForServer(server: string) {
       if (data.added > 0) {
         console.log(`[scheduler] ${server} — ${data.added} new folder(s)`);
       } else if (data.error) {
-        console.log(`[scheduler] ${server} — skipped: ${data.error}`);
+        console.log(`[scheduler] ${server} — ${data.error}`);
       }
     }
   } catch {
@@ -32,15 +36,9 @@ async function runScanForServer(server: string) {
 }
 
 async function runAllScans() {
-  if (isScanning()) {
-    console.log("[scheduler] Skipping — manual scan in progress");
-    return;
-  }
   touchAutoScan();
-  // Scan sequentially to avoid hammering Docker
-  for (const server of SCAN_SERVERS) {
-    await runScanForServer(server);
-  }
+  // Run scans independently per MCP server
+  await Promise.allSettled(SCAN_SERVERS.map((server) => runScanForServer(server)));
 }
 
 export function startScheduler() {

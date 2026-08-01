@@ -81,7 +81,21 @@ export default function ServerDetailPage() {
     }
   }, [server]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const checkScanStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/scan-status");
+      const data = await res.json();
+      const active: string[] = data.activeServers || (data.server ? data.server.split(", ").filter(Boolean) : []);
+      setScanning(active.includes(server));
+    } catch { /* */ }
+  }, [server]);
+
+  useEffect(() => {
+    loadData();
+    checkScanStatus();
+    const interval = setInterval(checkScanStatus, 3000);
+    return () => clearInterval(interval);
+  }, [loadData, checkScanStatus]);
 
   async function loadAuditPage(page: number) {
     setAuditLoading(true);
