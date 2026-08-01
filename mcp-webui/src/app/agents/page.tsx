@@ -42,6 +42,10 @@ export default function AgentsPage() {
   const [newUser, setNewUser] = useState({ id: "", name: "", key: "" });
   const [generatedSecret, setGeneratedSecret] = useState("");
 
+  function autoId(): string {
+    return String(Math.floor(1000000000 + Math.random() * 9000000000));
+  }
+
   useEffect(() => {
     getAgents()
       .then(setData)
@@ -284,25 +288,28 @@ export default function AgentsPage() {
                 <label className="block text-xs text-gray-400 mb-1">ID</label>
                 <input
                   type="text"
-                  placeholder="alice"
+                  placeholder="Auto-generated 10 digits"
                   value={newUser.id}
                   onChange={(e) =>
                     setNewUser({ ...newUser, id: e.target.value })
                   }
-                  className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                 />
+                <p className="text-[10px] text-gray-600 mt-0.5">Machine identifier for the LLM. Auto-generated, editable.</p>
               </div>
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Name</label>
                 <input
                   type="text"
-                  placeholder="Alice"
+                  placeholder="Claude Code"
                   value={newUser.name}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, name: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setNewUser({ ...newUser, name, id: newUser.id || autoId() });
+                  }}
                   className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <p className="text-[10px] text-gray-600 mt-0.5">Human-readable name shown in dashboards and audit logs.</p>
               </div>
               <div>
                 <label className="block text-xs text-gray-400 mb-1">Key (sha256 hash)</label>
@@ -334,7 +341,7 @@ export default function AgentsPage() {
             </div>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => { setShowAdd(false); setGeneratedSecret(""); }}
+                onClick={() => { setShowAdd(false); setNewUser({ id: "", name: "", key: "" }); setGeneratedSecret(""); }}
                 className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700"
               >
                 Cancel

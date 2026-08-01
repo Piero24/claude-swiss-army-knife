@@ -5,7 +5,7 @@
 # Access levels: none (denied), read, write
 
 server:
-  name: ubuntu-mcp
+  name: ubuntu-server
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
 
@@ -29,60 +29,155 @@ connection:
     key: ${UBUNTU_REMOTE_KEY:-/app/keys/ssh_key}
 
 permissions:
-  # Default: deny all paths
   default_access: none
-
   paths: []
-
   commands:
-    # ---- Systemd: status checks (read) ----
-    - pattern: "systemctl status *"
+    - pattern: systemctl status *
       access: active
-      description: "Check any service status"
-
-    - pattern: "systemctl is-active *"
+      description: Check any service status
+      id: cmd_0_status
+    - pattern: systemctl is-active *
       access: active
-      description: "Check if service is active"
-
-    - pattern: "systemctl is-enabled *"
+      description: Check if service is active
+      id: cmd_1_isactive
+    - pattern: systemctl is-enabled *
       access: active
-      description: "Check if service is enabled"
-
-    # ---- Systemd: service management (write) ----
-    - pattern: "systemctl restart nginx"
+      description: Check if service is enabled at boot
+      id: cmd_2_isenabled
+    - pattern: systemctl start *
       access: active
-      description: "Restart nginx"
-
-    - pattern: "systemctl reload nginx"
+      description: Start any service
+      id: cmd_3_start
+    - pattern: systemctl stop *
       access: active
-      description: "Reload nginx config"
-
-    - pattern: "systemctl restart docker-*"
+      description: Stop any service
+      id: cmd_4_stop
+    - pattern: systemctl restart *
       access: active
-      description: "Restart Docker Compose services"
-
-    # ---- Docker (read) ----
-    - pattern: "docker ps"
+      description: Restart any service
+      id: cmd_5_restart
+    - pattern: systemctl reload *
       access: active
-      description: "List running containers"
-
-    - pattern: "docker ps -a"
+      description: Reload any service config
+      id: cmd_6_reload
+    - pattern: docker ps *
       access: active
-      description: "List all containers"
-
-    - pattern: "docker logs *"
+      description: List containers (ps and ps -a)
+      id: cmd_7_dockerps
+    - pattern: docker logs *
       access: active
-      description: "View container logs"
-
-    # ---- Docker (write) ----
-    - pattern: "docker restart *"
+      description: View container logs
+      id: cmd_8_dockerlogs
+    - pattern: docker restart *
       access: active
-      description: "Restart a container"
-
-    # ---- Journal (read) ----
-    - pattern: "journalctl *"
+      description: Restart a container
+      id: cmd_9_dockerrestart
+    - pattern: docker compose *
       access: active
-      description: "Query systemd journal"
-
-  # Default: deny any command not explicitly listed
+      description: Manage compose stacks (up, down, pull, build)
+      id: cmd_10_dockercompose
+    - pattern: docker run *
+      access: active
+      description: Run a new container
+      id: cmd_11_dockerrun
+    - pattern: docker stop *
+      access: active
+      description: Stop a container
+      id: cmd_12_dockerstop
+    - pattern: docker exec *
+      access: none
+      description: Execute command inside a running container — destructive, enable only when needed
+      id: cmd_13_dockerexec
+    - pattern: docker cp *
+      access: none
+      description: Copy files between host and containers — destructive, enable only when needed
+      id: cmd_14_dockercp
+    - pattern: journalctl *
+      access: active
+      description: Query systemd journal
+      id: cmd_15_journalctl
   default_command_access: none
+  tools:
+    - pattern: ubuntu_read_file
+      access: active
+      description: >-
+        Read any file from the server: configs, docker-compose files, .env,
+        logs, cron scripts. Use this whenever you need to inspect a file.
+      id: tool_0_readfile
+    - pattern: ubuntu_write_file
+      access: none
+      description: >-
+        Create or overwrite a file on the server. DESTRUCTIVE — enable only
+        when you need to write or edit files.
+      id: tool_1_writefile
+    - pattern: ubuntu_append_file
+      access: none
+      description: >-
+        Add lines to the end of an existing file without overwriting it.
+        DESTRUCTIVE — enable only when you need to modify files.
+      id: tool_2_appendfile
+    - pattern: ubuntu_list_dir
+      access: active
+      description: >-
+        Browse the server filesystem: list files and folders in a directory,
+        optionally recursive. Use this to explore shared folders, find configs,
+        check container mounts, or discover project structure before reading
+        or writing files.
+      id: tool_3_listdir
+    - pattern: ubuntu_exec
+      access: active
+      description: >-
+        Run any shell command on the server, subject to the command allowlist.
+        Use this for docker compose, docker run/stop/exec/cp, systemctl,
+        package installs, curl, rsync, or any admin task that does not have
+        its own dedicated tool.
+      id: tool_4_exec
+    - pattern: ubuntu_system_info
+      access: active
+      description: >-
+        Get real-time system health: CPU usage, RAM, disk space, load average,
+        uptime. Use this before deploying containers to check available resources,
+        or when diagnosing performance issues.
+      id: tool_5_sysinfo
+    - pattern: ubuntu_service_status
+      access: active
+      description: >-
+        Check whether a systemd service is running, dead, or failed, with recent
+        log excerpts. Use this to verify docker, CasaOS, or cron are up, or to
+        confirm a restart resolved an issue.
+      id: tool_6_svcstatus
+    - pattern: ubuntu_service_manage
+      access: active
+      description: >-
+        Control a systemd service: start, stop, restart, or reload. Use this
+        to bounce docker, restart cron after editing crontab, or reload a web
+        server after config changes.
+      id: tool_7_svcmanage
+    - pattern: ubuntu_docker_ps
+      access: active
+      description: >-
+        List all Docker containers with status, uptime, ports, and names.
+        Use this to see what is running, find container names for logs or
+        restart, or verify a deploy succeeded.
+      id: tool_8_dockerps
+    - pattern: ubuntu_docker_logs
+      access: active
+      description: >-
+        Fetch recent logs from a specific Docker container. Use this to debug
+        failing containers, check app output, verify a restart fixed an issue,
+        or inspect startup errors.
+      id: tool_9_dockerlogs
+    - pattern: ubuntu_docker_restart
+      access: active
+      description: >-
+        Restart a Docker container by name. Use this after editing configs or
+        .env files to apply changes, or to recover a stuck container.
+      id: tool_10_dockerrestart
+    - pattern: ubuntu_journalctl
+      access: active
+      description: >-
+        Query the systemd journal: filter by service name, time range, or line
+        count. Use this to investigate cron job output, systemd timer results,
+        boot errors, or service failures that do not log to Docker.
+      id: tool_11_journalctl
+  default_tool_access: none

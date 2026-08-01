@@ -26,66 +26,99 @@ proxy:
 permissions:
   default_access: none
   tools:
-    - pattern: "search_repositories"
+    # ── Read-only —────────────────────────────────────
+    - pattern: search_repositories
       access: active
-      description: "Search GitHub repos"
-    - pattern: "search_code"
+      description: Search for GitHub repositories by name, topic, or language.
+      id: tool_0_searchrepos
+    - pattern: search_code
       access: active
-      description: "Search code across GitHub"
-    - pattern: "search_issues"
+      description: Search code across all public GitHub repositories.
+      id: tool_1_searchcode
+    - pattern: search_issues
       access: active
-      description: "Search issues and PRs"
-    - pattern: "search_users"
+      description: Search issues and pull requests across repositories.
+      id: tool_2_searchissues
+    - pattern: search_users
       access: active
-      description: "Search GitHub users"
-    - pattern: "list_commits"
+      description: Search for GitHub users by username, name, or location.
+      id: tool_3_searchusers
+    - pattern: list_commits
       access: active
-      description: "List commits on a branch"
-    - pattern: "list_issues"
+      description: List commits on a branch with author, date, and message.
+      id: tool_4_listcommits
+    - pattern: list_issues
       access: active
-      description: "List repository issues"
-    - pattern: "list_pull_requests"
+      description: List issues in a repository with status and labels.
+      id: tool_5_listissues
+    - pattern: list_pull_requests
       access: active
-      description: "List repository PRs"
-    - pattern: "get_file_contents"
+      description: List open and closed pull requests in a repository.
+      id: tool_6_listprs
+    - pattern: get_file_contents
       access: active
-      description: "Read file contents"
-    - pattern: "get_issue"
+      description: Read the contents of a file or directory from a repository.
+      id: tool_7_getfile
+    - pattern: get_issue
       access: active
-      description: "Read a single issue"
-    - pattern: "get_pull_request"
+      description: Read a single issue with all comments and metadata.
+      id: tool_8_getissue
+    - pattern: get_pull_request
       access: active
-      description: "Read a single PR"
-    - pattern: "create_issue"
+      description: Read a single pull request with diff, comments, and status.
+      id: tool_9_getpr
+    # ── Workflow (create, reversible) ─────────────────
+    - pattern: create_issue
       access: active
-      description: "Create issues"
-    - pattern: "create_pull_request"
+      description: Create a new issue in a repository. Use this to track bugs,
+        feature requests, or tasks.
+      id: tool_10_createissue
+    - pattern: create_pull_request
       access: active
-      description: "Create PRs from a branch"
-    - pattern: "create_or_update_file"
+      description: Create a pull request from a branch. Use this to propose
+        changes for review.
+      id: tool_11_createpr
+    - pattern: create_branch
       access: active
-      description: "Create or update a file"
-    - pattern: "create_repository"
+      description: Create a new branch in a repository. Use this to start work
+        on a feature or fix.
+      id: tool_12_createbranch
+    - pattern: add_issue_comment
       access: active
-      description: "Create a new repo"
-    - pattern: "fork_repository"
-      access: active
-      description: "Fork a repository"
-    - pattern: "create_branch"
-      access: active
-      description: "Create a new branch"
-    - pattern: "merge_pull_request"
+      description: Add a comment to an existing issue or pull request.
+      id: tool_13_comment
+    # ── Destructive (locked, toggle to use) ───────────
+    - pattern: create_or_update_file
       access: none
-      description: "Merge PRs — BLOCKED"
-    - pattern: "delete_file"
+      description: Create or overwrite a file in a repository. DESTRUCTIVE —
+        enable only when you need to push code changes.
+      id: tool_14_writefile
+    - pattern: delete_file
       access: none
-      description: "Delete files — BLOCKED"
-    - pattern: "push_files"
+      description: Delete a file from a repository. DESTRUCTIVE — enable only
+        when you need to remove code.
+      id: tool_15_deletefile
+    - pattern: push_files
       access: none
-      description: "Push files — BLOCKED"
-    - pattern: "add_issue_comment"
-      access: active
-      description: "Comment on issues"
+      description: Push multiple files to a repository in a single commit.
+        DESTRUCTIVE — enable only when you need to bulk-push changes.
+      id: tool_16_pushfiles
+    - pattern: create_repository
+      access: none
+      description: Create a new repository under your account. DESTRUCTIVE —
+        enable only when you need to create a new project.
+      id: tool_17_createrepo
+    - pattern: fork_repository
+      access: none
+      description: Fork an existing repository to your account. DESTRUCTIVE —
+        enable only when you need to fork a project.
+      id: tool_18_forkrepo
+    - pattern: merge_pull_request
+      access: none
+      description: Merge a pull request into the base branch. DESTRUCTIVE —
+        enable only when you are ready to integrate changes.
+      id: tool_19_mergepr
   paths: []
   commands: []
   default_command_access: none
+  default_tool_access: none
