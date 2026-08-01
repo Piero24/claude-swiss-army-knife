@@ -51,6 +51,8 @@ export default function StatsCards() {
         </div>
       </div>
     );
+  }
+
   if (!stats || !stats.totals) return null;
 
   return (
