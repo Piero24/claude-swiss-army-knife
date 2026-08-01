@@ -9,7 +9,7 @@ description = "MCP server for managing an Ubuntu server — file ops, commands, 
 requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
-    "mcp>=1.0",
+    "mcp>=1.0,<2.0",
     "mcp-permission-engine",
     "psutil>=6.0",
     "structlog>=24.0",

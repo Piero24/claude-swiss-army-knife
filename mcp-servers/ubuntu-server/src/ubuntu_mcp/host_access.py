@@ -192,15 +192,16 @@ class RemoteHostAccess(HostAccess):
                     st = await self._sftp.stat(full)
                 except Exception:
                     continue
+                # SFTPAttrs: use stat to check type (S_IFDIR = 0o040000)
+                import stat as _stat
+                mode = st.permissions if hasattr(st, "permissions") else 0
+                is_dir = _stat.S_ISDIR(mode) if mode else bool(st.size == 4096 and not name.startswith("."))
                 entries.append(
                     {
                         "name": name,
                         "path": full,
-                        "is_dir": hasattr(st, "is_dir") and st.is_dir,
-                        "size": st.size
-                        if hasattr(st, "size")
-                        and not (hasattr(st, "is_dir") and st.is_dir)
-                        else 0,
+                        "is_dir": is_dir,
+                        "size": st.size if hasattr(st, "size") else 0,
                         "modified": st.mtime if hasattr(st, "mtime") else 0,
                     }
                 )
