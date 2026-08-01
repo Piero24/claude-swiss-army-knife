@@ -63,7 +63,37 @@ class ConfigLoader:
         config_path = config_path.resolve()
 
         if not config_path.exists():
-            raise FileNotFoundError(f"Config file not found: {config_path}")
+            template_name = config_path.name
+            template_locations = [
+                config_path.parent / "templates" / template_name,
+                config_path.parent.parent
+                / "configs"
+                / "templates"
+                / template_name,
+                Path("/app/configs/templates") / template_name,
+                Path("/app/templates") / template_name,
+            ]
+            template_found = None
+            for t_path in template_locations:
+                try:
+                    if t_path.exists():
+                        template_found = t_path
+                        break
+                except Exception:
+                    pass
+
+            if template_found:
+                try:
+                    config_path.parent.mkdir(parents=True, exist_ok=True)
+                    import shutil
+
+                    shutil.copy(template_found, config_path)
+                except Exception:
+                    raise FileNotFoundError(
+                        f"Config file not found: {config_path}"
+                    )
+            else:
+                raise FileNotFoundError(f"Config file not found: {config_path}")
 
         with open(config_path, "r") as f:
             raw = yaml.safe_load(f)
