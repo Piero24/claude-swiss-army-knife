@@ -194,8 +194,13 @@ class RemoteHostAccess(HostAccess):
                     continue
                 # SFTPAttrs: use stat to check type (S_IFDIR = 0o040000)
                 import stat as _stat
+
                 mode = st.permissions if hasattr(st, "permissions") else 0
-                is_dir = _stat.S_ISDIR(mode) if mode else bool(st.size == 4096 and not name.startswith("."))
+                is_dir = (
+                    _stat.S_ISDIR(mode)
+                    if mode
+                    else bool(st.size == 4096 and not name.startswith("."))
+                )
                 entries.append(
                     {
                         "name": name,

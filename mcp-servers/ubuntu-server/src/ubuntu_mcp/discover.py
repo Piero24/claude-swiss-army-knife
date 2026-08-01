@@ -28,14 +28,35 @@ CANCEL_FILE = "/tmp/scan-cancel"
 LOCAL_ROOTS = ["home", "var/www", "var/log", "etc/nginx"]
 
 # Roots for REMOTE mode (common server directories)
-REMOTE_ROOTS = ["/home", "/var/www", "/var/log", "/opt", "/srv", "/DATA", "/ROMS", "/etc/nginx"]
+REMOTE_ROOTS = [
+    "/home",
+    "/var/www",
+    "/var/log",
+    "/opt",
+    "/srv",
+    "/DATA",
+    "/ROMS",
+    "/etc/nginx",
+]
 
 # These are also excluded by the web UI, but kept as fallback
 EXCLUDES = {
-    ".venv", "venv", "__pycache__", ".git", "node_modules",
-    ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
-    "lost+found", ".Trash", "#recycle", "@eaDir", ".env",
-    ".ssh", ".gnupg",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".git",
+    "node_modules",
+    ".next",
+    ".DS_Store",
+    ".pytest_cache",
+    ".mypy_cache",
+    "lost+found",
+    ".Trash",
+    "#recycle",
+    "@eaDir",
+    ".env",
+    ".ssh",
+    ".gnupg",
 }
 
 
@@ -95,7 +116,9 @@ def discover_local(mount_prefix: str, roots: list[str]) -> list[str]:
     return all_folders
 
 
-async def discover_remote(backend: HostAccess, roots: list[str], max_depth: int = 5) -> list[str]:
+async def discover_remote(
+    backend: HostAccess, roots: list[str], max_depth: int = 5
+) -> list[str]:
     """BFS walk of remote server filesystem via SSH."""
     all_folders: list[str] = []
 
@@ -131,9 +154,15 @@ async def discover_remote(backend: HostAccess, roots: list[str], max_depth: int 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ubuntu folder discovery")
-    parser.add_argument("--config", default="/app/config.yaml", help="Path to config")
-    parser.add_argument("--max-depth", type=int, default=6, help="Max depth for remote scan")
-    parser.add_argument("--cancel", action="store_true", help="Write cancel sentinel")
+    parser.add_argument(
+        "--config", default="/app/config.yaml", help="Path to config"
+    )
+    parser.add_argument(
+        "--max-depth", type=int, default=6, help="Max depth for remote scan"
+    )
+    parser.add_argument(
+        "--cancel", action="store_true", help="Write cancel sentinel"
+    )
     args = parser.parse_args()
 
     if args.cancel:
@@ -146,9 +175,11 @@ def main() -> None:
     try:
         with open(args.config, "r") as f:
             raw = f.read()
+
         def _sub(m):
             var, _, default = m.group(1).partition(":-")
             return os.environ.get(var, default) or default
+
         raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
         config = yaml.safe_load(raw) or {}
     except Exception:
