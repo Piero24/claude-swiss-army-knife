@@ -1,6 +1,7 @@
 {
   "scan": {
     "intervalMinutes": 5,
+    "timeoutSeconds": -1,
     "excludePatterns": [
       ".venv",
       "venv",
@@ -38,7 +39,11 @@
       "wheel",
       "manopt",
       "eeglab2021.1",
-      ".env"
+      ".env",
+      ".cache",
+      ".config",
+      ".npm",
+      ".nvm"
     ]
   },
   "servers": {

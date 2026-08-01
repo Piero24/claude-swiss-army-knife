@@ -33,6 +33,25 @@ export function getExcludePatterns(): string[] {
   return [];
 }
 
+/**
+ * Read scan timeout in seconds from settings.json.
+ * Defaults to -1 (unlimited scan time until complete).
+ * If > 0, scan times out after max that many seconds.
+ */
+export function getScanTimeoutSeconds(): number {
+  try {
+    const settingsDir = process.env.CONFIGS_PATH || "/app/configs";
+    const raw = readFileSync(path.join(settingsDir, "settings.json"), "utf-8");
+    const settings = JSON.parse(raw);
+    if (typeof settings.scan?.timeoutSeconds === "number") {
+      return settings.scan.timeoutSeconds;
+    }
+  } catch {
+    // settings.json missing or unreadable — default to unlimited (-1)
+  }
+  return -1;
+}
+
 /** Check whether a path should be excluded. Supports exact name match and wildcard suffix (e.g. *.app). */
 export function isExcluded(p: string): boolean {
   const name = p.split("/").filter(Boolean).pop() || p;

@@ -82,7 +82,23 @@ def discover_local(mount_prefix: str, roots: list[str]) -> list[str]:
 
     all_folders: list[str] = []
 
-    for root in roots:
+    # Dynamic root discovery: scan all top-level mounted folders under mount_prefix
+    discovered_roots: list[str] = []
+    try:
+        for entry in sorted(mount.iterdir()):
+            if (
+                entry.is_dir()
+                and not entry.name.startswith(".")
+                and not is_excluded(entry.name)
+            ):
+                discovered_roots.append(entry.name)
+    except Exception:
+        discovered_roots = roots
+
+    if not discovered_roots:
+        discovered_roots = roots
+
+    for root in discovered_roots:
         root_path = mount / root
         if not root_path.exists():
             continue
