@@ -38,7 +38,11 @@
       "wheel",
       "manopt",
       "eeglab2021.1",
-      ".env"
+      ".env",
+      ".cache",
+      ".config",
+      ".npm",
+      ".nvm"
     ]
   },
   "servers": {

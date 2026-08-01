@@ -103,7 +103,7 @@ async function dockerExec(container: string, cmd: string[]): Promise<string> {
       },
     );
     startReq.on("error", reject);
-    startReq.setTimeout(120_000, () => { startReq.destroy(); reject(new Error("timeout")); });
+    startReq.setTimeout(300_000, () => { startReq.destroy(); reject(new Error("timeout")); });
     startReq.write(JSON.stringify({ Detach: false, Tty: false }));
     startReq.end();
   });
@@ -143,7 +143,7 @@ export async function POST(
       stdout = await Promise.race([
         dockerExec(scanCfg.container, scanCfg.cmd),
         new Promise<string>((_, reject) =>
-          setTimeout(() => reject(new Error("Scan timed out after 60s")), 60_000)
+          setTimeout(() => reject(new Error("Scan timed out after 300s")), 300_000)
         ),
       ]);
     } catch (execErr) {
