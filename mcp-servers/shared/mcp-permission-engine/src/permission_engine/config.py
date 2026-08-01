@@ -67,7 +67,10 @@ class ConfigLoader:
             template_name = config_path.name
             template_locations = [
                 config_path.parent / "templates" / template_name,
-                config_path.parent.parent / "configs" / "templates" / template_name,
+                config_path.parent.parent
+                / "configs"
+                / "templates"
+                / template_name,
                 Path("/app/configs/templates") / template_name,
                 Path("/app/templates") / template_name,
             ]
@@ -75,6 +78,7 @@ class ConfigLoader:
             for t_path in template_locations:
                 if t_path.exists():
                     import shutil
+
                     shutil.copy(t_path, config_path)
                     copied = True
                     break
@@ -82,7 +86,11 @@ class ConfigLoader:
                 default_data = {
                     "server": {"name": config_path.stem, "log_level": "INFO"},
                     "connection": {"mode": "local"},
-                    "permissions": {"default_access": "none", "paths": [], "commands": []},
+                    "permissions": {
+                        "default_access": "none",
+                        "paths": [],
+                        "commands": [],
+                    },
                 }
                 with open(config_path, "w") as f:
                     yaml.safe_dump(default_data, f)
