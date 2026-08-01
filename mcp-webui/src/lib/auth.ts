@@ -8,11 +8,11 @@ export interface SessionData {
   loginTime: number;
 }
 
-const sessionOptions = {
+export const sessionOptions = {
   password: process.env.WEBUI_AUTH_SECRET || "change-me-to-a-random-64-char-string",
   cookieName: "mcp-webui-session",
   cookieOptions: {
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE === "true",
     httpOnly: true,
     sameSite: "lax" as const,
     maxAge: 8 * 60 * 60, // 8 hours

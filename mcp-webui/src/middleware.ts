@@ -4,12 +4,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
-
-const sessionOptions = {
-  password: process.env.WEBUI_AUTH_SECRET || "change-me-to-a-random-64-char-string",
-  cookieName: "mcp-webui-session",
-  cookieOptions: { secure: process.env.NODE_ENV === "production", httpOnly: true, sameSite: "lax" as const },
-};
+import { sessionOptions } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
