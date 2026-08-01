@@ -4,9 +4,9 @@ sidebar_position: 1
 
 # MCP Server Suite
 
-Professional MCP (Model Context Protocol) servers for managing your infrastructure via Claude Code.
+> **The documentation has moved.** Please visit the [User Guide](/user/intro) for setup and usage, or the [Developer Guide](/dev/architecture/system-design) for architecture and contribution guides.
 
-## What This Is
+## Quick Links
 
 Three MCP servers running as Docker containers on your Ubuntu server, plus a web UI for permission management:
 
