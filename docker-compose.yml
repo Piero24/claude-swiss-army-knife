@@ -19,10 +19,11 @@ services:
     image: ubuntu-mcp:${UBUNTU_MCP_IMAGE_TAG:-latest}
     container_name: ${UBUNTU_MCP_CONTAINER:-ubuntu-mcp}
     volumes:
-      - /home:/mnt/host/home:rw
-      - /var/www:/mnt/host/var/www:rw
-      - /var/log:/mnt/host/var/log:ro
-      - /etc/nginx:/mnt/host/etc/nginx:rw
+      # Host mounts (Linux only — ignored on macOS when using remote mode)
+      - ${UBUNTU_HOST_HOME:-ubuntu-home-dummy}:/mnt/host/home:rw
+      - ${UBUNTU_HOST_WWW:-ubuntu-www-dummy}:/mnt/host/var/www:rw
+      - ${UBUNTU_HOST_LOG:-ubuntu-log-dummy}:/mnt/host/var/log:ro
+      - ${UBUNTU_HOST_NGINX:-ubuntu-nginx-dummy}:/mnt/host/etc/nginx:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
@@ -122,3 +123,7 @@ services:
 
 volumes:
   obsidian-vault-data:
+  ubuntu-home-dummy:
+  ubuntu-www-dummy:
+  ubuntu-log-dummy:
+  ubuntu-nginx-dummy:
