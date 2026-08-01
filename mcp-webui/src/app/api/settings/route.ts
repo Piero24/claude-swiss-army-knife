@@ -98,7 +98,7 @@ async function load(): Promise<AppSettings> {
 async function discoverServers(): Promise<Array<{ name: string; label: string; icon: string }>> {
   const configsDir = process.env.CONFIGS_PATH || "/app/configs";
   await seedDefaultTemplates(configsDir);
-  const { default: yaml } = await import("js-yaml");
+  const yaml = await import("js-yaml");
   const map: Record<string, { label: string; icon: string }> = {
     "ubuntu-server": { label: "Ubuntu Server", icon: "🖥" },
     "obsidian": { label: "Obsidian", icon: "📝" },
@@ -160,7 +160,7 @@ export async function PUT(request: Request) {
     // Remove excluded folders from all server configs
     let cleaned = 0;
     const configsDir = process.env.CONFIGS_PATH || "/app/configs";
-    const { default: yaml } = await import("js-yaml");
+    const yaml = await import("js-yaml");
     // Discover servers dynamically from configs directory
     let servers: string[] = [];
     try {
