@@ -51,9 +51,7 @@ export default function StatsCards() {
         </div>
       </div>
     );
-  }
-
-  if (!stats || !stats.totals || stats.totals.all_time === 0) return null;
+  if (!stats || !stats.totals) return null;
 
   return (
     <div className="rounded-lg border border-gray-800 bg-gray-900 p-6 mb-8">

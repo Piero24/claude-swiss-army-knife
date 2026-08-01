@@ -32,6 +32,7 @@ services:
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
     image: ghcr.io/piero24/ubuntu-mcp:latest
+    pull_policy: always
     container_name: ubuntu-mcp
     stdin_open: true
     restart: unless-stopped
@@ -88,6 +89,7 @@ services:
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
     image: ghcr.io/piero24/obsidian-mcp:latest
+    pull_policy: always
     container_name: obsidian-mcp
     stdin_open: true
     restart: unless-stopped
@@ -117,6 +119,7 @@ services:
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
     image: ghcr.io/piero24/synology-mcp:latest
+    pull_policy: always
     container_name: synology-mcp
     stdin_open: true
     restart: unless-stopped
@@ -159,6 +162,7 @@ services:
     build:
       context: ./mcp-webui
     image: ghcr.io/piero24/mcp-webui:latest
+    pull_policy: always
     container_name: mcp-webui
     restart: unless-stopped
     environment:
@@ -201,6 +205,7 @@ services:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
         PROXY_PATH: shared/mcp-proxy
     image: ghcr.io/piero24/github-mcp:latest
+    pull_policy: always
     container_name: github-mcp
     stdin_open: true
     restart: unless-stopped
