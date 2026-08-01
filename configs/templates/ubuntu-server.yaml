@@ -38,13 +38,13 @@ permissions:
       access: write
       description: "Web root — read + write"
 
-    # ---- Home directory (read-only) ----
-    - path: /home/${UBUNTU_SERVER_USER:-user}/**
+    # ---- Home directories (read-only, auto-discovered) ----
+    - path: /home/**
       access: read
-      description: "Home directory"
+      description: "Home directories"
 
     # ---- Explicitly deny SSH keys ----
-    - path: /home/${UBUNTU_SERVER_USER:-user}/.ssh/**
+    - path: /home/*/.ssh/**
       access: none
       description: "SSH keys — always denied"
 
