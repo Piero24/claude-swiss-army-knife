@@ -11,7 +11,7 @@ Professional MCP (Model Context Protocol) servers for managing your infrastructu
 Three MCP servers running as Docker containers on your Ubuntu server, plus a web UI for permission management:
 
 - **Ubuntu Server MCP** — File I/O, command execution, Docker management, systemd service control, system monitoring
-- **Obsidian MCP** — Read/write/search notes in your Obsidian vault (synced via Live Sync)
+- **Obsidian MCP** — Read/write/search notes in your Obsidian vault (local filesystem or remote SSH)
 - **Synology NAS MCP** — File management on your Synology NAS via DSM 7.x API
 - **Permission Web UI** — Toggle which paths and commands each MCP can access
 - **Shared Permission Engine** — Config-driven, default-deny, audit-logged access control

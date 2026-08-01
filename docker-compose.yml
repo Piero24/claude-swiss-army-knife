@@ -47,7 +47,7 @@ services:
     image: obsidian-mcp:${OBSIDIAN_MCP_IMAGE_TAG:-latest}
     container_name: ${OBSIDIAN_MCP_CONTAINER:-obsidian-mcp}
     volumes:
-      # Vault mount: use host path when set, empty volume otherwise (for remote/livesync modes)
+      # Vault mount: use host path when set, empty volume otherwise (for remote mode)
       - ${OBSIDIAN_LOCAL_VAULT_PATH:-obsidian-vault-data}:/data/vaults:rw
       - ./configs/obsidian.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro

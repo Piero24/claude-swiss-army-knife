@@ -27,7 +27,7 @@ docker compose up -d --build
 bash scripts/health-check.sh
 ```
 
-This starts 7 containers: `ubuntu-mcp`, `obsidian-mcp`, `synology-mcp`, `mcp-webui`, `docs-site`, `obsidian-livesync`, `obsidian`.
+This starts 6 containers: `ubuntu-mcp`, `obsidian-mcp`, `synology-mcp`, `mcp-webui`, `github-mcp`, `docs-site`.
 
 ## 3. Interact
 

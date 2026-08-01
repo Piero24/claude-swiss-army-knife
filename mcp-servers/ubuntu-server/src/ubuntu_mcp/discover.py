@@ -95,8 +95,8 @@ def discover_local(mount_prefix: str, roots: list[str]) -> list[str]:
     return all_folders
 
 
-async def discover_remote(backend: HostAccess, roots: list[str]) -> list[str]:
-    """BFS walk of remote server filesystem via SSH — no depth limit."""
+async def discover_remote(backend: HostAccess, roots: list[str], max_depth: int = 5) -> list[str]:
+    """BFS walk of remote server filesystem via SSH."""
     all_folders: list[str] = []
 
     async def list_dir_safe(path: str) -> list[dict]:
@@ -108,8 +108,9 @@ async def discover_remote(backend: HostAccess, roots: list[str]) -> list[str]:
     for root in roots:
         all_folders.append(root)
         current_level = [root]
+        depth = 1
 
-        while current_level:
+        while current_level and depth < max_depth:
             next_level: list[str] = []
             for directory in current_level:
                 entries = await list_dir_safe(directory)
@@ -123,6 +124,7 @@ async def discover_remote(backend: HostAccess, roots: list[str]) -> list[str]:
                     all_folders.append(full)
                     next_level.append(full)
             current_level = next_level
+            depth += 1
 
     return all_folders
 
@@ -130,6 +132,7 @@ async def discover_remote(backend: HostAccess, roots: list[str]) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ubuntu folder discovery")
     parser.add_argument("--config", default="/app/config.yaml", help="Path to config")
+    parser.add_argument("--max-depth", type=int, default=5, help="Max depth for remote scan")
     parser.add_argument("--cancel", action="store_true", help="Write cancel sentinel")
     args = parser.parse_args()
 
