@@ -16,3 +16,4 @@ mcp-servers/*/shared/
 # Working configs — only templates go to GitHub
 /configs/*
 !/configs/templates/
+compose-casaos-personal.yaml
