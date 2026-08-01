@@ -7,6 +7,8 @@ import { getConfigPath } from "@/lib/config";
 
 import { isExcluded } from "@/lib/scan-constants";
 
+export const dynamic = "force-dynamic";
+
 interface FolderNode {
   name: string;
   path: string;

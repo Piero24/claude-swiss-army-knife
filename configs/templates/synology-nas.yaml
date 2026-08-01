@@ -20,18 +20,6 @@ connection:
 
 permissions:
   default_access: none
-  paths:
-    - path: /home/**
-      access: write
-      description: "Home shared folder"
-    - path: /video/**
-      access: read
-      description: "Video library"
-    - path: /music/**
-      access: read
-      description: "Music library"
-    - path: /backups/**
-      access: write
-      description: "Backup folder"
+  paths: []
   commands: []
   default_command_access: none

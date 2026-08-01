@@ -5,6 +5,8 @@ import * as fs from "fs/promises";
 import path from "path";
 import { z } from "zod";
 
+export const dynamic = "force-dynamic";
+
 const SETTINGS_PATH = process.env.CONFIGS_PATH
   ? path.join(process.env.CONFIGS_PATH, "settings.json")
   : "/app/configs/settings.json";

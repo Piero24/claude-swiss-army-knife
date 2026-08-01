@@ -32,43 +32,7 @@ permissions:
   # Default: deny all paths
   default_access: none
 
-  paths:
-    # ---- Logs (read-only) ----
-    - path: /var/log/**
-      access: read
-      description: "System logs"
-
-    - path: /var/log/nginx/**
-      access: read
-      description: "Nginx access and error logs"
-
-    # ---- Web root (full access) ----
-    - path: /var/www/**
-      access: write
-      description: "Web root — read + write"
-
-    # ---- Home directories (read-only, auto-discovered) ----
-    - path: /home/**
-      access: read
-      description: "Home directories"
-
-    # ---- Explicitly deny SSH keys ----
-    - path: /home/*/.ssh/**
-      access: none
-      description: "SSH keys — always denied"
-
-    # ---- Nginx config management ----
-    - path: /etc/nginx/sites-available/**
-      access: write
-      description: "Nginx virtual host configs"
-
-    - path: /etc/nginx/sites-enabled/**
-      access: write
-      description: "Nginx enabled sites"
-
-    - path: /etc/nginx/nginx.conf
-      access: write
-      description: "Main nginx config"
+  paths: []
 
   commands:
     # ---- Systemd: status checks (read) ----

@@ -5,6 +5,8 @@ import { z } from "zod";
 import { readServerConfig, writeServerConfig } from "@/lib/yaml-config";
 import { apiHandler, withValidation } from "@/lib/api-helpers";
 
+export const dynamic = "force-dynamic";
+
 const accessLevelSchema = z.enum(["none", "read", "write"]);
 
 const pathRuleSchema = z.object({
