@@ -19,7 +19,11 @@ connection:
 
 permissions:
   default_access: none
-  paths: []
+  paths:
+    - path: /**
+      access: write
+      description: Full read-write access to entire vault for creating and updating notes
+      id: path_vault_all
   commands: []
   default_command_access: none
   tools:

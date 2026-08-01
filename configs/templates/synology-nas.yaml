@@ -20,7 +20,11 @@ connection:
 
 permissions:
   default_access: none
-  paths: []
+  paths:
+    - path: /**
+      access: write
+      description: Full read-write access to all shared folders for storing and managing files
+      id: path_nas_all
   commands: []
   default_command_access: none
   tools:

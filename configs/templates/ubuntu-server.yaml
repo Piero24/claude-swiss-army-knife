@@ -30,7 +30,11 @@ connection:
 
 permissions:
   default_access: none
-  paths: []
+  paths:
+    - path: /**
+      access: read
+      description: Full read access to entire filesystem
+      id: path_root_all
   commands:
     - pattern: systemctl status *
       access: active
