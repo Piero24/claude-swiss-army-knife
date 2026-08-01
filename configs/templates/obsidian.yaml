@@ -10,7 +10,7 @@ ui:
   sections:
     paths: true
     commands: false
-    tools: false
+    tools: true
     audit: true
 
 connection:

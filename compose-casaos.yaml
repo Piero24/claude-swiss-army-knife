@@ -77,7 +77,7 @@ services:
       - type: bind
         source: /DATA/AppData/mcps-server/logs/ubuntu
         target: /var/log/mcp
-    command: ["python", "-m", "ubuntu_mcp.server", "--config", "/app/configs/ubuntu-server.yaml"]
+    command: ["--config", "/app/configs/ubuntu-server.yaml"]
 
   # ============================================================
   # OBSIDIAN MCP — Vault file access
@@ -106,7 +106,7 @@ services:
       - type: bind
         source: /DATA/AppData/mcps-server/logs/obsidian
         target: /var/log/mcp
-    command: ["python", "-m", "obsidian_mcp.server", "--config", "/app/configs/obsidian.yaml"]
+    command: ["--config", "/app/configs/obsidian.yaml"]
 
   # ============================================================
   # SYNOLOGY MCP — NAS management via DSM API
@@ -150,7 +150,7 @@ services:
       - type: bind
         source: /DATA/AppData/mcps-server/logs/synology
         target: /var/log/mcp
-    command: ["python", "-m", "synology_mcp.server", "--config", "/app/configs/synology-nas.yaml"]
+    command: ["--config", "/app/configs/synology-nas.yaml"]
 
   # ============================================================
   # MCP WEB UI — Permission manager dashboard
@@ -218,7 +218,7 @@ services:
       - type: bind
         source: /DATA/AppData/mcps-server/logs/github
         target: /var/log/mcp
-    command: ["python", "-m", "src.server", "--config", "/app/configs/github-mcp.yaml"]
+    command: ["--config", "/app/configs/github-mcp.yaml"]
 
 x-casaos:
   architectures:
