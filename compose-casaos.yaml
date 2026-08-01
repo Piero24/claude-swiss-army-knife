@@ -7,14 +7,15 @@
 # Before starting:
 #   1. Log in to GHCR:
 #        echo "$GITHUB_TOKEN" | docker login ghcr.io -u Piero24 --password-stdin
-#   2. Create the configs directory on your host:
-#        mkdir -p /DATA/AppData/mcp/configs /DATA/AppData/mcp/logs/{ubuntu,obsidian,synology,github}
-#   3. Copy and edit config templates:
-#        cp configs/templates/users.yaml /DATA/AppData/mcp/configs/
-#        cp configs/templates/ubuntu-server.yaml /DATA/AppData/mcp/configs/
-#        cp configs/templates/obsidian.yaml /DATA/AppData/mcp/configs/
-#        cp configs/templates/synology-nas.yaml /DATA/AppData/mcp/configs/
-#        cp configs/templates/github-mcp.yaml /DATA/AppData/mcp/configs/
+#   2. Create the directory structure on your host:
+#        mkdir -p /DATA/AppData/Mcps-Server/{shared,ubuntu-server,synology-nas,obsidian,github,mcp-webui,settings}
+#        mkdir -p /DATA/AppData/Mcps-Server/logs/{ubuntu,obsidian,synology,github}
+#   3. Copy config templates into settings:
+#        cp configs/templates/users.yaml /DATA/AppData/Mcps-Server/settings/
+#        cp configs/templates/ubuntu-server.yaml /DATA/AppData/Mcps-Server/settings/
+#        cp configs/templates/obsidian.yaml /DATA/AppData/Mcps-Server/settings/
+#        cp configs/templates/synology-nas.yaml /DATA/AppData/Mcps-Server/settings/
+#        cp configs/templates/github-mcp.yaml /DATA/AppData/Mcps-Server/settings/
 #   4. Fill in env vars in the CasaOS UI or edit them below.
 #   5. Generate API keys for the Web UI:
 #        WEBUI_API_KEY=$(openssl rand -hex 32)
@@ -56,28 +57,30 @@ services:
         source: /home
         target: /mnt/host/home
       - type: bind
-        source: /var/www
-        target: /mnt/host/var/www
+        source: /DATA
+        target: /mnt/host/DATA
       - type: bind
-        source: /var/log
-        target: /mnt/host/var/log
-        read_only: true
+        source: /etc
+        target: /mnt/host/etc
       - type: bind
-        source: /etc/nginx
-        target: /mnt/host/etc/nginx
+        source: /var
+        target: /mnt/host/var
+      - type: bind
+        source: /opt
+        target: /mnt/host/opt
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
       - type: bind
-        source: /DATA/AppData/mcp/configs/ubuntu-server.yaml
+        source: /DATA/AppData/Mcps-Server/settings/ubuntu-server.yaml
         target: /app/config.yaml
         read_only: true
       - type: bind
-        source: /DATA/AppData/mcp/configs/users.yaml
+        source: /DATA/AppData/Mcps-Server/settings/users.yaml
         target: /app/users.yaml
         read_only: true
       - type: bind
-        source: /DATA/AppData/mcp/logs/ubuntu
+        source: /DATA/AppData/Mcps-Server/logs/ubuntu
         target: /var/log/mcp
 
   # ============================================================
@@ -101,18 +104,18 @@ services:
             en_us: Path to your Obsidian vault on the host. Mounted read-write so the MCP can read and edit notes.
     volumes:
       - type: bind
-        source: /DATA/obsidian-vaults
+        source: ${OBSIDIAN_LOCAL_VAULT_PATH:-/DATA/obsidian-vaults}
         target: /data/vaults
       - type: bind
-        source: /DATA/AppData/mcp/configs/obsidian.yaml
+        source: /DATA/AppData/Mcps-Server/settings/obsidian.yaml
         target: /app/config.yaml
         read_only: true
       - type: bind
-        source: /DATA/AppData/mcp/configs/users.yaml
+        source: /DATA/AppData/Mcps-Server/settings/users.yaml
         target: /app/users.yaml
         read_only: true
       - type: bind
-        source: /DATA/AppData/mcp/logs/obsidian
+        source: /DATA/AppData/Mcps-Server/logs/obsidian
         target: /var/log/mcp
 
   # ============================================================
@@ -152,15 +155,15 @@ services:
             en_us: "Base32 TOTP secret if 2FA is enabled. Copy only the secret= value from your otpauth:// URL. Leave empty if 2FA is disabled."
     volumes:
       - type: bind
-        source: /DATA/AppData/mcp/configs/synology-nas.yaml
+        source: /DATA/AppData/Mcps-Server/settings/synology-nas.yaml
         target: /app/config.yaml
         read_only: true
       - type: bind
-        source: /DATA/AppData/mcp/configs/users.yaml
+        source: /DATA/AppData/Mcps-Server/settings/users.yaml
         target: /app/users.yaml
         read_only: true
       - type: bind
-        source: /DATA/AppData/mcp/logs/synology
+        source: /DATA/AppData/Mcps-Server/logs/synology
         target: /var/log/mcp
 
   # ============================================================
@@ -191,10 +194,10 @@ services:
         protocol: tcp
     volumes:
       - type: bind
-        source: /DATA/AppData/mcp/configs
+        source: /DATA/AppData/Mcps-Server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcp/logs
+        source: /DATA/AppData/Mcps-Server/logs
         target: /var/log/mcp
         read_only: true
       - type: bind
@@ -224,15 +227,15 @@ services:
             en_us: "GitHub personal access token for API operations. Create at GitHub → Settings → Developer settings → Personal access tokens."
     volumes:
       - type: bind
-        source: /DATA/AppData/mcp/configs/github-mcp.yaml
+        source: /DATA/AppData/Mcps-Server/settings/github-mcp.yaml
         target: /app/config.yaml
         read_only: true
       - type: bind
-        source: /DATA/AppData/mcp/configs/users.yaml
+        source: /DATA/AppData/Mcps-Server/settings/users.yaml
         target: /app/users.yaml
         read_only: true
       - type: bind
-        source: /DATA/AppData/mcp/logs/github
+        source: /DATA/AppData/Mcps-Server/logs/github
         target: /var/log/mcp
 
 x-casaos:
