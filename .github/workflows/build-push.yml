@@ -58,13 +58,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Copy shared deps (MCP servers only)
-        if: matrix.service.name != 'mcp-webui'
+      - name: Copy shared deps and templates
         run: |
-          mkdir -p ${{ matrix.service.context }}/shared
-          cp -r ./mcp-servers/shared/mcp-permission-engine ${{ matrix.service.context }}/shared/mcp-permission-engine
-          if [ -d ./mcp-servers/shared/mcp-proxy ]; then
-            cp -r ./mcp-servers/shared/mcp-proxy ${{ matrix.service.context }}/shared/mcp-proxy
+          mkdir -p ${{ matrix.service.context }}/templates
+          cp -r ./configs/templates/* ${{ matrix.service.context }}/templates/
+          if [ "${{ matrix.service.name }}" != "mcp-webui" ]; then
+            mkdir -p ${{ matrix.service.context }}/shared
+            cp -r ./mcp-servers/shared/mcp-permission-engine ${{ matrix.service.context }}/shared/mcp-permission-engine
+            if [ -d ./mcp-servers/shared/mcp-proxy ]; then
+              cp -r ./mcp-servers/shared/mcp-proxy ${{ matrix.service.context }}/shared/mcp-proxy
+            fi
           fi
 
       - name: Build and push ${{ matrix.service.name }}

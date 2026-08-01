@@ -43,7 +43,46 @@ const DEFAULTS: AppSettings = {
   auditPageSize: 50,
 };
 
+async function seedDefaultTemplates(configsDir: string): Promise<void> {
+  const templateDir = "/app/templates";
+  try {
+    await fs.mkdir(configsDir, { recursive: true });
+    // Seed settings.json if missing
+    const settingsFile = path.join(configsDir, "settings.json");
+    try {
+      await fs.access(settingsFile);
+    } catch {
+      const templateSettings = path.join(templateDir, "settings.json");
+      try {
+        await fs.copyFile(templateSettings, settingsFile);
+      } catch {
+        await fs.writeFile(settingsFile, JSON.stringify(DEFAULTS, null, 2), "utf-8");
+      }
+    }
+
+    // Seed YAML templates if missing
+    try {
+      const files = await fs.readdir(templateDir);
+      for (const file of files) {
+        if (!file.endsWith(".yaml")) continue;
+        const targetPath = path.join(configsDir, file);
+        try {
+          await fs.access(targetPath);
+        } catch {
+          await fs.copyFile(path.join(templateDir, file), targetPath);
+        }
+      }
+    } catch {
+      /* template dir missing */
+    }
+  } catch {
+    /* configsDir creation failed */
+  }
+}
+
 async function load(): Promise<AppSettings> {
+  const configsDir = process.env.CONFIGS_PATH || "/app/configs";
+  await seedDefaultTemplates(configsDir);
   try {
     const raw = await fs.readFile(SETTINGS_PATH, "utf-8");
     return settingsSchema.parse(JSON.parse(raw));
@@ -54,6 +93,7 @@ async function load(): Promise<AppSettings> {
 
 async function discoverServers(): Promise<Array<{ name: string; label: string; icon: string }>> {
   const configsDir = process.env.CONFIGS_PATH || "/app/configs";
+  await seedDefaultTemplates(configsDir);
   const { default: yaml } = await import("js-yaml");
   const map: Record<string, { label: string; icon: string }> = {
     "ubuntu-server": { label: "Ubuntu Server", icon: "🖥" },

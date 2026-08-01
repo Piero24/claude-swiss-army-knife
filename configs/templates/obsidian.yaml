@@ -1,24 +1,24 @@
 # Obsidian MCP — Permission Configuration Template
-# Copy to configs/obsidian.yaml and customize for your environment.
-
 server:
   name: obsidian-mcp
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
 
-# Local vault path (mounted via docker-compose)
+ui:
+  label: Obsidian
+  icon: "📝"
+  sections:
+    paths: true
+    commands: false
+    tools: false
+    audit: true
+
 connection:
   local:
     vault_path: /data/vaults
 
 permissions:
-  # Default: deny all paths
   default_access: none
-
   paths: []
-    # Run a scan from the Web UI to auto-discover folders.
-    # Or add path rules manually — glob patterns supported (e.g. /Projects/**).
-
-  # Obsidian MCP has no commands
   commands: []
   default_command_access: none

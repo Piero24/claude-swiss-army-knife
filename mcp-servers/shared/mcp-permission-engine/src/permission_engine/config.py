@@ -89,11 +89,28 @@ class ConfigLoader:
 
                     shutil.copy(template_found, config_path)
                 except Exception:
+                    pass
+
+            if not config_path.exists():
+                try:
+                    config_path.parent.mkdir(parents=True, exist_ok=True)
+                    default_data = {
+                        "server": {
+                            "name": config_path.stem,
+                            "log_level": "INFO",
+                        },
+                        "permissions": {
+                            "default_access": "none",
+                            "paths": [],
+                            "commands": [],
+                        },
+                    }
+                    with open(config_path, "w") as f:
+                        yaml.safe_dump(default_data, f)
+                except Exception:
                     raise FileNotFoundError(
                         f"Config file not found: {config_path}"
                     )
-            else:
-                raise FileNotFoundError(f"Config file not found: {config_path}")
 
         with open(config_path, "r") as f:
             raw = yaml.safe_load(f)

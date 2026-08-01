@@ -9,6 +9,15 @@ server:
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
 
+ui:
+  label: "Ubuntu Server"
+  icon: "🖥"
+  sections:
+    paths: true
+    commands: true
+    tools: false
+    audit: true
+
 connection:
   mode: local
   local:

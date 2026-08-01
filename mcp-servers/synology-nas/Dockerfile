@@ -12,6 +12,7 @@ WORKDIR /app
 # Copy source and install
 COPY pyproject.toml .
 COPY src/ ./src/
+COPY templates/ /app/templates/
 RUN pip install --no-cache-dir -e .
 
 ENTRYPOINT ["python", "-m", "synology_mcp"]

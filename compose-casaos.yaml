@@ -8,14 +8,14 @@
 #   1. Log in to GHCR:
 #        echo "$GITHUB_TOKEN" | docker login ghcr.io -u Piero24 --password-stdin
 #   2. Create the directory structure on your host:
-#        mkdir -p /DATA/AppData/mcps-Server/{shared,ubuntu-server,synology-nas,obsidian,github,mcp-webui,settings}
-#        mkdir -p /DATA/AppData/mcps-Server/logs/{ubuntu,obsidian,synology,github}
+#        mkdir -p /DATA/AppData/mcps-server/{shared,ubuntu-server,synology-nas,obsidian,github,mcp-webui,settings}
+#        mkdir -p /DATA/AppData/mcps-server/logs/{ubuntu,obsidian,synology,github}
 #   3. Copy config templates into settings:
-#        cp configs/templates/users.yaml /DATA/AppData/mcps-Server/settings/
-#        cp configs/templates/ubuntu-server.yaml /DATA/AppData/mcps-Server/settings/
-#        cp configs/templates/obsidian.yaml /DATA/AppData/mcps-Server/settings/
-#        cp configs/templates/synology-nas.yaml /DATA/AppData/mcps-Server/settings/
-#        cp configs/templates/github-mcp.yaml /DATA/AppData/mcps-Server/settings/
+#        cp configs/templates/users.yaml /DATA/AppData/mcps-server/settings/
+#        cp configs/templates/ubuntu-server.yaml /DATA/AppData/mcps-server/settings/
+#        cp configs/templates/obsidian.yaml /DATA/AppData/mcps-server/settings/
+#        cp configs/templates/synology-nas.yaml /DATA/AppData/mcps-server/settings/
+#        cp configs/templates/github-mcp.yaml /DATA/AppData/mcps-server/settings/
 #   4. Fill in env vars in the CasaOS UI or edit them below.
 #   5. Generate API keys for the Web UI:
 #        WEBUI_API_KEY=$(openssl rand -hex 32)
@@ -72,10 +72,10 @@ services:
         source: /var/run/docker.sock
         target: /var/run/docker.sock
       - type: bind
-        source: /DATA/AppData/mcps-Server/settings
+        source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcps-Server/logs/ubuntu
+        source: /DATA/AppData/mcps-server/logs/ubuntu
         target: /var/log/mcp
     command: ["python", "-m", "ubuntu_mcp.server", "--config", "/app/configs/ubuntu-server.yaml"]
 
@@ -101,10 +101,10 @@ services:
         source: ${OBSIDIAN_LOCAL_VAULT_PATH:-/DATA/obsidian-vaults}
         target: /data/vaults
       - type: bind
-        source: /DATA/AppData/mcps-Server/settings
+        source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcps-Server/logs/obsidian
+        source: /DATA/AppData/mcps-server/logs/obsidian
         target: /var/log/mcp
     command: ["python", "-m", "obsidian_mcp.server", "--config", "/app/configs/obsidian.yaml"]
 
@@ -145,10 +145,10 @@ services:
             en_us: "Base32 TOTP secret if 2FA is enabled. Copy only the secret= value from your otpauth:// URL. Leave empty if 2FA is disabled."
     volumes:
       - type: bind
-        source: /DATA/AppData/mcps-Server/settings
+        source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcps-Server/logs/synology
+        source: /DATA/AppData/mcps-server/logs/synology
         target: /var/log/mcp
     command: ["python", "-m", "synology_mcp.server", "--config", "/app/configs/synology-nas.yaml"]
 
@@ -180,10 +180,10 @@ services:
         protocol: tcp
     volumes:
       - type: bind
-        source: /DATA/AppData/mcps-Server/settings
+        source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcps-Server/logs
+        source: /DATA/AppData/mcps-server/logs
         target: /var/log/mcp
         read_only: true
       - type: bind
@@ -213,10 +213,10 @@ services:
             en_us: "GitHub personal access token for API operations. Create at GitHub → Settings → Developer settings → Personal access tokens."
     volumes:
       - type: bind
-        source: /DATA/AppData/mcps-Server/settings
+        source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcps-Server/logs/github
+        source: /DATA/AppData/mcps-server/logs/github
         target: /var/log/mcp
     command: ["python", "-m", "src.server", "--config", "/app/configs/github-mcp.yaml"]
 
