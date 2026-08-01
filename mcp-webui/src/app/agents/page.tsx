@@ -141,12 +141,6 @@ export default function AgentsPage() {
   }
 
   async function generateKey() {
-    // crypto.subtle requires a secure context (HTTPS or localhost)
-    if (!crypto.subtle) {
-      toast.error("Secure context required for key generation. Use HTTPS or localhost.");
-      return;
-    }
-
     try {
       const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
       const array = new Uint8Array(32);
@@ -163,11 +157,17 @@ export default function AgentsPage() {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
 
-      // Hash salt + secret together
-      const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + secret));
-      const hex = Array.from(new Uint8Array(hash))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
+      // Hash salt + secret — use native crypto when available, pure-JS fallback otherwise
+      let hex: string;
+      if (crypto.subtle) {
+        const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + secret));
+        hex = Array.from(new Uint8Array(hash))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      } else {
+        const { sha256hex } = await import("@/lib/sha256-fallback");
+        hex = sha256hex(salt + secret);
+      }
 
       setNewUser((prev) => ({ ...prev, key: `sha256$${salt}$${hex}` }));
       setGeneratedSecret(secret);
