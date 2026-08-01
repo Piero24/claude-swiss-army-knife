@@ -1,6 +1,6 @@
 # Obsidian MCP — Permission Configuration Template
 server:
-  name: obsidian-mcp
+  name: obsidian
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
 
@@ -22,3 +22,66 @@ permissions:
   paths: []
   commands: []
   default_command_access: none
+  tools:
+    - pattern: obsidian_list_vault
+      access: active
+      description: >-
+        Browse the vault directory tree. Use this to explore your knowledge
+        base structure, find notes by folder, or discover what topics and
+        documents exist before reading them.
+      id: tool_0_listvault
+    - pattern: obsidian_read_note
+      access: active
+      description: >-
+        Read a note's full content including parsed YAML frontmatter and body.
+        Use this whenever you need to retrieve stored information from the
+        knowledge base.
+      id: tool_1_readnote
+    - pattern: obsidian_write_note
+      access: none
+      description: >-
+        Create a new note or update an existing one. DESTRUCTIVE — enable only
+        when you need to create or edit documents.
+      id: tool_2_writenote
+    - pattern: obsidian_delete_note
+      access: none
+      description: >-
+        Soft-delete a note by moving it to .trash, or permanently delete it.
+        DESTRUCTIVE — enable only when you need to remove documents.
+      id: tool_3_deletenote
+    - pattern: obsidian_search_notes
+      access: active
+      description: >-
+        Full-text search across all notes in the vault using ripgrep, with
+        optional regex support. Use this to find information by keyword, phrase,
+        or pattern.
+      id: tool_4_search
+    - pattern: obsidian_search_by_tag
+      access: active
+      description: >-
+        Find every note that has a specific frontmatter tag. Use this to
+        discover related documents, explore a topic cluster, or navigate
+        your knowledge graph.
+      id: tool_5_bytag
+    - pattern: obsidian_get_backlinks
+      access: active
+      description: >-
+        Find all notes that link to a target note via [[wikilinks]]. Use this
+        to see how documents connect, trace idea origins, or explore the graph
+        of references between notes.
+      id: tool_6_backlinks
+    - pattern: obsidian_get_tags
+      access: active
+      description: >-
+        List every unique tag used across the entire vault. Use this to get
+        an overview of your knowledge taxonomy and discover available topic
+        areas.
+      id: tool_7_gettags
+    - pattern: obsidian_get_frontmatter
+      access: active
+      description: >-
+        Read only the YAML frontmatter of a note without loading the full body.
+        Use this to quickly check metadata like tags, dates, or status without
+        pulling the entire document.
+      id: tool_8_frontmatter
+  default_tool_access: none
