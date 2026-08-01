@@ -1,7 +1,7 @@
 """Folder discovery for Synology NAS — called via `python -m synology_mcp discover`.
 
 Reads NAS credentials from its own environment (safe — never leaves container).
-Performs BFS traversal of shared folders via DSM API, prints JSON to stdout.
+Performs full recursive BFS traversal of shared folders via DSM API, prints JSON to stdout.
 Supports cancellation via a sentinel file to match the web UI cancel pattern.
 
 Usage:
