@@ -1,15 +1,36 @@
 # compose-casaos.yaml — MCP Stack for CasaOS
 #
-# Images are built and pushed to ghcr.io automatically when a PR is merged to main
+# Images are built and pushed to ghcr.io automatically when code is merged to main
 # (.github/workflows/build-push.yml). CasaOS detects new image digests and shows
 # an update button on each app icon in the home screen — one click to pull + restart.
 #
-# Before starting:
-#   1. Log in to GHCR:
-#        echo "$GITHUB_TOKEN" | docker login ghcr.io -u Piero24 --password-stdin
-#   2. Create the directory structure on your host:
+# Packages are PRIVATE on GHCR. You need a Personal Access Token so CasaOS can pull.
+# This is a one-time setup per host:
+#
+#   1. Create a GitHub Personal Access Token (classic):
+#      → https://github.com/settings/tokens/new
+#      → Give it a name like "CasaOS GHCR pull"
+#      → Expiration: whatever you prefer (you'll need to re-login when it expires)
+#      → Scope: ONLY check "read:packages" — that's all it needs
+#      → Click "Generate token" and copy the value (starts with ghp_...)
+#
+#   2. SSH into your CasaOS host and log Docker into GHCR:
+#        echo "ghp_YOUR_TOKEN_HERE" | docker login ghcr.io -u Piero24 --password-stdin
+#
+#      This stores the credential in /root/.docker/config.json.
+#      CasaOS talks to the Docker daemon over the socket — the daemon uses
+#      this credential automatically for manifest checks AND image pulls.
+#
+#   3. Verify it works:
+#        docker pull ghcr.io/piero24/ubuntu-mcp:latest
+#
+#   The token only needs read:packages scope — it can pull images and read
+#   manifests (for the update button) but can't push or delete anything.
+#   When the token expires, just repeat step 1-2 with a new one.
+#
+# Before starting on the host:
 #        mkdir -p /DATA/AppData/mcps-server/{shared,ubuntu-server,synology-nas,obsidian,github,mcp-webui,settings}
-#        mkdir -p /DATA/AppData/mcps-server/logs/{ubuntu,obsidian,synology,github}
+#        mkdir -p /DATA/AppData/mcps-server/logs/{ubuntu-server,obsidian,synology-nas,github-mcp}
 #   3. Copy config templates into settings:
 #        cp configs/templates/users.yaml /DATA/AppData/mcps-server/settings/
 #        cp configs/templates/ubuntu-server.yaml /DATA/AppData/mcps-server/settings/
@@ -76,7 +97,7 @@ services:
         source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcps-server/logs/ubuntu
+        source: /DATA/AppData/mcps-server/logs/ubuntu-server
         target: /var/log/mcp
     command: ["--config", "/app/configs/ubuntu-server.yaml"]
 
@@ -151,7 +172,7 @@ services:
         source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcps-server/logs/synology
+        source: /DATA/AppData/mcps-server/logs/synology-nas
         target: /var/log/mcp
     command: ["--config", "/app/configs/synology-nas.yaml"]
 
@@ -221,7 +242,7 @@ services:
         source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
-        source: /DATA/AppData/mcps-server/logs/github
+        source: /DATA/AppData/mcps-server/logs/github-mcp
         target: /var/log/mcp
     command: ["--config", "/app/configs/github-mcp.yaml"]
 

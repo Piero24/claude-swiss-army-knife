@@ -28,7 +28,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
-      - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu:/var/log/mcp
+      - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu-server:/var/log/mcp
     environment:
       - UBUNTU_REMOTE_HOST=${UBUNTU_REMOTE_HOST:-}
       - UBUNTU_REMOTE_PORT=${UBUNTU_REMOTE_PORT:-22}
@@ -64,7 +64,7 @@ services:
     volumes:
       - ./configs/synology-nas.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
-      - ${MCP_LOG_DIR:-/var/log/mcp}/synology:/var/log/mcp
+      - ${MCP_LOG_DIR:-/var/log/mcp}/synology-nas:/var/log/mcp
     environment:
       - SYNOLOGY_NAS_HOST=${SYNOLOGY_NAS_HOST}
       - SYNOLOGY_NAS_PORT=${SYNOLOGY_NAS_PORT}
@@ -111,7 +111,7 @@ services:
     volumes:
       - ./configs/github-mcp.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
-      - ${MCP_LOG_DIR:-/var/log/mcp}/github:/var/log/mcp
+      - ${MCP_LOG_DIR:-/var/log/mcp}/github-mcp:/var/log/mcp
     environment:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN:-}
     stdin_open: true

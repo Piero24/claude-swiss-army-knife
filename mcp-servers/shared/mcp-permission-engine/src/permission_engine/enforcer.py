@@ -100,6 +100,7 @@ class PermissionEnforcer:
         "ubuntu-mcp": "ubuntu-server",
         "obsidian-mcp": "obsidian",
         "synology-mcp": "synology-nas",
+        "github-mcp": "github-mcp",
     }
 
     def is_server_enabled(self, settings_dir: str = "/app/configs") -> bool:
