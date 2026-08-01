@@ -95,8 +95,6 @@ services:
     container_name: obsidian-mcp
     stdin_open: true
     restart: unless-stopped
-    environment:
-      OBSIDIAN_LOCAL_VAULT_PATH: /DATA/obsidian-vaults
     x-casaos:
       envs:
         - container: OBSIDIAN_LOCAL_VAULT_PATH

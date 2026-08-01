@@ -9,7 +9,7 @@ server:
 # Local vault path (mounted via docker-compose)
 connection:
   local:
-    vault_path: ${OBSIDIAN_LOCAL_VAULT_PATH:-/data/vaults}
+    vault_path: /data/vaults
 
 permissions:
   # Default: deny all paths
