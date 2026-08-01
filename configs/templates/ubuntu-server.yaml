@@ -15,7 +15,7 @@ ui:
   sections:
     paths: true
     commands: true
-    tools: false
+    tools: true
     audit: true
 
 connection:
