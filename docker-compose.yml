@@ -28,13 +28,10 @@ services:
       - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu:/var/log/mcp
-      # SSH key for remote mode
-      - ${UBUNTU_REMOTE_KEY:-~/.ssh/id_ed25519}:/app/keys/ssh_key:ro
     environment:
       - UBUNTU_REMOTE_HOST=${UBUNTU_REMOTE_HOST:-}
       - UBUNTU_REMOTE_PORT=${UBUNTU_REMOTE_PORT:-22}
       - UBUNTU_REMOTE_USER=${UBUNTU_REMOTE_USER:-}
-      - UBUNTU_REMOTE_KEY=${UBUNTU_REMOTE_KEY:-}
     pid: "host"
     network_mode: "host"
     stdin_open: true

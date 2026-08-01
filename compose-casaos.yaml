@@ -1,21 +1,24 @@
 # compose-casaos.yaml — MCP Stack for CasaOS
 #
+# Images are built and pushed to ghcr.io automatically when a PR is merged to main
+# (.github/workflows/build-push.yml). CasaOS detects new image digests and shows
+# an update button on each app icon in the home screen — one click to pull + restart.
+#
 # Before starting:
-#   1. Create the configs directory on your host:
+#   1. Log in to GHCR:
+#        echo "$GITHUB_TOKEN" | docker login ghcr.io -u Piero24 --password-stdin
+#   2. Create the configs directory on your host:
 #        mkdir -p /DATA/AppData/mcp/configs /DATA/AppData/mcp/logs/{ubuntu,obsidian,synology,github}
-#   2. Copy and edit config templates:
+#   3. Copy and edit config templates:
 #        cp configs/templates/users.yaml /DATA/AppData/mcp/configs/
 #        cp configs/templates/ubuntu-server.yaml /DATA/AppData/mcp/configs/
 #        cp configs/templates/obsidian.yaml /DATA/AppData/mcp/configs/
 #        cp configs/templates/synology-nas.yaml /DATA/AppData/mcp/configs/
 #        cp configs/templates/github-mcp.yaml /DATA/AppData/mcp/configs/
-#   3. Fill in env vars in the CasaOS UI or edit them below.
-#   4. Generate API keys for the Web UI:
+#   4. Fill in env vars in the CasaOS UI or edit them below.
+#   5. Generate API keys for the Web UI:
 #        WEBUI_API_KEY=$(openssl rand -hex 32)
 #        WEBUI_AUTH_SECRET=$(openssl rand -hex 32)
-#
-# Services are built from local Dockerfiles on first start.
-# Set image: tags to pull from a registry instead of building locally.
 
 name: mcp-stack
 services:
@@ -27,25 +30,25 @@ services:
       context: ./mcp-servers/ubuntu-server
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-    image: ubuntu-mcp:latest
+    image: ghcr.io/piero24/ubuntu-mcp:latest
     container_name: ubuntu-mcp
     stdin_open: true
     restart: unless-stopped
     pid: "host"
     network_mode: "host"
     environment:
-      UBUNTU_SERVER_HOST: ""
-      UBUNTU_SERVER_SSH_PORT: "22"
-      UBUNTU_SERVER_USER: ""
+      UBUNTU_REMOTE_HOST: ""
+      UBUNTU_REMOTE_PORT: "22"
+      UBUNTU_REMOTE_USER: ""
     x-casaos:
       envs:
-        - container: UBUNTU_SERVER_HOST
+        - container: UBUNTU_REMOTE_HOST
           description:
             en_us: Hostname or IP of the Ubuntu server to manage.
-        - container: UBUNTU_SERVER_SSH_PORT
+        - container: UBUNTU_REMOTE_PORT
           description:
             en_us: SSH port on the target server (default 22).
-        - container: UBUNTU_SERVER_USER
+        - container: UBUNTU_REMOTE_USER
           description:
             en_us: SSH username for connecting to the target server.
     volumes:
@@ -85,7 +88,7 @@ services:
       context: ./mcp-servers/obsidian
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-    image: obsidian-mcp:latest
+    image: ghcr.io/piero24/obsidian-mcp:latest
     container_name: obsidian-mcp
     stdin_open: true
     restart: unless-stopped
@@ -120,7 +123,7 @@ services:
       context: ./mcp-servers/synology-nas
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-    image: synology-mcp:latest
+    image: ghcr.io/piero24/synology-mcp:latest
     container_name: synology-mcp
     stdin_open: true
     restart: unless-stopped
@@ -166,7 +169,7 @@ services:
   mcp-webui:
     build:
       context: ./mcp-webui
-    image: mcp-webui:latest
+    image: ghcr.io/piero24/mcp-webui:latest
     container_name: mcp-webui
     restart: unless-stopped
     environment:
@@ -208,7 +211,7 @@ services:
       args:
         PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
         PROXY_PATH: shared/mcp-proxy
-    image: github-mcp:latest
+    image: ghcr.io/piero24/github-mcp:latest
     container_name: github-mcp
     stdin_open: true
     restart: unless-stopped
