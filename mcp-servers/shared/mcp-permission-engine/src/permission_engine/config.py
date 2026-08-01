@@ -63,7 +63,6 @@ class ConfigLoader:
         config_path = config_path.resolve()
 
         if not config_path.exists():
-            config_path.parent.mkdir(parents=True, exist_ok=True)
             template_name = config_path.name
             template_locations = [
                 config_path.parent / "templates" / template_name,
@@ -74,26 +73,27 @@ class ConfigLoader:
                 Path("/app/configs/templates") / template_name,
                 Path("/app/templates") / template_name,
             ]
-            copied = False
+            template_found = None
             for t_path in template_locations:
-                if t_path.exists():
+                try:
+                    if t_path.exists():
+                        template_found = t_path
+                        break
+                except Exception:
+                    pass
+
+            if template_found:
+                try:
+                    config_path.parent.mkdir(parents=True, exist_ok=True)
                     import shutil
 
-                    shutil.copy(t_path, config_path)
-                    copied = True
-                    break
-            if not copied:
-                default_data = {
-                    "server": {"name": config_path.stem, "log_level": "INFO"},
-                    "connection": {"mode": "local"},
-                    "permissions": {
-                        "default_access": "none",
-                        "paths": [],
-                        "commands": [],
-                    },
-                }
-                with open(config_path, "w") as f:
-                    yaml.safe_dump(default_data, f)
+                    shutil.copy(template_found, config_path)
+                except Exception:
+                    raise FileNotFoundError(
+                        f"Config file not found: {config_path}"
+                    )
+            else:
+                raise FileNotFoundError(f"Config file not found: {config_path}")
 
         with open(config_path, "r") as f:
             raw = yaml.safe_load(f)
