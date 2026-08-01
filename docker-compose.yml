@@ -19,14 +19,19 @@ services:
     image: ubuntu-mcp:${UBUNTU_MCP_IMAGE_TAG:-latest}
     container_name: ${UBUNTU_MCP_CONTAINER:-ubuntu-mcp}
     volumes:
-      - /home:/mnt/host/home:rw
-      - /var/www:/mnt/host/var/www:rw
-      - /var/log:/mnt/host/var/log:ro
-      - /etc/nginx:/mnt/host/etc/nginx:rw
+      # Host mounts (Linux only — ignored on macOS when using remote mode)
+      - ${UBUNTU_HOST_HOME:-ubuntu-home-dummy}:/mnt/host/home:rw
+      - ${UBUNTU_HOST_WWW:-ubuntu-www-dummy}:/mnt/host/var/www:rw
+      - ${UBUNTU_HOST_LOG:-ubuntu-log-dummy}:/mnt/host/var/log:ro
+      - ${UBUNTU_HOST_NGINX:-ubuntu-nginx-dummy}:/mnt/host/etc/nginx:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu:/var/log/mcp
+    environment:
+      - UBUNTU_REMOTE_HOST=${UBUNTU_REMOTE_HOST:-}
+      - UBUNTU_REMOTE_PORT=${UBUNTU_REMOTE_PORT:-22}
+      - UBUNTU_REMOTE_USER=${UBUNTU_REMOTE_USER:-}
     pid: "host"
     network_mode: "host"
     stdin_open: true
@@ -40,7 +45,7 @@ services:
     image: obsidian-mcp:${OBSIDIAN_MCP_IMAGE_TAG:-latest}
     container_name: ${OBSIDIAN_MCP_CONTAINER:-obsidian-mcp}
     volumes:
-      # Vault mount: use host path when set, empty volume otherwise (for remote/livesync modes)
+      # Vault mount: use host path when set, empty volume otherwise (for remote mode)
       - ${OBSIDIAN_LOCAL_VAULT_PATH:-obsidian-vault-data}:/data/vaults:rw
       - ./configs/obsidian.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
@@ -115,3 +120,7 @@ services:
 
 volumes:
   obsidian-vault-data:
+  ubuntu-home-dummy:
+  ubuntu-www-dummy:
+  ubuntu-log-dummy:
+  ubuntu-nginx-dummy:

@@ -9,6 +9,16 @@ server:
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
 
+connection:
+  mode: local
+  local:
+    mount_prefix: /mnt/host
+  remote:
+    host: ${UBUNTU_REMOTE_HOST:-}
+    port: ${UBUNTU_REMOTE_PORT:-22}
+    user: ${UBUNTU_REMOTE_USER:-}
+    key: ${UBUNTU_REMOTE_KEY:-/app/keys/ssh_key}
+
 permissions:
   # Default: deny all paths
   default_access: none
@@ -28,13 +38,13 @@ permissions:
       access: write
       description: "Web root — read + write"
 
-    # ---- Home directory (read-only) ----
-    - path: /home/${UBUNTU_SERVER_USER:-user}/**
+    # ---- Home directories (read-only, auto-discovered) ----
+    - path: /home/**
       access: read
-      description: "Home directory"
+      description: "Home directories"
 
     # ---- Explicitly deny SSH keys ----
-    - path: /home/${UBUNTU_SERVER_USER:-user}/.ssh/**
+    - path: /home/*/.ssh/**
       access: none
       description: "SSH keys — always denied"
 

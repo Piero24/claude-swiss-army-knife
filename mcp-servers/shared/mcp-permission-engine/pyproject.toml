@@ -9,7 +9,7 @@ description = "Shared permission engine for MCP servers — config-driven access
 requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
-    {name = "apietrobon"}
+    {name = "Piero24"}
 ]
 dependencies = [
     "pydantic>=2.0",

@@ -1,50 +1,18 @@
 """Tool: execute a shell command with allowlist enforcement."""
 
-import asyncio
-import shlex
-
-from permission_engine import ForbiddenError, PermissionEnforcer
+from permission_engine import PermissionEnforcer
 
 
 async def execute(
-    args: dict, enforcer: PermissionEnforcer, name: str = ""
+    args: dict, enforcer: PermissionEnforcer, host, name: str = ""
 ) -> dict:
-    """Execute a shell command on the host.
-
-    Args:
-        args: {"command": str, "timeout?": int}
-        enforcer: Permission enforcer.
-
-    Returns:
-        {"stdout": str, "stderr": str, "exit_code": int}
-    """
     command = args["command"]
     timeout = args.get("timeout", 30)
-
-    # Validate against command allowlist
     enforcer.check_command(command, tool=name)
-
-    try:
-        process = await asyncio.create_subprocess_shell(
-            command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(), timeout=timeout
-        )
-    except asyncio.TimeoutError:
-        return {
-            "error": f"Command timed out after {timeout}s",
-            "command": command,
-            "stdout": "",
-            "stderr": "",
-            "exit_code": -1,
-        }
-
+    result = await host.run_command(command, timeout=timeout)
     return {
-        "stdout": stdout.decode("utf-8", errors="replace"),
-        "stderr": stderr.decode("utf-8", errors="replace"),
-        "exit_code": process.returncode,
+        "stdout": result["stdout"],
+        "stderr": result["stderr"],
+        "exit_code": result["exit_code"],
         "command": command,
     }

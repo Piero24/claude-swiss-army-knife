@@ -19,7 +19,7 @@ from mcp.types import Tool, TextContent
 from permission_engine import BaseMCPServer
 
 from .config_watcher import watch_config
-from .path_mapper import PathMapper
+from .host_access import HostAccess, create_host_access
 from .tools import (
     append_file,
     docker_mgmt,
@@ -33,15 +33,28 @@ from .tools import (
 
 logger = logging.getLogger("ubuntu-mcp")
 
-# Mount prefix inside the container
-MOUNT_PREFIX = "/mnt/host"
-
 
 class UbuntuServer(BaseMCPServer):
 
     def __init__(self, config_path: str):
         super().__init__("ubuntu-mcp", config_path)
-        self.path_mapper = PathMapper(MOUNT_PREFIX)
+        # Read config for connection settings
+        config = {}
+        try:
+            import yaml, re
+
+            with open(config_path, "r") as f:
+                raw = f.read()
+
+            def _sub(m):
+                var, _, default = m.group(1).partition(":-")
+                return os.environ.get(var, default) or default
+
+            raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
+            config = yaml.safe_load(raw) or {}
+        except Exception:
+            pass
+        self.host: HostAccess = create_host_access(config)
         self.setup()
 
     def setup(self):
@@ -251,50 +264,52 @@ class UbuntuServer(BaseMCPServer):
         match name:
             case "ubuntu_read_file":
                 return await read_file.read_file(
-                    arguments, self.enforcer, MOUNT_PREFIX, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_write_file":
                 return await write_file.write_file(
-                    arguments, self.enforcer, MOUNT_PREFIX, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_append_file":
                 return await append_file.append_file(
-                    arguments, self.enforcer, MOUNT_PREFIX, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_list_dir":
                 return await list_dir.list_dir(
-                    arguments, self.enforcer, MOUNT_PREFIX, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_exec":
-                return await execute.execute(arguments, self.enforcer, name)
+                return await execute.execute(
+                    arguments, self.enforcer, self.host, name
+                )
             case "ubuntu_system_info":
                 return await system_info.system_info(arguments)
             case "ubuntu_service_status":
                 return await service.service_status(
-                    arguments, self.enforcer, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_service_manage":
                 return await service.service_manage(
-                    arguments, self.enforcer, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_docker_ps":
                 return await docker_mgmt.docker_ps(
-                    arguments, self.enforcer, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_docker_logs":
                 return await docker_mgmt.docker_logs(
-                    arguments, self.enforcer, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_docker_restart":
                 return await docker_mgmt.docker_restart(
-                    arguments, self.enforcer, name
+                    arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_journalctl":
-                return await self._journalctl(arguments, name)
+                return await self._journalctl(arguments, self.host, name)
             case _:
                 raise ValueError(f"Unknown tool: {name}")
 
-    async def _journalctl(self, args: dict, name: str = "") -> dict:
+    async def _journalctl(self, args: dict, host, name: str = "") -> dict:
         """Query systemd journal."""
         unit = args.get("unit", "")
         lines = args.get("lines", 50)
@@ -309,7 +324,7 @@ class UbuntuServer(BaseMCPServer):
 
         self.enforcer.check_command("journalctl *", name)
         result = await execute.execute(
-            {"command": cmd, "timeout": 15}, self.enforcer, name
+            {"command": cmd, "timeout": 15}, self.enforcer, host, name
         )
         return {
             "query": cmd,

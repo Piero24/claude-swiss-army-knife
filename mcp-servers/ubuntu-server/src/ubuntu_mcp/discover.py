@@ -1,7 +1,9 @@
 """Folder discovery for Ubuntu Server — called via `python -m ubuntu_mcp discover`.
 
-Walks mounted host paths under /mnt/host and prints folder paths as JSON to stdout.
-No credentials needed — purely filesystem-based.
+In local mode: walks mounted host paths under /mnt/host (BFS, unlimited depth).
+In remote mode: uses SSH to walk the full server filesystem (BFS, unlimited depth).
+
+Respects exclude patterns from the web UI settings.
 
 Usage:
     python -m ubuntu_mcp discover
@@ -9,16 +11,35 @@ Usage:
 """
 
 import argparse
+import asyncio
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
-HOST_MOUNT = "/mnt/host"
+import yaml
+
+from .host_access import create_host_access, HostAccess
+
 CANCEL_FILE = "/tmp/scan-cancel"
 
-# Directories under /mnt/host that are mounted (from docker-compose)
-DEFAULT_ROOTS = ["home", "var/www", "var/log", "etc/nginx"]
+# Roots for LOCAL mode (bind-mount paths in docker-compose)
+LOCAL_ROOTS = ["home", "var/www", "var/log", "etc/nginx"]
 
+# Roots for REMOTE mode (common server directories)
+REMOTE_ROOTS = [
+    "/home",
+    "/var/www",
+    "/var/log",
+    "/opt",
+    "/srv",
+    "/DATA",
+    "/ROMS",
+    "/etc/nginx",
+]
+
+# These are also excluded by the web UI, but kept as fallback
 EXCLUDES = {
     ".venv",
     "venv",
@@ -36,82 +57,111 @@ EXCLUDES = {
     ".env",
     ".ssh",
     ".gnupg",
-    ".ssh/",
-    ".gnupg/",
 }
 
 
-def discover_folders(
-    mount_prefix: str, roots: list[str], max_depth: int = 3
-) -> list[str]:
-    """Walk mount points and return discovered folder paths.
+def _name_from_path(p: str) -> str:
+    return p.split("/").filter(None).pop() or p
 
-    Args:
-        mount_prefix: Base path where host directories are mounted.
-        roots: Subdirectories under mount_prefix to scan.
-        max_depth: Maximum depth relative to each root.
 
-    Returns:
-        List of folder paths (e.g. ['/home/user', '/var/www/html', '/var/log/nginx']).
-    """
+def is_excluded(name: str) -> bool:
+    """Check if a folder name should be excluded. Supports wildcard patterns."""
+    for pat in EXCLUDES:
+        if pat.startswith("*."):
+            if name.endswith(pat[1:]):
+                return True
+        elif name == pat:
+            return True
+    return False
+
+
+def discover_local(mount_prefix: str, roots: list[str]) -> list[str]:
+    """BFS walk of mounted host paths — no depth limit."""
     mount = Path(mount_prefix)
     if not mount.exists():
         print(json.dumps({"error": f"Mount path not found: {mount_prefix}"}))
         sys.exit(1)
 
-    folders: list[str] = []
+    all_folders: list[str] = []
 
     for root in roots:
         root_path = mount / root
         if not root_path.exists():
             continue
+        all_folders.append(f"/{root}")
+        current_level = [root_path]
 
-        folders.append(f"/{root}")
+        while current_level:
+            if Path(CANCEL_FILE).exists():
+                return all_folders
 
-        def walk(current: Path, depth: int) -> None:
-            if depth > max_depth:
-                return
-            try:
-                for entry in sorted(current.iterdir()):
-                    if not entry.is_dir():
+            next_level: list[Path] = []
+            for directory in current_level:
+                try:
+                    for entry in sorted(directory.iterdir()):
+                        if not entry.is_dir():
+                            continue
+                        name = entry.name
+                        if name.startswith(".") or is_excluded(name):
+                            continue
+                        if entry.is_symlink():
+                            continue
+                        rel = "/" + str(entry.relative_to(mount))
+                        all_folders.append(rel)
+                        next_level.append(entry)
+                except PermissionError:
+                    pass
+            current_level = next_level
+
+    return all_folders
+
+
+async def discover_remote(
+    backend: HostAccess, roots: list[str], max_depth: int = 5
+) -> list[str]:
+    """BFS walk of remote server filesystem via SSH."""
+    all_folders: list[str] = []
+
+    async def list_dir_safe(path: str) -> list[dict]:
+        try:
+            return await backend.list_dir(path)
+        except Exception:
+            return []
+
+    for root in roots:
+        all_folders.append(root)
+        current_level = [root]
+        depth = 1
+
+        while current_level and depth < max_depth:
+            next_level: list[str] = []
+            for directory in current_level:
+                entries = await list_dir_safe(directory)
+                for entry in entries:
+                    if not entry.get("is_dir"):
                         continue
-                    if entry.name.startswith(".") or entry.name in EXCLUDES:
+                    name = entry["name"]
+                    if name.startswith(".") or is_excluded(name):
                         continue
-                    if entry.is_symlink():
-                        continue  # skip symlinks for safety
-                    rel = "/" + str(entry.relative_to(mount))
-                    folders.append(rel)
-                    walk(entry, depth + 1)
-            except PermissionError:
-                pass
+                    full = directory.rstrip("/") + "/" + name
+                    all_folders.append(full)
+                    next_level.append(full)
+            current_level = next_level
+            depth += 1
 
-        walk(root_path, 1)
-
-    return folders
+    return all_folders
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ubuntu folder discovery")
     parser.add_argument(
-        "--mount",
-        default=HOST_MOUNT,
-        help="Host mount prefix",
+        "--config", default="/app/config.yaml", help="Path to config"
     )
     parser.add_argument(
-        "--roots",
-        default=",".join(DEFAULT_ROOTS),
-        help="Comma-separated roots under mount prefix",
+        "--max-depth", type=int, default=6, help="Max depth for remote scan"
     )
     parser.add_argument(
-        "--max-depth",
-        type=int,
-        default=3,
-        help="Maximum depth per root",
-    )
-    parser.add_argument(
-        "--cancel",
-        action="store_true",
-        help="Write cancel sentinel to stop a running scan",
+        "--cancel", action="store_true", help="Write cancel sentinel"
     )
     args = parser.parse_args()
 
@@ -120,8 +170,33 @@ def main() -> None:
         print(json.dumps({"cancelled": True}))
         return
 
-    roots_list = [r.strip() for r in args.roots.split(",") if r.strip()]
-    folders = discover_folders(args.mount, roots_list, args.max_depth)
+    # Read config with env var substitution
+    config = {}
+    try:
+        with open(args.config, "r") as f:
+            raw = f.read()
+
+        def _sub(m):
+            var, _, default = m.group(1).partition(":-")
+            return os.environ.get(var, default) or default
+
+        raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
+        config = yaml.safe_load(raw) or {}
+    except Exception:
+        pass
+
+    connection = config.get("connection", {})
+    mode = connection.get("mode", "local")
+
+    if mode == "remote":
+        backend = create_host_access(config)
+        folders = asyncio.run(discover_remote(backend, REMOTE_ROOTS))
+    else:
+        folders = discover_local(
+            connection.get("local", {}).get("mount_prefix", "/mnt/host"),
+            LOCAL_ROOTS,
+        )
+
     if Path(CANCEL_FILE).exists():
         Path(CANCEL_FILE).unlink()
     print(json.dumps(folders))
