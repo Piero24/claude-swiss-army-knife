@@ -237,10 +237,13 @@ export default function ServerDetailPage() {
         : `${Math.floor(elapsed / 60000)}m ${Math.round((elapsed % 60000) / 1000)}s`;
       if (res.added > 0) {
         toast.success(`Found ${res.added} folder${res.added > 1 ? "s" : ""} in ${dur}`);
-        loadData();
+      } else if (res.message) {
+        toast.info(res.message);
       } else {
-        toast.success(`Scan complete — ${res.total} folders, no new ones (${dur})`);
+        toast.success(`Scan complete — ${res.total} folders (${dur})`);
       }
+      // Always reload data after a successful scan so the UI shows fresh paths
+      await loadData();
       const label = `${new Date().toLocaleTimeString()} (${dur})`;
       setLastScan(label);
       if (typeof window !== "undefined") localStorage.setItem(`lastScan_${server}`, label);

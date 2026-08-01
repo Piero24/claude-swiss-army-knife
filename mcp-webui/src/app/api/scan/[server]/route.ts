@@ -25,7 +25,7 @@ const SCAN_CONFIG: Record<string, { container: string; cmd: string[] }> = {
   },
   "ubuntu-server": {
     container: "ubuntu-mcp",
-    cmd: ["python", "-m", "ubuntu_mcp", "discover"],
+    cmd: ["python", "-m", "ubuntu_mcp", "discover", "--config", "/app/configs/ubuntu-server.yaml"],
   },
 };
 
@@ -138,22 +138,60 @@ export async function POST(
 
     // Run discovery inside the MCP container
     startScan(server);
-    const result = await Promise.race([
-      dockerExec(scanCfg.container, scanCfg.cmd),
-      new Promise<string>((_, reject) =>
-        setTimeout(() => reject(new Error("Scan timed out after 60s")), 60_000)
-      ),
-    ]);
-    endScan();
-    const stdout = result;
-
-    const discovered: string[] = JSON.parse(stdout.trim() || "[]");
-    if (!Array.isArray(discovered)) {
+    let stdout: string;
+    try {
+      stdout = await Promise.race([
+        dockerExec(scanCfg.container, scanCfg.cmd),
+        new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error("Scan timed out after 60s")), 60_000)
+        ),
+      ]);
+    } catch (execErr) {
+      endScan();
       return NextResponse.json(
-        { error: `Unexpected output: ${stdout.slice(0, 100)}` },
+        { error: `Discovery exec failed: ${String(execErr)}` },
         { status: 500 },
       );
     }
+    endScan();
+
+    // Parse the output — could be a JSON array or an error object
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stdout.trim() || "[]");
+    } catch {
+      return NextResponse.json(
+        { error: `Discovery returned invalid JSON: ${stdout.slice(0, 200)}` },
+        { status: 500 },
+      );
+    }
+
+    // Check if the discover script returned an error object (e.g. {"error": "..."})
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      const errObj = parsed as Record<string, unknown>;
+      if (errObj.error) {
+        return NextResponse.json({
+          scanned: false,
+          discovered: 0,
+          added: 0,
+          total: existing.length,
+          error: `Discovery failed: ${errObj.error}`,
+        }, { status: 500 });
+      }
+      return NextResponse.json(
+        { error: `Unexpected output from discover: ${stdout.slice(0, 200)}` },
+        { status: 500 },
+      );
+    }
+
+    if (!Array.isArray(parsed)) {
+      return NextResponse.json(
+        { error: `Unexpected output type from discover: ${stdout.slice(0, 200)}` },
+        { status: 500 },
+      );
+    }
+
+    const discovered: string[] = parsed;
 
     // Remove cancelled sentinel
     const cancelled = discovered.includes("__CANCELLED__");
@@ -161,15 +199,7 @@ export async function POST(
       (f: string) => f !== "__CANCELLED__",
     );
 
-    // Check for errors in the output
-    if (typeof discovered === "object" && !Array.isArray(discovered) && (discovered as Record<string, unknown>).error) {
-      return NextResponse.json({
-        scanned: false,
-        error: `Discovery failed: ${(discovered as Record<string, unknown>).error}`,
-      }, { status: 500 });
-    }
-
-    // Only refresh if scan actually found something
+    // If scan found nothing, return 0 without modifying the config
     if (folders.length === 0) {
       return NextResponse.json({
         scanned: true,
@@ -181,17 +211,13 @@ export async function POST(
       });
     }
 
-    // Refresh: keep manual rules, replace auto-discovered ones, add new
-    const manualRules = existing.filter(
-      (r: { description?: string }) => !r.description?.startsWith("Auto-discovered folder:"),
-    );
-    let added = 0;
-    const removed = existing.length - manualRules.length;
-
-    const newPaths: Array<Record<string, unknown>> = [...manualRules];
-    const existingPaths = new Set(manualRules.map((r) => r.path));
+    // Replace ALL existing paths with freshly discovered ones.
+    // This ensures old template/fake paths are wiped on every scan.
+    const newPaths: Array<Record<string, unknown>> = [];
+    const seen = new Set<string>();
     for (const folder of folders) {
-      if (existingPaths.has(folder)) continue;
+      if (seen.has(folder)) continue;
+      seen.add(folder);
       const name = folder.split("/").filter(Boolean).pop() || folder;
       if (isExcluded(name)) continue;
       newPaths.push({
@@ -200,7 +226,6 @@ export async function POST(
         access: "read",
         description: `Auto-discovered folder: ${name}`,
       });
-      added++;
     }
     (perms as Record<string, unknown>).paths = newPaths;
 
@@ -209,8 +234,8 @@ export async function POST(
     return NextResponse.json({
       scanned: true,
       discovered: folders.length,
-      added,
-      removed,
+      added: newPaths.length,
+      removed: existing.length,
       total: newPaths.length,
       ...(cancelled ? { message: "Scan was cancelled before completing" } : {}),
     });

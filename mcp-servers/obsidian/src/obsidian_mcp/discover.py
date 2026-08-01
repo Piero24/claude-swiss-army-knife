@@ -35,8 +35,8 @@ def discover_folders(root: str, max_depth: int = 5) -> list[str]:
     """Recursively walk the vault directory and return folder paths."""
     root_path = Path(root).resolve()
     if not root_path.exists():
-        print(json.dumps({"error": f"Vault path not found: {root}"}))
-        sys.exit(1)
+        # Return empty — caller will handle the error
+        return []
 
     folders: list[str] = []
 
@@ -83,10 +83,19 @@ def main() -> None:
         print(json.dumps({"cancelled": True}))
         return
 
-    folders = discover_folders(args.vault)
-    if Path(CANCEL_FILE).exists():
-        Path(CANCEL_FILE).unlink()
-    print(json.dumps(folders))
+    vault_path = Path(args.vault).resolve()
+    if not vault_path.exists():
+        print(json.dumps({"error": f"Vault path not found: {args.vault}"}))
+        sys.exit(1)
+
+    try:
+        folders = discover_folders(args.vault)
+        if Path(CANCEL_FILE).exists():
+            Path(CANCEL_FILE).unlink()
+        print(json.dumps(folders))
+    except Exception as exc:
+        print(json.dumps({"error": f"Obsidian discovery failed: {exc}"}))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

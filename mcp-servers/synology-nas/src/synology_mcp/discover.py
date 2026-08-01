@@ -142,8 +142,13 @@ def main() -> None:
         print(json.dumps({"cancelled": True}))
         return
 
-    folders = asyncio.run(discover_folders())
-    print(json.dumps(folders))
+    try:
+        folders = asyncio.run(discover_folders())
+        print(json.dumps(folders))
+    except Exception as exc:
+        # Return a JSON error object so the scan route can surface the message
+        print(json.dumps({"error": f"Synology discovery failed: {exc}"}))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
