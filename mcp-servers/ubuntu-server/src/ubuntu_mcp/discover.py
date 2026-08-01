@@ -28,7 +28,7 @@ CANCEL_FILE = "/tmp/scan-cancel"
 LOCAL_ROOTS = ["home", "var/www", "var/log", "etc/nginx"]
 
 # Roots for REMOTE mode (common server directories)
-REMOTE_ROOTS = ["/home", "/var/www", "/opt", "/srv"]
+REMOTE_ROOTS = ["/home", "/var/www", "/var/log", "/opt", "/srv", "/DATA", "/ROMS", "/etc/nginx"]
 
 # These are also excluded by the web UI, but kept as fallback
 EXCLUDES = {
@@ -132,7 +132,7 @@ async def discover_remote(backend: HostAccess, roots: list[str], max_depth: int 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ubuntu folder discovery")
     parser.add_argument("--config", default="/app/config.yaml", help="Path to config")
-    parser.add_argument("--max-depth", type=int, default=5, help="Max depth for remote scan")
+    parser.add_argument("--max-depth", type=int, default=6, help="Max depth for remote scan")
     parser.add_argument("--cancel", action="store_true", help="Write cancel sentinel")
     args = parser.parse_args()
 
