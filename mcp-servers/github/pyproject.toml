@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "GitHub MCP proxy — wraps @modelcontextprotocol/server-github with permission gating"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.28.1",
+    "mcp>=1.28.1,<2.0.0",
     "mcp-proxy",
     "mcp-permission-engine",
 ]
