@@ -39,25 +39,24 @@ REMOTE_ROOTS = [
     "/etc/nginx",
 ]
 
-# These are also excluded by the web UI, but kept as fallback
-EXCLUDES = {
-    ".venv",
-    "venv",
-    "__pycache__",
-    ".git",
-    "node_modules",
-    ".next",
-    ".DS_Store",
-    ".pytest_cache",
-    ".mypy_cache",
-    "lost+found",
-    ".Trash",
-    "#recycle",
-    "@eaDir",
-    ".env",
-    ".ssh",
-    ".gnupg",
-}
+
+def load_excludes() -> set[str]:
+    """Load exclude patterns from settings.json if available, else return empty set."""
+    configs_dir = os.environ.get("CONFIGS_PATH", "/app/configs")
+    settings_file = Path(configs_dir) / "settings.json"
+    if settings_file.exists():
+        try:
+            with open(settings_file, "r") as f:
+                data = json.load(f)
+                patterns = data.get("scan", {}).get("excludePatterns", [])
+                if isinstance(patterns, list):
+                    return set(patterns)
+        except Exception:
+            pass
+    return set()
+
+
+EXCLUDES = load_excludes()
 
 
 def _name_from_path(p: str) -> str:
@@ -66,11 +65,10 @@ def _name_from_path(p: str) -> str:
 
 def is_excluded(name: str) -> bool:
     """Check if a folder name should be excluded. Supports wildcard patterns."""
+    if name in EXCLUDES:
+        return True
     for pat in EXCLUDES:
-        if pat.startswith("*."):
-            if name.endswith(pat[1:]):
-                return True
-        elif name == pat:
+        if pat.startswith("*.") and name.endswith(pat[1:]):
             return True
     return False
 
@@ -102,7 +100,7 @@ def discover_local(mount_prefix: str, roots: list[str]) -> list[str]:
                         if not entry.is_dir():
                             continue
                         name = entry.name
-                        if name.startswith(".") or is_excluded(name):
+                        if is_excluded(name):
                             continue
                         if entry.is_symlink():
                             continue
@@ -116,10 +114,8 @@ def discover_local(mount_prefix: str, roots: list[str]) -> list[str]:
     return all_folders
 
 
-async def discover_remote(
-    backend: HostAccess, roots: list[str], max_depth: int = 5
-) -> list[str]:
-    """BFS walk of remote server filesystem via SSH."""
+async def discover_remote(backend: HostAccess, roots: list[str]) -> list[str]:
+    """BFS walk of remote server filesystem via SSH — until all folders are traversed."""
     all_folders: list[str] = []
 
     async def list_dir_safe(path: str) -> list[dict]:
@@ -131,9 +127,10 @@ async def discover_remote(
     for root in roots:
         all_folders.append(root)
         current_level = [root]
-        depth = 1
 
-        while current_level and depth < max_depth:
+        while current_level:
+            if Path(CANCEL_FILE).exists():
+                return all_folders
             next_level: list[str] = []
             for directory in current_level:
                 entries = await list_dir_safe(directory)

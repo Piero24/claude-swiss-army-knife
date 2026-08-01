@@ -5,15 +5,8 @@
 import { readFileSync } from "fs";
 import path from "path";
 
-/** Canonical default exclude patterns (folder-name exact match). */
-export const DEFAULT_EXCLUDES: readonly string[] = [
-  ".venv", "venv", "__pycache__", ".git", "node_modules",
-  ".next", ".DS_Store", ".pytest_cache", ".mypy_cache",
-  "lost+found", ".Trash", "#recycle", "@eaDir", ".env",
-  // macOS bundles / packages (treated as files, not folders)
-  "*.app", "*.pkg", "*.bundle", "*.framework",
-  "*.xcodeproj", "*.xcworkspace", "*.kext",
-];
+/** Default exclude patterns (starts empty unless specified in settings.json). */
+export const DEFAULT_EXCLUDES: readonly string[] = [];
 
 /** Maximum concurrent DSM API calls during a scan. */
 export const SCAN_CONCURRENCY = 2;
@@ -22,9 +15,8 @@ export const SCAN_CONCURRENCY = 2;
 export const SCAN_DELAY_MS = 100;
 
 /**
- * Read exclude patterns from settings.json and MERGE with defaults.
- * User-provided patterns EXTEND the built-in list (never replace it).
- * Falls back to defaults if settings.json is missing or unreadable.
+ * Read exclude patterns from settings.json if available.
+ * Returns settings.scan.excludePatterns if present, else empty array.
  */
 export function getExcludePatterns(): string[] {
   try {
@@ -32,15 +24,13 @@ export function getExcludePatterns(): string[] {
     const raw = readFileSync(path.join(settingsDir, "settings.json"), "utf-8");
     const settings = JSON.parse(raw);
     const userPatterns: unknown = settings.scan?.excludePatterns;
-    if (Array.isArray(userPatterns) && userPatterns.length > 0) {
-      // Merge: defaults first, user patterns appended, dedup via Set
-      const merged = [...DEFAULT_EXCLUDES, ...(userPatterns as string[])];
-      return [...new Set(merged)];
+    if (Array.isArray(userPatterns)) {
+      return [...new Set(userPatterns as string[])];
     }
   } catch {
-    // settings.json missing or unreadable — use defaults
+    // settings.json missing or unreadable — leave empty
   }
-  return [...DEFAULT_EXCLUDES];
+  return [];
 }
 
 /** Check whether a path should be excluded. Supports exact name match and wildcard suffix (e.g. *.app). */

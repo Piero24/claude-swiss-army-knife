@@ -17,22 +17,38 @@ from pathlib import Path
 VAULT_PATH = "/data/vaults"
 CANCEL_FILE = "/tmp/scan-cancel"
 
-EXCLUDES = {
-    ".obsidian",
-    ".git",
-    ".trash",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "node_modules",
-    ".DS_Store",
-    ".pytest_cache",
-    ".mypy_cache",
-}
+
+def load_excludes() -> set[str]:
+    """Load exclude patterns from settings.json if available, else return empty set."""
+    configs_dir = os.environ.get("CONFIGS_PATH", "/app/configs")
+    settings_file = Path(configs_dir) / "settings.json"
+    if settings_file.exists():
+        try:
+            with open(settings_file, "r") as f:
+                data = json.load(f)
+                patterns = data.get("scan", {}).get("excludePatterns", [])
+                if isinstance(patterns, list):
+                    return set(patterns)
+        except Exception:
+            pass
+    return set()
 
 
-def discover_folders(root: str, max_depth: int = 5) -> list[str]:
-    """Recursively walk the vault directory and return folder paths."""
+EXCLUDES = load_excludes()
+
+
+def is_excluded(name: str) -> bool:
+    """Check if a folder name should be excluded. Supports wildcards like *.app."""
+    if name in EXCLUDES:
+        return True
+    for pat in EXCLUDES:
+        if pat.startswith("*.") and name.endswith(pat[1:]):
+            return True
+    return False
+
+
+def discover_folders(root: str) -> list[str]:
+    """Recursively walk the vault directory until no subfolders remain and return folder paths."""
     root_path = Path(root).resolve()
     if not root_path.exists():
         # Return empty — caller will handle the error
@@ -40,27 +56,25 @@ def discover_folders(root: str, max_depth: int = 5) -> list[str]:
 
     folders: list[str] = []
 
-    def walk(current: Path, depth: int) -> None:
-        if depth > max_depth:
-            return
+    def walk(current: Path) -> None:
         if Path(CANCEL_FILE).exists():
             return
         try:
             for entry in sorted(current.iterdir()):
                 if not entry.is_dir():
                     continue
-                if entry.name.startswith(".") and entry.name != ".trash":
+                if is_excluded(entry.name):
                     continue
-                if entry.name in EXCLUDES:
+                if entry.name.startswith(".") and entry.name != ".trash":
                     continue
                 rel = "/" + str(entry.relative_to(root_path))
                 folders.append(rel)
                 if entry.name != ".trash":
-                    walk(entry, depth + 1)
+                    walk(entry)
         except PermissionError:
             pass
 
-    walk(root_path, 0)
+    walk(root_path)
     return folders
 
 

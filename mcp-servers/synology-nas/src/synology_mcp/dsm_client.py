@@ -152,8 +152,13 @@ class DSMClient:
             Parsed JSON response data.
         """
         sid = await self._require_auth()
+        api_name = (
+            "SYNO.FileStation.List"
+            if method in ("list", "list_share")
+            else "SYNO.FileStation"
+        )
         all_params = {
-            "api": "SYNO.FileStation",
+            "api": api_name,
             "version": "2",
             "method": method,
             "_sid": sid,

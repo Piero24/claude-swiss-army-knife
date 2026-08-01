@@ -18,32 +18,38 @@ from pathlib import Path
 
 from .dsm_client import DSMClient
 
-# Reuse scan constants from the web UI (duplicated for container independence)
-DEFAULT_EXCLUDES = {
-    ".venv",
-    "venv",
-    "__pycache__",
-    ".git",
-    "node_modules",
-    ".next",
-    ".DS_Store",
-    ".pytest_cache",
-    ".mypy_cache",
-    "lost+found",
-    ".Trash",
-    "#recycle",
-    "@eaDir",
-    ".env",
-}
+
+def load_excludes() -> set[str]:
+    """Load exclude patterns from settings.json if available, else return empty set."""
+    configs_dir = os.environ.get("CONFIGS_PATH", "/app/configs")
+    settings_file = Path(configs_dir) / "settings.json"
+    if settings_file.exists():
+        try:
+            with open(settings_file, "r") as f:
+                data = json.load(f)
+                patterns = data.get("scan", {}).get("excludePatterns", [])
+                if isinstance(patterns, list):
+                    return set(patterns)
+        except Exception:
+            pass
+    return set()
+
+
+DEFAULT_EXCLUDES = load_excludes()
 CANCEL_FILE = "/tmp/scan-cancel"
 
 SCAN_CONCURRENCY = 2
-SCAN_DELAY_MS = 100
+SCAN_DELAY_MS = 50
 
 
 def is_excluded(name: str) -> bool:
-    """Check if a folder name should be excluded."""
-    return name in DEFAULT_EXCLUDES
+    """Check if a folder name should be excluded. Supports wildcards like *.app."""
+    if name in DEFAULT_EXCLUDES:
+        return True
+    for pat in DEFAULT_EXCLUDES:
+        if pat.startswith("*.") and name.endswith(pat[1:]):
+            return True
+    return False
 
 
 async def discover_folders() -> list[str]:
