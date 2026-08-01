@@ -53,7 +53,17 @@ export default function AgentsPage() {
     if (!data) return;
     setSaving(true);
     try {
-      await updateAgentsSettings({ mode: data.mode });
+      // Send full config including users so they persist to users.yaml
+      await updateAgentsSettings({
+        mode: data.mode,
+        users: data.users.map((u) => ({
+          id: u.id,
+          key: u.key,
+          name: u.name,
+          enabled: u.enabled,
+          tools: u.tools,
+        })),
+      });
       toast.success("Settings saved");
     } catch {
       toast.error("Failed to save");
@@ -131,29 +141,39 @@ export default function AgentsPage() {
   }
 
   async function generateKey() {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    let secret = "";
-    for (let i = 0; i < 32; i++) {
-      secret += chars[array[i] % chars.length];
+    // crypto.subtle requires a secure context (HTTPS or localhost)
+    if (!crypto.subtle) {
+      toast.error("Secure context required for key generation. Use HTTPS or localhost.");
+      return;
     }
 
-    // Generate a random 16-byte salt
-    const saltBytes = new Uint8Array(16);
-    crypto.getRandomValues(saltBytes);
-    const salt = Array.from(saltBytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    try {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      let secret = "";
+      for (let i = 0; i < 32; i++) {
+        secret += chars[array[i] % chars.length];
+      }
 
-    // Hash salt + secret together
-    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + secret));
-    const hex = Array.from(new Uint8Array(hash))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+      // Generate a random 16-byte salt
+      const saltBytes = new Uint8Array(16);
+      crypto.getRandomValues(saltBytes);
+      const salt = Array.from(saltBytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
 
-    setNewUser((prev) => ({ ...prev, key: `sha256$${salt}$${hex}` }));
-    setGeneratedSecret(secret);
+      // Hash salt + secret together
+      const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + secret));
+      const hex = Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      setNewUser((prev) => ({ ...prev, key: `sha256$${salt}$${hex}` }));
+      setGeneratedSecret(secret);
+    } catch (err) {
+      toast.error(`Key generation failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
   }
 
   function handleRemoveUser(userId: string) {

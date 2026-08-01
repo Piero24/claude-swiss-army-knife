@@ -76,9 +76,13 @@ jobs:
           context: ${{ matrix.service.context }}
           file: ${{ matrix.service.dockerfile }}
           push: true
+          provenance: false
           tags: |
             ghcr.io/${{ steps.repo_owner.outputs.owner }}/${{ matrix.service.name }}:latest
             ghcr.io/${{ steps.repo_owner.outputs.owner }}/${{ matrix.service.name }}:${{ github.sha }}
-          build-args: ${{ matrix.service.build-args }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            ${{ matrix.service.build-args }}
+            BUILD_SHA=${{ github.sha }}
+

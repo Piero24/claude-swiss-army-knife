@@ -3,6 +3,7 @@
 
 import * as fs from "fs/promises";
 import path from "path";
+import { normalizeServer } from "./server-labels";
 
 const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
 
@@ -67,8 +68,9 @@ export async function computeAuditStats(
             byDay[dayKey] = (byDay[dayKey] || 0) + 1;
           }
 
-          // By server
-          const server = entry.server || dirent.name;
+          // By server — normalize to canonical key
+          const rawServer = entry.server || dirent.name;
+          const server = normalizeServer(rawServer);
           byServer[server] = (byServer[server] || 0) + 1;
 
           // By tool
@@ -77,8 +79,9 @@ export async function computeAuditStats(
             byTool[tool] = (byTool[tool] || 0) + 1;
           }
 
-          // By user
-          const userId = entry.user_id || "default";
+          // By user — label unauthenticated traffic as "anonymous"
+          const rawUserId = entry.user_id || "default";
+          const userId = rawUserId === "default" ? "anonymous" : rawUserId;
           byUser[userId] = (byUser[userId] || 0) + 1;
 
           // Result ratio

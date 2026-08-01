@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getStats, type StatsResponse } from "@/lib/api";
+import { serverLabel } from "@/lib/provider-stats/server-labels";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, ResponsiveContainer,
@@ -79,7 +80,7 @@ export default function StatsCards() {
             .slice(0, 3)
             .map(([name, count]) => (
               <span key={name} className="text-gray-400 ml-2">
-                {name.replace(/-mcp$/, "").replace(/-server$/, "")} ({count})
+                {serverLabel(name)} ({count})
               </span>
             ))}
         </p>
@@ -129,7 +130,7 @@ export default function StatsCards() {
                 <PieChart>
                   <Pie
                     data={Object.entries(stats.by_server).map(([name, count]) => ({
-                      name: name.replace(/-mcp$/, "").replace(/-server$/, ""),
+                      name: serverLabel(name),
                       value: count,
                     }))}
                     dataKey="value"
@@ -150,11 +151,14 @@ export default function StatsCards() {
             </div>
           )}
 
-          {stats.by_user && stats.by_user.length > 0 && (
+          {stats.by_user && stats.by_user.filter((u) => !(u.user_id === "anonymous" && stats.by_user!.length === 1)).length > 0 && (
             <div>
               <h3 className="text-xs font-medium text-gray-400 mb-2">By User</h3>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={stats.by_user} layout="vertical">
+                <BarChart
+                  data={stats.by_user.filter((u) => u.user_id !== "anonymous" || stats.by_user!.length > 1)}
+                  layout="vertical"
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis type="number" tick={{ fontSize: 10, fill: "#9ca3af" }} />
                   <YAxis dataKey="user_id" type="category" tick={{ fontSize: 10, fill: "#9ca3af" }} width={80} />
