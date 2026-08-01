@@ -10,7 +10,7 @@ import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
 import { endScan, startScan } from "@/lib/scan-status";
-import { isExcluded } from "@/lib/scan-constants";
+import { getScanTimeoutSeconds, isExcluded } from "@/lib/scan-constants";
 
 // ── Server → container → discover command mapping ──────────────────────
 
@@ -61,7 +61,7 @@ function dockerRequest<T = Record<string, unknown>>(
 }
 
 /** Run a command in a container via detached exec + logs (no stream hang). */
-async function dockerExec(container: string, cmd: string[]): Promise<string> {
+async function dockerExec(container: string, cmd: string[], timeoutMs: number = -1): Promise<string> {
   // Create exec instance
   const create = await dockerRequest<{ Id: string }>(
     "POST",
@@ -103,7 +103,12 @@ async function dockerExec(container: string, cmd: string[]): Promise<string> {
       },
     );
     startReq.on("error", reject);
-    startReq.setTimeout(300_000, () => { startReq.destroy(); reject(new Error("timeout")); });
+    if (timeoutMs > 0) {
+      startReq.setTimeout(timeoutMs, () => {
+        startReq.destroy();
+        reject(new Error(`Scan timed out after ${timeoutMs / 1000}s`));
+      });
+    }
     startReq.write(JSON.stringify({ Detach: false, Tty: false }));
     startReq.end();
   });
@@ -138,14 +143,22 @@ export async function POST(
 
     // Run discovery inside the MCP container
     startScan(server);
+    const timeoutSec = getScanTimeoutSeconds();
+    const timeoutMs = timeoutSec > 0 ? timeoutSec * 1000 : -1;
+
     let stdout: string;
     try {
-      stdout = await Promise.race([
-        dockerExec(scanCfg.container, scanCfg.cmd),
-        new Promise<string>((_, reject) =>
-          setTimeout(() => reject(new Error("Scan timed out after 300s")), 300_000)
-        ),
-      ]);
+      if (timeoutMs > 0) {
+        stdout = await Promise.race([
+          dockerExec(scanCfg.container, scanCfg.cmd, timeoutMs),
+          new Promise<string>((_, reject) =>
+            setTimeout(() => reject(new Error(`Scan timed out after ${timeoutSec}s`)), timeoutMs)
+          ),
+        ]);
+      } else {
+        // -1 (or <= 0): Unlimited scan duration until complete
+        stdout = await dockerExec(scanCfg.container, scanCfg.cmd, -1);
+      }
     } catch (execErr) {
       endScan();
       return NextResponse.json(

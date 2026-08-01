@@ -1,6 +1,7 @@
 {
   "scan": {
     "intervalMinutes": 5,
+    "timeoutSeconds": -1,
     "excludePatterns": [
       ".venv",
       "venv",
