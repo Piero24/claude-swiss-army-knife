@@ -137,6 +137,7 @@ export async function scanServer(server: ServerName): Promise<{ scanned: boolean
 export interface AppSettings {
   scan: {
     intervalMinutes: number;
+    timeoutSeconds?: number;
     excludePatterns: string[];
   };
   auditPageSize?: number;
