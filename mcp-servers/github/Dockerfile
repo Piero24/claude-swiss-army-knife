@@ -10,5 +10,6 @@ COPY ${PROXY_PATH} /tmp/mcp-proxy
 RUN pip install --no-cache-dir /tmp/permission-engine /tmp/mcp-proxy && rm -rf /tmp/permission-engine /tmp/mcp-proxy
 
 COPY src /app/src
+COPY templates /app/templates
 WORKDIR /app
 ENTRYPOINT ["python", "-m", "src.server"]

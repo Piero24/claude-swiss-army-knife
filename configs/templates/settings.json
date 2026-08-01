@@ -16,5 +16,20 @@
       "#recycle",
       "@eaDir"
     ]
-  }
+  },
+  "servers": {
+    "ubuntu-server": {
+      "enabled": true
+    },
+    "obsidian": {
+      "enabled": true
+    },
+    "synology-nas": {
+      "enabled": true
+    },
+    "github-mcp": {
+      "enabled": true
+    }
+  },
+  "auditPageSize": 50
 }

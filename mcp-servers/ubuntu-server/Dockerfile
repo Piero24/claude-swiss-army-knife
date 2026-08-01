@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir psutil
 # Copy source
 COPY pyproject.toml .
 COPY src/ ./src/
+COPY templates/ /app/templates/
 
 # Install the package in development mode so it can be run
 RUN pip install --no-cache-dir -e ".[remote]"

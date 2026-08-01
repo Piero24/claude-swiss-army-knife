@@ -14,6 +14,7 @@ WORKDIR /app
 
 COPY pyproject.toml .
 COPY src/ ./src/
+COPY templates/ /app/templates/
 RUN pip install --no-cache-dir -e .
 
 ENTRYPOINT ["python", "-m", "obsidian_mcp"]
