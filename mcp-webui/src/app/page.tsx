@@ -31,10 +31,15 @@ export default function DashboardPage() {
   const [serverStatus, setServerStatus] = useState<Record<string, ServerStatus>>({});
   const [isScanning, setIsScanning] = useState(false);
   const [scanServer, setScanServer] = useState("");
+  const [activeScanningServers, setActiveScanningServers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    loadAll();
+    const interval = setInterval(loadScanStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function loadAll() {
     const svrs = await getServers();
@@ -57,6 +62,8 @@ export default function DashboardPage() {
       const res = await fetch("/api/scan-status");
       const data = await res.json();
       setIsScanning(data.scanning);
+      const active: string[] = data.activeServers || (data.server ? data.server.split(", ").filter(Boolean) : []);
+      setActiveScanningServers(active);
       setScanServer(data.server || "");
     } catch { /* */ }
   }
@@ -130,7 +137,11 @@ export default function DashboardPage() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold">🔐 MCP Permissions Manager</h1>
-        {isScanning && <span className="text-xs text-blue-400 animate-pulse">🔄 Scanning{scanServer ? ` ${scanServer}` : ""}…</span>}
+        {activeScanningServers.length > 0 && (
+          <span className="text-xs text-blue-400 animate-pulse font-medium bg-blue-950/40 px-2.5 py-1 rounded border border-blue-800/60">
+            🔄 Scanning ({activeScanningServers.map((s) => meta(s).label || s).join(", ")})…
+          </span>
+        )}
         <Link href="/agents" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
           <Shield size={16} /> Agents
         </Link>
@@ -168,6 +179,7 @@ export default function DashboardPage() {
           const config = configs[srv.name];
           const h = health[srv.name];
           const enabled = !serverStatus[srv.name] || serverStatus[srv.name].enabled !== false;
+          const isServerScanning = activeScanningServers.includes(srv.name);
           const cardContent = (
             <div className={`rounded-lg border p-5 transition-colors h-full flex flex-col ${enabled ? "border-gray-800 bg-gray-900 hover:border-gray-600" : "border-gray-800/50 bg-gray-900/50 opacity-50"}`}>
               <div className="flex items-start justify-between mb-2">
@@ -192,6 +204,13 @@ export default function DashboardPage() {
                 {enabled && h && (
                   <span className="inline-block ml-1">
                     <Badge variant="health" value={h.status} label={HEALTH_LABELS[h.status]} showIcon />
+                  </span>
+                )}
+                {isServerScanning && (
+                  <span className="inline-block ml-1">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded text-blue-300 bg-blue-950/80 border border-blue-700 animate-pulse">
+                      🔄 Scanning...
+                    </span>
                   </span>
                 )}
               </div>
