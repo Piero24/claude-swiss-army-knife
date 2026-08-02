@@ -26,7 +26,6 @@ services:
       - ${UBUNTU_HOST_VAR:-/var}:/mnt/host/var:rw
       - ${UBUNTU_HOST_OPT:-/opt}:/mnt/host/opt:rw
       - /var/run/docker.sock:/var/run/docker.sock
-      - /proc/1:/proc/1:ro
       - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu-server:/var/log/mcp
