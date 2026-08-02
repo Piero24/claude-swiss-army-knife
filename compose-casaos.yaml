@@ -261,6 +261,9 @@ services:
       EXTRA_FILESYSTEMS: /dev/sda1
     x-casaos:
       envs:
+        - container: LISTEN
+          description:
+            en_us: Port the agent listens on (default 45010). Must match the port in your Beszel hub for this system.
         - container: KEY
           description:
             en_us: SSH public key from your Beszel hub (copy from the Add system dialog).
