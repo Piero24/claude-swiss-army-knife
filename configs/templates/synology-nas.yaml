@@ -20,11 +20,7 @@ connection:
 
 permissions:
   default_access: none
-  paths:
-    - path: /
-      access: read
-      description: Root — required for listing shared folders (scanned folders cover the rest)
-      id: path_nas_root
+  paths: []
   commands: []
   default_command_access: none
   tools:

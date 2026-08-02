@@ -19,12 +19,12 @@ connection:
 
 permissions:
   default_access: none
-  paths:
-    - path: /
-      access: read
-      description: Vault root — required for browsing from top level (scanned folders cover the rest)
-      id: path_vault_root
-  commands: []
+  paths: []
+  commands:
+    - pattern: "rg *"
+      access: active
+      description: "Ripgrep search within vault notes"
+      id: cmd_0_ripgrep
   default_command_access: none
   tools:
     - pattern: obsidian_list_vault
