@@ -1,8 +1,19 @@
 """YAML frontmatter parser for Obsidian notes."""
 
-from typing import Optional
+import datetime
 
 import yaml
+
+
+def _sanitize_frontmatter(obj):
+    """Recursively convert dates, datetimes, and other non-JSON-serializable types to strings."""
+    if isinstance(obj, (datetime.date, datetime.datetime)):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {str(k): _sanitize_frontmatter(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_frontmatter(v) for v in obj]
+    return obj
 
 
 def parse_frontmatter(content: str) -> tuple[dict, str]:
@@ -39,6 +50,10 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
 
     try:
         fm = yaml.safe_load(fm_text) or {}
+        if isinstance(fm, dict):
+            fm = _sanitize_frontmatter(fm)
+        else:
+            fm = {}
     except yaml.YAMLError:
         return {}, body
 

@@ -358,14 +358,31 @@ class DSMClient:
         data = await self._system_request(
             "SYNO.Core.System", "info", version="1"
         )
+
+        def _safe_num(val, default=0):
+            try:
+                return float(val) if "." in str(val) else int(val)
+            except (ValueError, TypeError):
+                return default
+
         return {
             "model": data.get("model", "unknown"),
-            "dsm_version": data.get("version_string", "unknown"),
+            "dsm_version": data.get(
+                "version_string", data.get("firmware_ver", "unknown")
+            ),
             "serial": data.get("serial", "unknown"),
-            "cpu_cores": data.get("cpu_num", 0),
-            "ram_mb": data.get("memory", 0),
-            "temperature": data.get("temperature", 0),
-            "uptime_seconds": data.get("uptime", 0),
+            "cpu_cores": _safe_num(
+                data.get("cpu_cores", data.get("cpu_num", 0))
+            ),
+            "ram_mb": _safe_num(
+                data.get("ram_mb", data.get("ram", data.get("memory", 0)))
+            ),
+            "temperature": _safe_num(
+                data.get("temperature", data.get("sys_temp", 0))
+            ),
+            "uptime_seconds": _safe_num(
+                data.get("uptime_seconds", data.get("uptime", 0))
+            ),
         }
 
     async def storage_info(self) -> list[dict]:
@@ -374,20 +391,33 @@ class DSMClient:
             "SYNO.Storage.CGI.Storage", "load_info", version="1"
         )
         volumes = data.get("volumes", [])
-        return [
-            {
-                "name": v.get("display_name", v.get("uuid", "?")),
-                "size_gb": round(
-                    v.get("size", {}).get("total", 0) / (1024**3), 1
-                ),
-                "used_gb": round(
-                    v.get("size", {}).get("used", 0) / (1024**3), 1
-                ),
-                "status": v.get("status", "unknown"),
-                "file_system": v.get("fs_type", "unknown"),
-            }
-            for v in volumes
-        ]
+
+        def _safe_bytes(val) -> float:
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return 0.0
+
+        res = []
+        for v in volumes:
+            size_obj = v.get("size", {})
+            if isinstance(size_obj, dict):
+                total_b = _safe_bytes(size_obj.get("total", 0))
+                used_b = _safe_bytes(size_obj.get("used", 0))
+            else:
+                total_b = _safe_bytes(size_obj)
+                used_b = _safe_bytes(v.get("used", 0))
+
+            res.append(
+                {
+                    "name": v.get("display_name", v.get("uuid", "?")),
+                    "size_gb": round(total_b / (1024**3), 1),
+                    "used_gb": round(used_b / (1024**3), 1),
+                    "status": v.get("status", "unknown"),
+                    "file_system": v.get("fs_type", "unknown"),
+                }
+            )
+        return res
 
     # ── Share Discovery ─────────────────────────────────────────
 

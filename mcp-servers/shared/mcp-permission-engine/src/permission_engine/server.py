@@ -50,9 +50,25 @@ class BaseMCPServer:
         """Standardize error output."""
         return self._text(json.dumps({"error": str(error)}, indent=2))
 
+    @staticmethod
+    def _json_default(obj: Any) -> Any:
+        """Convert non-JSON-serializable objects (dates, datetimes, sets) to strings."""
+        if hasattr(obj, "isoformat"):
+            return obj.isoformat()
+        if isinstance(obj, (set, tuple)):
+            return list(obj)
+        return str(obj)
+
     def format_result(self, result: Any) -> list:
         """Standardize successful result output."""
-        return self._text(json.dumps(result, indent=2, ensure_ascii=False))
+        return self._text(
+            json.dumps(
+                result,
+                indent=2,
+                ensure_ascii=False,
+                default=self._json_default,
+            )
+        )
 
     async def handle_tool_call(
         self,
