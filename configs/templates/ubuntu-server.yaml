@@ -60,9 +60,13 @@ permissions:
       access: active
       description: Reload any service config
       id: cmd_6_reload
+    - pattern: docker ps
+      access: active
+      description: List running containers
+      id: cmd_7a_dockerps
     - pattern: docker ps *
       access: active
-      description: List containers (ps and ps -a)
+      description: List containers with any flags
       id: cmd_7_dockerps
     - pattern: docker logs *
       access: active
