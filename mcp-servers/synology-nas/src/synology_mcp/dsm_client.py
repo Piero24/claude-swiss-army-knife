@@ -252,10 +252,12 @@ class DSMClient:
             File contents as string.
         """
         sid = await self._require_auth()
-        # Check if the path is a directory — downloading a folder hangs
+        # Check if the path is a directory — downloading a folder hangs.
+        # getinfo returns {"files": [file_info]}, not file_info directly.
         try:
-            info = await self._file_station_request("getinfo", path=file_path)
-            if info.get("isdir"):
+            raw = await self._file_station_request("getinfo", path=file_path)
+            files = raw.get("files", []) if isinstance(raw, dict) else []
+            if files and files[0].get("isdir"):
                 raise ValueError(
                     f"'{file_path}' is a directory, not a file. Use syno_file_list to browse folders."
                 )
