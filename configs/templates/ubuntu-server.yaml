@@ -31,9 +31,9 @@ connection:
 permissions:
   default_access: none
   paths:
-    - path: /**
+    - path: /
       access: read
-      description: Full read access to entire filesystem
+      description: Root — required for browsing from top level (scanned folders cover the rest)
       id: path_root_all
   commands:
     - pattern: systemctl status *
