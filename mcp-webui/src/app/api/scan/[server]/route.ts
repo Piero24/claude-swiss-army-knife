@@ -230,7 +230,8 @@ export async function POST(
       if (p.path) existingAccess[p.path] = p.access;
     }
 
-    // Start with discovered folders, preserving user-set access levels
+    // Replace ALL existing paths with freshly discovered ones.
+    // Preserves access levels the user set via bulk-set or manual edits.
     const newPaths: Array<Record<string, unknown>> = [];
     const seen = new Set<string>();
     for (const folder of folders) {
@@ -248,17 +249,6 @@ export async function POST(
           : `Auto-discovered folder: ${name}`,
       });
     }
-
-    // Preserve manually-added paths that aren't in the discovered list
-    // (e.g. /proc, /etc/shadow, /root/**). These have custom IDs and
-    // should never be wiped by a scan.
-    for (const p of existing) {
-      if (!p.path) continue;
-      if (!seen.has(p.path) && !isExcluded(p.path.split("/").filter(Boolean).pop() || "")) {
-        newPaths.push(p);
-      }
-    }
-
     (perms as Record<string, unknown>).paths = newPaths;
 
     await fs.writeFile(filePath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
