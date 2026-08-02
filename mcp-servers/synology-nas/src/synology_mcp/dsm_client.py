@@ -271,7 +271,14 @@ class DSMClient:
             Result dict with written status.
         """
         sid = await self._require_auth()
-        # Use the upload method with file content
+        data = {
+            "api": "SYNO.FileStation.Upload",
+            "version": "3",
+            "method": "upload",
+            "path": folder_path,
+            "overwrite": "true",
+            "_sid": sid,
+        }
         files = {
             "file": (
                 filename,
@@ -279,17 +286,9 @@ class DSMClient:
                 "application/octet-stream",
             )
         }
-        params = {
-            "api": "SYNO.FileStation",
-            "version": "2",
-            "method": "upload",
-            "path": f'"{folder_path}"',
-            "overwrite": "true",
-            "_sid": sid,
-        }
         resp = await self._client.post(
             f"{self.base_url}{API_FILE_STATION}",
-            params=params,
+            data=data,
             files=files,
         )
         data = resp.json()
@@ -314,7 +313,7 @@ class DSMClient:
         """
         await self._file_station_request(
             "delete",
-            path=f'"{file_path}"',
+            path=file_path,
             recursive="true" if recursive else "false",
         )
         return {"deleted": True, "path": file_path}
@@ -330,7 +329,7 @@ class DSMClient:
             Result dict.
         """
         await self._file_station_request(
-            "rename", path=f'"{src_path}"', name=f'"{dst_path}"'
+            "rename", path=src_path, name=dst_path
         )
         return {"moved": True, "src": src_path, "dst": dst_path}
 
