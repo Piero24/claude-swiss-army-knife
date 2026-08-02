@@ -230,8 +230,7 @@ export async function POST(
       if (p.path) existingAccess[p.path] = p.access;
     }
 
-    // Replace ALL existing paths with freshly discovered ones.
-    // This wipes old/stale paths but preserves access levels the user set.
+    // Start with discovered folders, preserving user-set access levels
     const newPaths: Array<Record<string, unknown>> = [];
     const seen = new Set<string>();
     for (const folder of folders) {
@@ -239,7 +238,6 @@ export async function POST(
       seen.add(folder);
       const name = folder.split("/").filter(Boolean).pop() || folder;
       if (isExcluded(name)) continue;
-      // Preserve user-set access level, default to read for new folders
       const access = existingAccess[folder] || "read";
       newPaths.push({
         id: `path_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
@@ -250,6 +248,17 @@ export async function POST(
           : `Auto-discovered folder: ${name}`,
       });
     }
+
+    // Preserve manually-added paths that aren't in the discovered list
+    // (e.g. /proc, /etc/shadow, /root/**). These have custom IDs and
+    // should never be wiped by a scan.
+    for (const p of existing) {
+      if (!p.path) continue;
+      if (!seen.has(p.path) && !isExcluded(p.path.split("/").filter(Boolean).pop() || "")) {
+        newPaths.push(p);
+      }
+    }
+
     (perms as Record<string, unknown>).paths = newPaths;
 
     await fs.writeFile(filePath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
