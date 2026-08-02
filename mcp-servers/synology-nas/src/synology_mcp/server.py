@@ -206,7 +206,9 @@ class SynologyServer(BaseMCPServer):
                 return result
 
             case "syno_file_search":
-                self.enforcer.check("read", arguments.get("folder_path", "/"), name)
+                self.enforcer.check(
+                    "read", arguments.get("folder_path", "/"), name
+                )
                 result = await self.dsm.file_search(
                     arguments["query"], arguments.get("folder_path", "/")
                 )
