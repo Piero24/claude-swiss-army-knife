@@ -2,6 +2,7 @@
 
 import { NextResponse } from "next/server";
 import { computeAuditStats } from "@/lib/provider-stats/audit-stats";
+import { normalizeServer } from "@/lib/provider-stats/server-labels";
 
 const CACHE_TTL = 60_000; // 60 seconds
 
@@ -20,10 +21,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawServer = searchParams.get("server") || undefined;
 
-  const serverFilter = rawServer
-    ?.replace(/-nas$/, "")
-    .replace(/-server$/, "")
-    .replace(/-mcp$/, "");
+  // Normalize to canonical key so it matches log directory names
+  const serverFilter = rawServer ? normalizeServer(rawServer) : undefined;
 
   if (serverFilter) {
     return NextResponse.json(await computeAuditStats(serverFilter));
