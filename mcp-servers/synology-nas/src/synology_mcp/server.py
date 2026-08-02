@@ -206,11 +206,11 @@ class SynologyServer(BaseMCPServer):
                 return result
 
             case "syno_file_search":
-                self.enforcer.check(
-                    "read", arguments.get("folder_path", "/"), name
-                )
+                folder = arguments.get("folder_path", "")
+                if folder:
+                    self.enforcer.check("read", folder, name)
                 result = await self.dsm.file_search(
-                    arguments["query"], arguments.get("folder_path", "/")
+                    arguments["query"], folder or "/"
                 )
                 return {"results": result, "count": len(result)}
 
