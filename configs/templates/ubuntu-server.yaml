@@ -30,7 +30,32 @@ connection:
 
 permissions:
   default_access: none
-  paths: []
+  paths:
+    # ── Security: never expose these, even if scanned ──
+    - path: /etc/shadow
+      access: none
+      description: Password hashes — blocked
+      id: path_sec_shadow
+    - path: /etc/shadow-
+      access: none
+      description: Backup password hashes — blocked
+      id: path_sec_shadow_backup
+    - path: /etc/gshadow
+      access: none
+      description: Group password hashes — blocked
+      id: path_sec_gshadow
+    - path: /etc/gshadow-
+      access: none
+      description: Backup group password hashes — blocked
+      id: path_sec_gshadow_backup
+    - path: /root/**
+      access: none
+      description: Root home — blocked
+      id: path_sec_root
+    - path: /etc/ssh/**/*key
+      access: none
+      description: SSH private keys — blocked
+      id: path_sec_sshkeys
   commands:
     - pattern: systemctl status *
       access: active
@@ -100,6 +125,10 @@ permissions:
       access: active
       description: Query systemd journal
       id: cmd_15_journalctl
+    - pattern: rm *
+      access: active
+      description: Remove files and directories
+      id: cmd_16_rm
   default_command_access: none
   tools:
     - pattern: ubuntu_read_file
