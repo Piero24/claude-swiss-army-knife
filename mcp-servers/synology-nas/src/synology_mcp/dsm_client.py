@@ -226,9 +226,11 @@ class DSMClient:
         ]
 
     async def file_read(self, file_path: str) -> str:
-        """Read a file's contents as text.
+        """Read a file's contents as text via the File Station download API.
 
-        Uses the download method with inline content retrieval.
+        The DSM download API returns the raw file content as the response body
+        (not JSON). We use httpx.stream to capture the raw bytes without any
+        content-type parsing.
 
         Args:
             file_path: Full path to the file.
@@ -238,17 +240,18 @@ class DSMClient:
         """
         sid = await self._require_auth()
         params = {
-            "api": "SYNO.FileStation",
+            "api": "SYNO.FileStation.Download",
             "version": "2",
             "method": "download",
-            "path": f'"{file_path}"',
-            "mode": "open",
+            "path": file_path,
+            "mode": "download",
             "_sid": sid,
         }
-        resp = await self._client.get(
+        resp = await self._client.post(
             f"{self.base_url}{API_FILE_STATION}",
-            params=params,
+            data=params,
         )
+        resp.raise_for_status()
         return resp.text
 
     async def file_write(
