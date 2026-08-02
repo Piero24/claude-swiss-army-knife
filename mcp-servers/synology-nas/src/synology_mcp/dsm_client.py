@@ -183,7 +183,8 @@ class DSMClient:
         if not data.get("success"):
             error = data.get("error", {})
             raise RuntimeError(f"File Station '{method}' failed: {error}")
-        return data["data"]
+        # Some APIs (delete) return success without a data payload
+        return data.get("data", {})
 
     async def _system_request(
         self, api: str, method: str, version: str = "1", **params
@@ -343,6 +344,9 @@ class DSMClient:
     async def file_move(self, src_path: str, dst_path: str) -> dict:
         """Move/rename a file or folder.
 
+        Uses SYNO.FileStation.Rename for same-folder renames and
+        SYNO.FileStation.CopyMove for cross-folder moves.
+
         Args:
             src_path: Source path.
             dst_path: Destination path.
@@ -350,7 +354,23 @@ class DSMClient:
         Returns:
             Result dict.
         """
-        await self._file_station_request("rename", path=src_path, name=dst_path)
+        src_dir = src_path.rsplit("/", 1)[0] if "/" in src_path else ""
+        dst_dir = dst_path.rsplit("/", 1)[0] if "/" in dst_path else ""
+        dst_name = dst_path.rsplit("/", 1)[-1] if "/" in dst_path else dst_path
+
+        if src_dir == dst_dir:
+            # Same folder — simple rename
+            await self._file_station_request(
+                "rename", path=src_path, name=dst_name
+            )
+        else:
+            # Cross-folder move — use CopyMove API
+            await self._file_station_request(
+                "copymove",
+                path=src_path,
+                dest_folder_path=dst_dir,
+                remove_src="true",
+            )
         return {"moved": True, "src": src_path, "dst": dst_path}
 
     async def file_search(
