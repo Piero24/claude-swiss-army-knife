@@ -52,13 +52,36 @@ export function getScanTimeoutSeconds(): number {
   return -1;
 }
 
-/** Check whether a path should be excluded. Supports exact name match and wildcard suffix (e.g. *.app). */
+/** Check whether a path should be excluded.
+ *
+ *  Supported patterns:
+ *    exact       → "node_modules" matches only "node_modules"
+ *    *.ext       → "*.app" matches "Foo.app", "bar.app"
+ *    prefix-*    → "frrncl-*" matches "frrncl-data", "frrncl-logs"
+ *    *suffix     → "*-old" matches "backup-old", "data-old"
+ *    *contains*  → "*cache*" matches ".cache", "my-cache-dir"
+ */
 export function isExcluded(p: string): boolean {
   const name = p.split("/").filter(Boolean).pop() || p;
   return getExcludePatterns().some((pattern) => {
-    if (pattern.startsWith("*.")) {
-      return name.endsWith(pattern.slice(1)); // *.app matches Foo.app
+    // *contains* — wildcard on both sides
+    if (pattern.startsWith("*") && pattern.endsWith("*") && pattern.length > 2) {
+      const middle = pattern.slice(1, -1);
+      return name.includes(middle);
     }
-    return name === pattern; // exact folder name match
+    // *.ext — suffix match
+    if (pattern.startsWith("*.")) {
+      return name.endsWith(pattern.slice(1));
+    }
+    // prefix-* — prefix match
+    if (pattern.endsWith("*") && pattern.length > 1) {
+      return name.startsWith(pattern.slice(0, -1));
+    }
+    // *suffix — suffix match (single leading *)
+    if (pattern.startsWith("*") && pattern.length > 1) {
+      return name.endsWith(pattern.slice(1));
+    }
+    // exact match
+    return name === pattern;
   });
 }
