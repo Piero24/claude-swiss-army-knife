@@ -30,11 +30,7 @@ connection:
 
 permissions:
   default_access: none
-  paths:
-    - path: /
-      access: read
-      description: Root — required for browsing from top level (scanned folders cover the rest)
-      id: path_root_all
+  paths: []
   commands:
     - pattern: systemctl status *
       access: active

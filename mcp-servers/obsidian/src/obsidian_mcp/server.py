@@ -233,7 +233,6 @@ class ObsidianServer(BaseMCPServer):
                 return result
 
             case "obsidian_search_notes":
-                self.enforcer.check("read", "/", name)
                 self.enforcer.check_command("rg *", name)
                 query = arguments["query"]
                 max_results = arguments.get("max_results", 20)
@@ -244,7 +243,6 @@ class ObsidianServer(BaseMCPServer):
                 return {"results": results, "count": len(results)}
 
             case "obsidian_search_by_tag":
-                self.enforcer.check("read", "/", name)
                 tag = arguments["tag"]
                 results = await _search_by_tag(self.vault, tag)
                 return {
@@ -263,7 +261,6 @@ class ObsidianServer(BaseMCPServer):
                 }
 
             case "obsidian_get_tags":
-                self.enforcer.check("read", "/", name)
                 all_tags = await _get_all_tags(self.vault)
                 return {"tags": all_tags}
 
