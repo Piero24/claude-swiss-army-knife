@@ -195,7 +195,10 @@ class ObsidianServer(BaseMCPServer):
         match name:
             case "obsidian_list_vault":
                 subfolder = arguments.get("subfolder", "")
-                self.enforcer.check("read", subfolder or "/", name)
+                # Only check permission for non-root subfolders — the root
+                # is the vault itself, which is always readable.
+                if subfolder:
+                    self.enforcer.check("read", subfolder, name)
                 entries = await self.vault.list_vault(
                     subfolder, arguments.get("depth", 3)
                 )
