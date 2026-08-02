@@ -1,9 +1,10 @@
 FROM python:3.12-slim AS base
 
-# Install system dependencies
+# Install system dependencies (docker.io provides the docker CLI for docker ps/logs/restart)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     procps \
+    docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 # Build arg: relative path to shared permission engine
