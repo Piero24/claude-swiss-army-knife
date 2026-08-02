@@ -152,11 +152,15 @@ class DSMClient:
             Parsed JSON response data.
         """
         sid = await self._require_auth()
-        api_name = (
-            "SYNO.FileStation.List"
-            if method in ("list", "list_share")
-            else "SYNO.FileStation"
-        )
+        # Map method to the correct DSM API name
+        _API_MAP = {
+            "list": "SYNO.FileStation.List",
+            "list_share": "SYNO.FileStation.List",
+            "delete": "SYNO.FileStation.Delete",
+            "rename": "SYNO.FileStation.Rename",
+            "copymove": "SYNO.FileStation.CopyMove",
+        }
+        api_name = _API_MAP.get(method, "SYNO.FileStation")
         all_params = {
             "api": api_name,
             "version": "2",
