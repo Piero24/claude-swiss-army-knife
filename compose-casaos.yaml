@@ -94,6 +94,10 @@ services:
         source: /var/run/docker.sock
         target: /var/run/docker.sock
       - type: bind
+        source: /proc/1
+        target: /proc/1
+        read_only: true
+      - type: bind
         source: /DATA/AppData/mcps-server/settings
         target: /app/configs
       - type: bind
