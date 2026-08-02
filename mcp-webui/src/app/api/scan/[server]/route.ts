@@ -224,8 +224,14 @@ export async function POST(
       });
     }
 
+    // Build a map of existing path → access so we preserve user overrides
+    const existingAccess: Record<string, string> = {};
+    for (const p of existing) {
+      if (p.path) existingAccess[p.path] = p.access;
+    }
+
     // Replace ALL existing paths with freshly discovered ones.
-    // This ensures old template/fake paths are wiped on every scan.
+    // This wipes old/stale paths but preserves access levels the user set.
     const newPaths: Array<Record<string, unknown>> = [];
     const seen = new Set<string>();
     for (const folder of folders) {
@@ -233,11 +239,15 @@ export async function POST(
       seen.add(folder);
       const name = folder.split("/").filter(Boolean).pop() || folder;
       if (isExcluded(name)) continue;
+      // Preserve user-set access level, default to read for new folders
+      const access = existingAccess[folder] || "read";
       newPaths.push({
         id: `path_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
         path: folder,
-        access: "read",
-        description: `Auto-discovered folder: ${name}`,
+        access,
+        description: access !== "read"
+          ? `Auto-discovered folder: ${name} (access: ${access})`
+          : `Auto-discovered folder: ${name}`,
       });
     }
     (perms as Record<string, unknown>).paths = newPaths;
