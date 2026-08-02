@@ -116,3 +116,18 @@ services:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN:-}
     stdin_open: true
     restart: unless-stopped
+
+  # ============================================================
+  # Beszel Agent — System metrics
+  # ============================================================
+  beszel-agent:
+    image: henrygd/beszel-agent:latest
+    container_name: mcp-beszel-agent
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LISTEN: "${BESZEL_LISTEN_PORT:-45003}"
+      KEY: "${BESZEL_KEY:-}"
+      EXTRA_FILESYSTEMS: /dev/sda1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro

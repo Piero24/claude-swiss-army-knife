@@ -246,6 +246,33 @@ services:
         target: /var/log/mcp
     command: ["--config", "/app/configs/github-mcp.yaml"]
 
+  # ============================================================
+  # BESZEL AGENT — System metrics for the Beszel hub
+  # ============================================================
+  beszel-agent:
+    image: henrygd/beszel-agent:latest
+    pull_policy: always
+    container_name: mcp-beszel-agent
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LISTEN: "45010"
+      KEY: "ssh-ed_KEY"
+      EXTRA_FILESYSTEMS: /dev/sda1
+    x-casaos:
+      envs:
+        - container: KEY
+          description:
+            en_us: SSH public key from your Beszel hub (copy from the Add system dialog).
+        - container: EXTRA_FILESYSTEMS
+          description:
+            en_us: Additional filesystems to monitor (e.g. /dev/sda1 for main disk).
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+
 x-casaos:
   architectures:
     - amd64
