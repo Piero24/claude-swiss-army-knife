@@ -56,11 +56,6 @@ permissions:
       access: none
       description: SSH private keys — blocked
       id: path_sec_sshkeys
-    # ── Required for exec/service_manage (nsenter) ──
-    - path: /proc
-      access: read
-      description: Virtual filesystem — needed for nsenter to run commands on host
-      id: path_sys_proc
   commands:
     - pattern: systemctl status *
       access: active
