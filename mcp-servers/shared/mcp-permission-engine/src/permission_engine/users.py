@@ -83,6 +83,10 @@ def validate_user(
             if not user.enabled:
                 raise AuthenticationError(f"User '{user_id}' is disabled")
 
+            # Direct equality match (allows simple static tokens or matching string keys)
+            if user.key == provided_key:
+                return user
+
             # Parse stored key: "sha256$<salt>$<hash>"
             parts = user.key.split("$")
             if len(parts) != 3:
