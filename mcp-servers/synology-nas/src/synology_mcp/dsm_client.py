@@ -156,6 +156,7 @@ class DSMClient:
         _API_MAP = {
             "list": "SYNO.FileStation.List",
             "list_share": "SYNO.FileStation.List",
+            "getinfo": "SYNO.FileStation.List",
             "delete": "SYNO.FileStation.Delete",
             "rename": "SYNO.FileStation.Rename",
             "copymove": "SYNO.FileStation.CopyMove",
