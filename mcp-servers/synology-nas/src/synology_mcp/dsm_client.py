@@ -328,9 +328,7 @@ class DSMClient:
         Returns:
             Result dict.
         """
-        await self._file_station_request(
-            "rename", path=src_path, name=dst_path
-        )
+        await self._file_station_request("rename", path=src_path, name=dst_path)
         return {"moved": True, "src": src_path, "dst": dst_path}
 
     async def file_search(
