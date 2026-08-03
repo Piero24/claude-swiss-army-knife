@@ -79,8 +79,11 @@ class LocalHostAccess(HostAccess):
         return entries
 
     async def run_command(self, cmd: str, timeout: int = 30) -> dict:
-        # Run via nsenter to reach host namespaces (container has pid:host)
-        full_cmd = f"nsenter --mount=/proc/1/ns/mnt -- {cmd}"
+        # Run on host via systemd-run over D-Bus (no /proc/1/ns/mnt needed)
+        escaped = cmd.replace("'", "'\\''")
+        full_cmd = (
+            f"systemd-run --wait --pipe --quiet -- /bin/sh -c '{escaped}'"
+        )
         return await self._exec(full_cmd, timeout)
 
     async def run_host_command(self, cmd: str, timeout: int = 30) -> dict:

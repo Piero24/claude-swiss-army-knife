@@ -4,6 +4,7 @@ FROM python:3.12-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     procps \
+    systemd \
     ca-certificates \
     curl \
     && install -m 0755 -d /etc/apt/keyrings \

@@ -63,6 +63,7 @@ services:
       UBUNTU_REMOTE_HOST: ""
       UBUNTU_REMOTE_PORT: "22"
       UBUNTU_REMOTE_USER: ""
+      DBUS_SYSTEM_BUS_ADDRESS: "unix:path=/run/dbus/system_bus_socket"
     x-casaos:
       envs:
         - container: UBUNTU_REMOTE_HOST
@@ -93,6 +94,9 @@ services:
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
+      - type: bind
+        source: /run/dbus/system_bus_socket
+        target: /run/dbus/system_bus_socket
       - type: bind
         source: /DATA/AppData/mcps-server/settings
         target: /app/configs

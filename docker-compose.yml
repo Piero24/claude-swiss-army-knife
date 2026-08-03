@@ -26,6 +26,7 @@ services:
       - ${UBUNTU_HOST_VAR:-/var}:/mnt/host/var:rw
       - ${UBUNTU_HOST_OPT:-/opt}:/mnt/host/opt:rw
       - /var/run/docker.sock:/var/run/docker.sock
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket
       - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu-server:/var/log/mcp
@@ -33,6 +34,7 @@ services:
       - UBUNTU_REMOTE_HOST=${UBUNTU_REMOTE_HOST:-}
       - UBUNTU_REMOTE_PORT=${UBUNTU_REMOTE_PORT:-22}
       - UBUNTU_REMOTE_USER=${UBUNTU_REMOTE_USER:-}
+      - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
     pid: "host"
     network_mode: "host"
     stdin_open: true
