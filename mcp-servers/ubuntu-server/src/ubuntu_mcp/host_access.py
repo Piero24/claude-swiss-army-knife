@@ -79,10 +79,11 @@ class LocalHostAccess(HostAccess):
         return entries
 
     async def run_command(self, cmd: str, timeout: int = 30) -> dict:
-        # Run on host via systemd-run over D-Bus (no /proc/1/ns/mnt needed)
+        # Run on host via Docker-based nsenter (uses Docker socket, not /proc)
         escaped = cmd.replace("'", "'\\''")
         full_cmd = (
-            f"systemd-run --wait --pipe --quiet -- /bin/sh -c '{escaped}'"
+            "docker run --rm --pid=host --privileged "
+            f"alpine:latest nsenter -t 1 -m -- /bin/sh -c '{escaped}'"
         )
         return await self._exec(full_cmd, timeout)
 
