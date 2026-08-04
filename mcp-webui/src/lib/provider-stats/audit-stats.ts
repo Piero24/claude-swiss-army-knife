@@ -6,6 +6,7 @@ import path from "path";
 import { normalizeServer } from "./server-labels";
 
 const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
+const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
 
 export interface AuditStats {
   totals: { all_time: number; today: number; this_week: number };
@@ -13,13 +14,34 @@ export interface AuditStats {
   by_tool: Array<{ name: string; count: number }>;
   by_day: Array<{ date: string; count: number }>;
   result_ratio: { allowed: number; denied: number };
-  by_user: Array<{ user_id: string; count: number }>;
+  by_user: Array<{ user_id: string; user_name: string; count: number }>;
   top_denied: Array<{ target: string; count: number }>;
+}
+
+/** Build a user_id → user_name map from users.yaml. */
+async function getUserNameMap(): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  try {
+    const raw = await fs.readFile(path.join(CONFIGS_PATH, "users.yaml"), "utf-8");
+    // Simple YAML parsing for the users list — avoids pulling js-yaml here
+    const lines = raw.split("\n");
+    let currentId = "";
+    for (const line of lines) {
+      const idMatch = line.match(/^\s{2,4}-\s+id:\s*["']?(.+?)["']?\s*$/);
+      if (idMatch) { currentId = idMatch[1].trim(); continue; }
+      if (currentId) {
+        const nameMatch = line.match(/^\s{4,6}name:\s*["']?(.+?)["']?\s*$/);
+        if (nameMatch) { map[currentId] = nameMatch[1].trim(); currentId = ""; }
+      }
+    }
+  } catch { /* users.yaml not available — names will fall back to IDs */ }
+  return map;
 }
 
 export async function computeAuditStats(
   serverFilter?: string
 ): Promise<AuditStats> {
+  const userNameMap = await getUserNameMap();
   const now = new Date();
   const todayStart = new Date(
     now.getFullYear(),
@@ -126,11 +148,15 @@ export async function computeAuditStats(
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  // Top users
+  // Top users — include display names from users.yaml
   const topUsers = Object.entries(byUser)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
-    .map(([user_id, count]) => ({ user_id, count }));
+    .map(([user_id, count]) => ({
+      user_id,
+      user_name: userNameMap[user_id] || user_id,
+      count,
+    }));
 
   // Top denied targets
   const topDenied = Object.entries(byDenied)
