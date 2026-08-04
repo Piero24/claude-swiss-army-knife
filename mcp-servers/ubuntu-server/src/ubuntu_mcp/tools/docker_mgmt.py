@@ -44,7 +44,9 @@ async def docker_logs(
         f"docker logs --tail {tail} {container}"
     )
     if result.get("error"):
-        logger.warning("docker_logs failed for %s: %s", container, result.get("error"))
+        logger.warning(
+            "docker_logs failed for %s: %s", container, result.get("error")
+        )
     return {
         "container": container,
         "logs": result.get("stdout", "") + result.get("stderr", ""),
@@ -58,7 +60,11 @@ async def docker_restart(
     enforcer.check_command(f"docker restart {container}", tool=name)
     result = await host.run_host_command(f"docker restart {container}")
     if not result.get("exit_code") == 0:
-        logger.warning("docker_restart failed for %s: %s", container, result.get("stderr", "").strip())
+        logger.warning(
+            "docker_restart failed for %s: %s",
+            container,
+            result.get("stderr", "").strip(),
+        )
     return {
         "container": container,
         "restarted": result.get("exit_code") == 0,

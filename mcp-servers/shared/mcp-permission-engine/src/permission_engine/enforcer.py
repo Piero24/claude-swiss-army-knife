@@ -232,7 +232,10 @@ class PermissionEnforcer:
         if not granted.grants(required):
             logger.warning(
                 "Access denied: user=%s path=%s (have %s, need %s)",
-                user_id, path, granted.value, required.value,
+                user_id,
+                path,
+                granted.value,
+                required.value,
             )
             self._audit.denied(
                 self._config.server.name,
@@ -280,7 +283,11 @@ class PermissionEnforcer:
 
         # 1. Block shell metacharacters (command injection prevention)
         if _SHELL_METACHARS.search(command):
-            logger.warning("Command denied (shell metacharacters): user=%s cmd=%s", user_id, command[:100])
+            logger.warning(
+                "Command denied (shell metacharacters): user=%s cmd=%s",
+                user_id,
+                command[:100],
+            )
             self._audit.denied(
                 self._config.server.name,
                 "command",
@@ -313,7 +320,11 @@ class PermissionEnforcer:
 
         # For commands, any non-none access allows execution
         if granted == AccessLevel.NONE:
-            logger.warning("Command denied (not in allowlist): user=%s cmd=%s", user_id, command[:100])
+            logger.warning(
+                "Command denied (not in allowlist): user=%s cmd=%s",
+                user_id,
+                command[:100],
+            )
             self._audit.denied(
                 self._config.server.name,
                 "command",
@@ -364,7 +375,12 @@ class PermissionEnforcer:
         for rule in rules:
             if fnmatch.fnmatch(tool_name, rule.pattern):
                 if rule.access == AccessLevel.NONE:
-                    logger.warning("Tool denied by rule: user=%s tool=%s rule=%s", user_id, tool_name, rule.pattern)
+                    logger.warning(
+                        "Tool denied by rule: user=%s tool=%s rule=%s",
+                        user_id,
+                        tool_name,
+                        rule.pattern,
+                    )
                     self._audit.denied(
                         self._config.server.name,
                         "tool",
@@ -390,7 +406,11 @@ class PermissionEnforcer:
 
         # No matching rule — use default
         if default == AccessLevel.NONE:
-            logger.warning("Tool denied (default deny): user=%s tool=%s", user_id, tool_name)
+            logger.warning(
+                "Tool denied (default deny): user=%s tool=%s",
+                user_id,
+                tool_name,
+            )
             self._audit.denied(
                 self._config.server.name,
                 "tool",
