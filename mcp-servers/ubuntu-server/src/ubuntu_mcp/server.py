@@ -24,6 +24,7 @@ from .tools import (
     append_file,
     docker_mgmt,
     execute,
+    file_delete,
     list_dir,
     read_file,
     service,
@@ -109,6 +110,20 @@ class UbuntuServer(BaseMCPServer):
                             },
                         },
                         "required": ["path", "content"],
+                    },
+                ),
+                Tool(
+                    name="ubuntu_file_delete",
+                    description="Delete a file on the Ubuntu server.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Absolute path to the file to delete.",
+                            },
+                        },
+                        "required": ["path"],
                     },
                 ),
                 Tool(
@@ -274,6 +289,10 @@ class UbuntuServer(BaseMCPServer):
                 return await append_file.append_file(
                     arguments, self.enforcer, self.host, name
                 )
+            case "ubuntu_file_delete":
+                return await file_delete.file_delete(
+                    arguments, self.enforcer, self.host, name
+                )
             case "ubuntu_list_dir":
                 return await list_dir.list_dir(
                     arguments, self.enforcer, self.host, name
@@ -311,21 +330,29 @@ class UbuntuServer(BaseMCPServer):
 
     async def _journalctl(self, args: dict, host, name: str = "") -> dict:
         """Query systemd journal."""
+        import shlex
+
         unit = args.get("unit", "")
         lines = args.get("lines", 50)
         since = args.get("since", "")
 
+        # Check intent against permission engine without breaking on shell spaces
+        check_str = "journalctl"
+        if unit:
+            check_str += f" -u {unit}"
+        if since:
+            check_str += f" --since {since}"
+        self.enforcer.check_command(check_str, name)
+
+        # Build actual shell command with safe quotes
         cmd = "journalctl"
         if unit:
-            cmd += f" -u {unit}"
+            cmd += f" -u {shlex.quote(unit)}"
         if since:
-            cmd += f" --since='{since}'"
+            cmd += f" --since={shlex.quote(since)}"
         cmd += f" -n {lines} --no-pager"
 
-        self.enforcer.check_command("journalctl *", name)
-        result = await execute.execute(
-            {"command": cmd, "timeout": 15}, self.enforcer, host, name
-        )
+        result = await host.run_command(cmd, timeout=15)
         return {
             "query": cmd,
             "output": result.get("stdout", ""),

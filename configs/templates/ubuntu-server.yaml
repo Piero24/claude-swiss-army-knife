@@ -129,6 +129,97 @@ permissions:
       access: active
       description: Remove files and directories
       id: cmd_16_rm
+    # Basic system information (read-only)
+    - pattern: date*
+      access: active
+      description: Check system date and time
+      id: cmd_17_date
+    - pattern: pwd
+      access: active
+      description: Print working directory
+      id: cmd_18_pwd
+    - pattern: id*
+      access: active
+      description: Print user identity
+      id: cmd_19_id
+    - pattern: uptime
+      access: active
+      description: Check system uptime
+      id: cmd_20_uptime
+    - pattern: uname*
+      access: active
+      description: Check system architecture and kernel
+      id: cmd_21_uname
+    - pattern: free*
+      access: active
+      description: Check memory usage
+      id: cmd_22_free
+    - pattern: df*
+      access: active
+      description: Check disk usage
+      id: cmd_23_df
+    - pattern: hostname*
+      access: active
+      description: Check system hostname
+      id: cmd_24_hostname
+    # Additional useful safe diagnostics
+    - pattern: ps*
+      access: active
+      description: View system processes
+      id: cmd_25_ps
+    - pattern: top*
+      access: active
+      description: View system processes
+      id: cmd_26_top
+    - pattern: ip *
+      access: active
+      description: Check network interfaces and routing
+      id: cmd_27_ip
+    - pattern: ping *
+      access: active
+      description: Test network connectivity
+      id: cmd_28_ping
+    - pattern: curl *
+      access: active
+      description: Test HTTP endpoints
+      id: cmd_29_curl
+    - pattern: lsblk*
+      access: active
+      description: List block devices
+      id: cmd_30_lsblk
+    - pattern: lscpu*
+      access: active
+      description: List CPU information
+      id: cmd_31_lscpu
+    - pattern: ls *
+      access: active
+      description: List directory contents
+      id: cmd_32_ls
+    - pattern: grep *
+      access: active
+      description: Search text
+      id: cmd_33_grep
+    - pattern: cat *
+      access: active
+      description: Read files
+      id: cmd_34_cat
+    - pattern: find *
+      access: active
+      description: Search files
+      id: cmd_35_find
+    # Docker specific diagnostics
+    - pattern: docker info
+      access: active
+      description: View docker system info
+      id: cmd_36_docker_info
+    - pattern: docker stats*
+      access: active
+      description: View container resource usage statistics
+      id: cmd_37_docker_stats
+    - pattern: docker version
+      access: active
+      description: View docker version
+      id: cmd_38_docker_version
   default_command_access: none
   tools:
     - pattern: ubuntu_read_file
@@ -143,6 +234,10 @@ permissions:
         Create or overwrite a file on the server. DESTRUCTIVE — enable only
         when you need to write or edit files.
       id: tool_1_writefile
+    - pattern: ubuntu_file_delete
+      access: active
+      description: Delete files from the host server.
+      id: tool_2_filedelete
     - pattern: ubuntu_append_file
       access: none
       description: >-

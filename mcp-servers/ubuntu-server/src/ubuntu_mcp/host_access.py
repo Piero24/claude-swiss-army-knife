@@ -19,6 +19,9 @@ class HostAccess:
     async def list_dir(self, path: str) -> list[dict]:
         ...
 
+    async def delete_file(self, path: str) -> None:
+        ...
+
     async def run_command(self, cmd: str, timeout: int = 30) -> dict:
         ...
 
@@ -56,6 +59,10 @@ class LocalHostAccess(HostAccess):
         cp = self.container_path(path)
         cp.parent.mkdir(parents=True, exist_ok=True)
         cp.write_text(content, encoding="utf-8")
+
+    async def delete_file(self, path: str) -> None:
+        cp = self.container_path(path)
+        cp.unlink(missing_ok=True)
 
     async def list_dir(self, path: str) -> list[dict]:
         cp = self.container_path(path)
@@ -175,13 +182,24 @@ class RemoteHostAccess(HostAccess):
 
     async def write_file(self, path: str, content: str) -> None:
         await self._ensure_connected()
-        parent = str(Path(path).parent)
+        import tempfile
+
+        with tempfile.NamedTemporaryFile("w", delete=False) as tmp:
+            tmp.write(content)
+            tmp_name = tmp.name
         try:
-            await self._sftp.makedirs(parent)
+            await self._sftp.put(tmp_name, path)
+        finally:
+            import os
+
+            os.unlink(tmp_name)
+
+    async def delete_file(self, path: str) -> None:
+        await self._ensure_connected()
+        try:
+            await self._sftp.remove(path)
         except Exception:
-            pass
-        async with self._sftp.open(path, "w") as f:
-            await f.write(content.encode("utf-8"))
+            pass  # Ignore if it doesn't exist to match local behavior
 
     async def list_dir(self, path: str) -> list[dict]:
         await self._ensure_connected()

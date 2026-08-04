@@ -169,17 +169,11 @@ class DSMClient:
             "_sid": sid,
             **params,
         }
-        # Destructive operations (delete, rename) need POST; reads use GET
-        if method in ("delete", "rename"):
-            resp = await self._client.post(
-                f"{self.base_url}{API_FILE_STATION}",
-                data=all_params,
-            )
-        else:
-            resp = await self._client.get(
-                f"{self.base_url}{API_FILE_STATION}",
-                params=all_params,
-            )
+        # Always use POST to prevent WAF blocks and URL-encoding errors with wildcards/complex paths
+        resp = await self._client.post(
+            f"{self.base_url}{API_FILE_STATION}",
+            data=all_params,
+        )
         data = resp.json()
         if not data.get("success"):
             error = data.get("error", {})
