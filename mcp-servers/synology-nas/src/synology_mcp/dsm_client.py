@@ -246,15 +246,26 @@ class DSMClient:
             File contents as string.
         """
         sid = await self._require_auth()
-        # Check if the path is a directory — downloading a folder hangs.
+        # Check if the path is a directory or too large
         # getinfo returns {"files": [file_info]}, not file_info directly.
         try:
             raw = await self._file_station_request("getinfo", path=file_path)
             files = raw.get("files", []) if isinstance(raw, dict) else []
-            if files and files[0].get("isdir"):
-                raise ValueError(
-                    f"'{file_path}' is a directory, not a file. Use syno_file_list to browse folders."
-                )
+            if files:
+                info = files[0]
+                if info.get("isdir"):
+                    raise ValueError(
+                        f"'{file_path}' is a directory, not a file. Use syno_file_list to browse folders."
+                    )
+                # Reject files larger than the configured max (default 100MB)
+                size = int(info.get("additional", {}).get("size", 0) or 0)
+                max_mb = int(os.environ.get("SYNOLOGY_MAX_DOWNLOAD_MB", "100"))
+                if size > max_mb * 1024 * 1024:
+                    raise ValueError(
+                        f"'{file_path}' is {size / (1024*1024):.1f} MB — exceeds "
+                        f"the {max_mb} MB download limit. Use syno_file_list to find "
+                        f"smaller files or increase SYNOLOGY_MAX_DOWNLOAD_MB."
+                    )
         except ValueError:
             raise
         except Exception:
@@ -402,7 +413,14 @@ class DSMClient:
 
         def _safe_num(val, default=0):
             try:
-                return float(val) if "." in str(val) else int(val)
+                s = str(val)
+                # Strip non-numeric suffix (e.g. "15360 MB" → "15360")
+                import re
+
+                m = re.match(r"[\d.]+", s)
+                if m:
+                    s = m.group()
+                return float(s) if "." in s else int(s)
             except (ValueError, TypeError):
                 return default
 

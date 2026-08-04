@@ -121,9 +121,13 @@ permissions:
       access: none
       description: Copy files between host and containers — destructive, enable only when needed
       id: cmd_14_dockercp
+    - pattern: journalctl
+      access: active
+      description: Query systemd journal (bare)
+      id: cmd_15a_journalctl
     - pattern: journalctl *
       access: active
-      description: Query systemd journal
+      description: Query systemd journal with options
       id: cmd_15_journalctl
     - pattern: rm *
       access: active
