@@ -9,7 +9,7 @@ import http from "http";
 import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
 import { getConfigPath } from "@/lib/config";
-import { endScan, startScan } from "@/lib/scan-status";
+import { endScan, isCancelled, startScan } from "@/lib/scan-status";
 import { getScanTimeoutSeconds, isExcluded } from "@/lib/scan-constants";
 
 // ── Server → container → discover command mapping ──────────────────────
@@ -61,7 +61,12 @@ function dockerRequest<T = Record<string, unknown>>(
 }
 
 /** Run a command in a container via detached exec + logs (no stream hang). */
-async function dockerExec(container: string, cmd: string[], timeoutMs: number = -1): Promise<string> {
+async function dockerExec(
+  container: string,
+  cmd: string[],
+  timeoutMs: number = -1,
+  signal?: AbortSignal,
+): Promise<string> {
   // Create exec instance
   const create = await dockerRequest<{ Id: string }>(
     "POST",
@@ -72,6 +77,8 @@ async function dockerExec(container: string, cmd: string[], timeoutMs: number = 
   // Start exec and capture output via logs (avoids stream upgrade hang)
   return new Promise((resolve, reject) => {
     const parts: Buffer[] = [];
+
+    const onAbort = () => reject(new Error("Scan cancelled by user"));
 
     // Start the exec
     const startReq = http.request(
@@ -84,6 +91,7 @@ async function dockerExec(container: string, cmd: string[], timeoutMs: number = 
       (res) => {
         res.on("data", (c: Buffer) => parts.push(c));
         res.on("end", () => {
+          signal?.removeEventListener("abort", onAbort);
           // Docker multiplexes: 8-byte header per frame (type + 3 zero + 4 len)
           const raw = Buffer.concat(parts);
           let stdout = "";
@@ -103,6 +111,14 @@ async function dockerExec(container: string, cmd: string[], timeoutMs: number = 
       },
     );
     startReq.on("error", reject);
+
+    // Wire abort signal
+    if (signal) {
+      if (signal.aborted) { reject(new Error("Scan cancelled by user")); return; }
+      signal.addEventListener("abort", onAbort, { once: true });
+      signal.addEventListener("abort", () => startReq.destroy(), { once: true });
+    }
+
     if (timeoutMs > 0) {
       startReq.setTimeout(timeoutMs, () => {
         startReq.destroy();
@@ -146,26 +162,36 @@ export async function POST(
     const timeoutSec = getScanTimeoutSeconds();
     const timeoutMs = timeoutSec > 0 ? timeoutSec * 1000 : -1;
 
+    // Wire up cancel support via AbortController
+    const abortController = new AbortController();
+    const cancelPoll = setInterval(() => {
+      if (isCancelled(server)) abortController.abort();
+    }, 500);
+
     let stdout: string;
     try {
-      if (timeoutMs > 0) {
-        stdout = await Promise.race([
-          dockerExec(scanCfg.container, scanCfg.cmd, timeoutMs),
-          new Promise<string>((_, reject) =>
-            setTimeout(() => reject(new Error(`Scan timed out after ${timeoutSec}s`)), timeoutMs)
-          ),
-        ]);
-      } else {
-        // -1 (or <= 0): Unlimited scan duration until complete
-        stdout = await dockerExec(scanCfg.container, scanCfg.cmd, -1);
-      }
+      stdout = await dockerExec(
+        scanCfg.container,
+        scanCfg.cmd,
+        timeoutMs,
+        abortController.signal,
+      );
     } catch (execErr) {
+      clearInterval(cancelPoll);
       endScan(server);
+      const msg = String(execErr);
+      if (msg.includes("cancelled") || msg.includes("Cancelled")) {
+        return NextResponse.json(
+          { scanned: true, discovered: 0, added: 0, removed: 0, total: existing.length,
+            message: "Scan cancelled by user" },
+        );
+      }
       return NextResponse.json(
-        { error: `Discovery exec failed: ${String(execErr)}` },
+        { error: `Discovery exec failed: ${msg}` },
         { status: 500 },
       );
     }
+    clearInterval(cancelPoll);
     endScan(server);
 
     // Parse the output — could be a JSON array or an error object
@@ -262,7 +288,7 @@ export async function POST(
       ...(cancelled ? { message: "Scan was cancelled before completing" } : {}),
     });
   } catch (err) {
-    endScan();
+    endScan(server);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
