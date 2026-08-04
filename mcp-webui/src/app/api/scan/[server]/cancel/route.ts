@@ -55,7 +55,7 @@ export async function POST(
   { params }: { params: Promise<{ server: string }> },
 ) {
   const { server } = await params;
-  cancelScan();
+  cancelScan(server);
 
   // Also write cancel sentinel inside the container
   const cfg = SCAN_CONFIG[server];
