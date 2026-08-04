@@ -170,7 +170,7 @@ export default function StatsCards() {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis type="number" tick={{ fontSize: 10, fill: "#9ca3af" }} />
-                  <YAxis dataKey="user_id" type="category" tick={{ fontSize: 10, fill: "#9ca3af" }} width={80} />
+                  <YAxis dataKey="user_name" type="category" tick={{ fontSize: 10, fill: "#9ca3af" }} width={100} />
                   <Tooltip />
                   <Bar dataKey="count" fill="#8b5cf6" radius={[0, 2, 2, 0]} />
                 </BarChart>
