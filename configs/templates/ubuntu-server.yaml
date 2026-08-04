@@ -237,7 +237,7 @@ permissions:
     - pattern: ubuntu_file_delete
       access: active
       description: Delete files from the host server.
-      id: tool_2_filedelete
+      id: tool_12_filedelete
     - pattern: ubuntu_append_file
       access: none
       description: >-

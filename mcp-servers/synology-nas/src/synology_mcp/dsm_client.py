@@ -382,8 +382,10 @@ class DSMClient:
         Returns:
             List of matching file entries.
         """
+        # folder_path needs quotes (spaces in share names), pattern is raw glob
+        pattern = query if any(c in query for c in "*?") else f"*{query}*"
         data = await self._file_station_request(
-            "list", folder_path=f'"{folder_path}"', pattern=f'"{query}"'
+            "list", folder_path=f'"{folder_path}"', pattern=pattern
         )
         return [
             {"name": f["name"], "path": f["path"], "is_dir": f["isdir"]}
