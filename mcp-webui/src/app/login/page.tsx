@@ -29,7 +29,14 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center">
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-lg border border-gray-800 bg-gray-900 p-8">
-        <h1 className="text-xl font-bold text-center">🔐 MCP Permissions</h1>
+        <div className="flex justify-center mb-2">
+          <img
+            src="https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/.github/images/logo/MCP_Stack.png"
+            alt="MCP Stack"
+            className="h-16 w-auto"
+          />
+        </div>
+        <h1 className="text-lg font-semibold text-center">MCP Permissions</h1>
         <p className="text-sm text-gray-400 text-center">Enter your API key to continue</p>
         <input
           type="password"

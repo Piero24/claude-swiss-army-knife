@@ -35,6 +35,11 @@ const config: Config = {
   themeConfig: {
     navbar: {
       title: "MCP Suite Docs",
+      logo: {
+        alt: "MCP Stack",
+        src: "https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/.github/images/logo/MCP_Stack.png",
+        height: 32,
+      },
       items: [
         { to: "/user/intro", label: "Introduction", position: "left" },
         {
