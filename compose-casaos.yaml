@@ -287,8 +287,8 @@ x-casaos:
   main: mcp-webui
   developer: Andrea Pietrobon
   author: Piero24
-  icon: https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/.github/icon.png
-  thumbnail: https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/.github/icon.png
+  icon: https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/.github/images/logo/MCP_Stack.png
+  thumbnail: https://raw.githubusercontent.com/Piero24/claude-swiss-army-knife/main/.github/images/logo/MCP_Stack.png
   title:
     en_us: MCP Stack
   category: Development
