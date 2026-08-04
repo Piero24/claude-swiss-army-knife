@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import logging
+import os
 
 from mcp.server.stdio import stdio_server
 from mcp_proxy import ProxyServer
@@ -30,8 +31,9 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    log_level = os.environ.get("LOG_LEVEL", "WARNING")
     logging.basicConfig(
-        level=logging.INFO,
+        level=getattr(logging, log_level.upper(), logging.WARNING),
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
     asyncio.run(main())

@@ -33,6 +33,7 @@ services:
       - UBUNTU_REMOTE_HOST=${UBUNTU_REMOTE_HOST:-}
       - UBUNTU_REMOTE_PORT=${UBUNTU_REMOTE_PORT:-22}
       - UBUNTU_REMOTE_USER=${UBUNTU_REMOTE_USER:-}
+      - LOG_LEVEL=${UBUNTU_MCP_LOG_LEVEL:-INFO}
     pid: "host"
     network_mode: "host"
     stdin_open: true
@@ -51,6 +52,8 @@ services:
       - ./configs/obsidian.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/obsidian:/var/log/mcp
+    environment:
+      - LOG_LEVEL=${OBSIDIAN_MCP_LOG_LEVEL:-WARNING}
     stdin_open: true
     restart: unless-stopped
 
@@ -72,6 +75,7 @@ services:
       - SYNOLOGY_NAS_PASSWORD=${SYNOLOGY_NAS_PASSWORD}
       - SYNOLOGY_NAS_OTP_SECRET=${SYNOLOGY_NAS_OTP_SECRET:-}
       - SYNOLOGY_DEFAULT_SEARCH_PATH=${SYNOLOGY_DEFAULT_SEARCH_PATH:-/home}
+      - LOG_LEVEL=${SYNOLOGY_MCP_LOG_LEVEL:-INFO}
     stdin_open: true
     restart: unless-stopped
 
@@ -93,6 +97,7 @@ services:
       - WEBUI_AUTH_SECRET=${WEBUI_AUTH_SECRET}
       - CONFIGS_PATH=/app/configs
       - LOGS_PATH=/var/log/mcp
+      - LOG_LEVEL=${WEBUI_LOG_LEVEL:-INFO}
     ports:
       - "${WEBUI_PORT:-8280}:8280"
     restart: unless-stopped
@@ -115,6 +120,7 @@ services:
       - ${MCP_LOG_DIR:-/var/log/mcp}/github-mcp:/var/log/mcp
     environment:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN:-}
+      - LOG_LEVEL=${GITHUB_MCP_LOG_LEVEL:-WARNING}
     stdin_open: true
     restart: unless-stopped
 

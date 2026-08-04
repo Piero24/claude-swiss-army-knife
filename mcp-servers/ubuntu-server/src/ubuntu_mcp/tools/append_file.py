@@ -1,6 +1,10 @@
 """Tool: append content to a file on the host."""
 
+import logging
+
 from permission_engine import PermissionEnforcer
+
+logger = logging.getLogger(__name__)
 
 
 async def append_file(
@@ -15,6 +19,7 @@ async def append_file(
     try:
         await host.write_file(requested, existing + args["content"])
     except Exception as e:
+        logger.error("append_file failed for %s: %s", requested, e)
         return {"error": str(e), "path": requested}
     return {
         "appended": True,

@@ -1,6 +1,10 @@
 """Tool: execute a shell command with allowlist enforcement."""
 
+import logging
+
 from permission_engine import PermissionEnforcer
+
+logger = logging.getLogger(__name__)
 
 
 async def execute(

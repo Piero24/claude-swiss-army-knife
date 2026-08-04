@@ -1,9 +1,12 @@
 """Vault abstraction — filesystem access to an Obsidian vault."""
 
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class Vault:
