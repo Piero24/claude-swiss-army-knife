@@ -332,9 +332,13 @@ export default function AgentsPage() {
                   </button>
                 </div>
                 {generatedSecret && (
-                  <div className="mt-2 p-2 rounded border border-yellow-600/50 bg-yellow-900/20">
-                    <p className="text-xs text-yellow-400 font-medium mb-1">Copy this key now — it cannot be shown again:</p>
-                    <code className="block text-xs text-yellow-300 break-all select-all">{generatedSecret}</code>
+                  <div className="mt-2 p-2 rounded border border-yellow-600/50 bg-yellow-900/20 space-y-2">
+                    <p className="text-xs text-yellow-400 font-medium">Copy this into your .claude.json — it cannot be shown again:</p>
+                    <code className="block text-xs text-yellow-300 break-all select-all whitespace-pre-wrap">{`"env": {
+  "MCP_USER_ID": "${newUser.id || "USER_ID"}",
+  "MCP_USER_KEY": "${generatedSecret}"
+}`}</code>
+                    <p className="text-[10px] text-yellow-600">Only the plaintext secret works. The sha256$... hash will NOT authenticate.</p>
                   </div>
                 )}
               </div>
