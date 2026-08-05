@@ -112,6 +112,7 @@ async function discoverServers(): Promise<Array<{ name: string; label: string; i
     "obsidian": { label: "Obsidian", icon: "📝" },
     "synology-nas": { label: "Synology NAS", icon: "💾" },
     "github-mcp": { label: "GitHub", icon: "🐙" },
+    "link-manager": { label: "Link Manager", icon: "🔗" },
   };
   const servers: Array<{ name: string; label: string; icon: string }> = [];
   try {
