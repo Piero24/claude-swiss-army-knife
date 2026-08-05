@@ -198,7 +198,19 @@ export async function PUT(request: Request) {
         cleaned += before - filtered.length;
 
         if (filtered.length !== before) {
+          // Snapshot non-path permission fields before replacement (#193)
+          const cmds = (perms as Record<string, unknown>).commands;
+          const cmdDefault = (perms as Record<string, unknown>).default_command_access;
+          const tools = (perms as Record<string, unknown>).tools;
+          const toolDefault = (perms as Record<string, unknown>).default_tool_access;
+
           (perms as Record<string, unknown>).paths = filtered;
+          // Restore non-path permission fields
+          if (cmds !== undefined) { (perms as Record<string, unknown>).commands = cmds; }
+          if (cmdDefault !== undefined) { (perms as Record<string, unknown>).default_command_access = cmdDefault; }
+          if (tools !== undefined) { (perms as Record<string, unknown>).tools = tools; }
+          if (toolDefault !== undefined) { (perms as Record<string, unknown>).default_tool_access = toolDefault; }
+
           await fs.writeFile(configPath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
         }
       } catch { /* skip */ }

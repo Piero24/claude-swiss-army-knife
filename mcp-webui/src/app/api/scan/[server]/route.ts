@@ -194,6 +194,13 @@ export async function POST(
     clearInterval(cancelPoll);
     endScan(server);
 
+    // Snapshot non-path permission fields so they are never lost
+    // during the YAML round-trip (#193).
+    const preservedCommands = (perms as Record<string, unknown>).commands;
+    const preservedCommandDefault = (perms as Record<string, unknown>).default_command_access;
+    const preservedTools = (perms as Record<string, unknown>).tools;
+    const preservedToolDefault = (perms as Record<string, unknown>).default_tool_access;
+
     // Parse the output — could be a JSON array or an error object
     let parsed: unknown;
     try {
@@ -276,6 +283,11 @@ export async function POST(
       });
     }
     (perms as Record<string, unknown>).paths = newPaths;
+    // Restore non-path permission fields (#193)
+    if (preservedCommands !== undefined) { (perms as Record<string, unknown>).commands = preservedCommands; }
+    if (preservedCommandDefault !== undefined) { (perms as Record<string, unknown>).default_command_access = preservedCommandDefault; }
+    if (preservedTools !== undefined) { (perms as Record<string, unknown>).tools = preservedTools; }
+    if (preservedToolDefault !== undefined) { (perms as Record<string, unknown>).default_tool_access = preservedToolDefault; }
 
     await fs.writeFile(filePath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
 
