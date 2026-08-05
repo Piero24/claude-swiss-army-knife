@@ -11,7 +11,7 @@ from mcp.types import Tool, TextContent
 from permission_engine import BaseMCPServer
 
 from .config_watcher import watch_config
-from .dsm_client import DSMClient
+from .dsm_client import DSMClient, _get_synology_setting
 
 logger = logging.getLogger("synology-mcp")
 
@@ -206,8 +206,10 @@ class SynologyServer(BaseMCPServer):
                 return result
 
             case "syno_file_search":
-                folder = arguments.get("folder_path", "") or os.environ.get(
-                    "SYNOLOGY_DEFAULT_SEARCH_PATH", "/home"
+                folder = arguments.get(
+                    "folder_path", ""
+                ) or _get_synology_setting(
+                    "defaultSearchPath", "SYNOLOGY_DEFAULT_SEARCH_PATH", "/home"
                 )
                 if folder:
                     self.enforcer.check("read", folder, name)

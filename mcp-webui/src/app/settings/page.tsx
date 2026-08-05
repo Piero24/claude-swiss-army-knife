@@ -215,6 +215,40 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Synology MCP Section */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold mb-4">Synology MCP</h2>
+        <p className="text-xs text-gray-500 mb-4">These settings are passed to the Synology NAS MCP server.</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Max download size (MB)</label>
+            <p className="text-xs text-gray-500 mb-1">Files larger than this are rejected by syno_file_read. Range: 1–10240 MB.</p>
+            <input
+              type="number" min={1} max={10240}
+              value={settings.synology?.maxDownloadMb ?? 100}
+              onChange={(e) => setSettings({
+                ...settings,
+                synology: { ...(settings.synology || { maxDownloadMb: 100, defaultSearchPath: "/home" }), maxDownloadMb: parseInt(e.target.value) || 100 },
+              })}
+              className="w-32 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Default search path</label>
+            <p className="text-xs text-gray-500 mb-1">Default folder for syno_file_search when none is specified.</p>
+            <input
+              type="text"
+              value={settings.synology?.defaultSearchPath ?? "/home"}
+              onChange={(e) => setSettings({
+                ...settings,
+                synology: { ...(settings.synology || { maxDownloadMb: 100, defaultSearchPath: "/home" }), defaultSearchPath: e.target.value },
+              })}
+              className="w-full max-w-xs rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Server Sections */}
       {servers.length > 0 && <section className="mb-8">
         <h2 className="text-lg font-semibold mb-4">Server Page Sections</h2>

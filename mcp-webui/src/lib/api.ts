@@ -141,6 +141,10 @@ export interface AppSettings {
     excludePatterns: string[];
   };
   auditPageSize?: number;
+  synology?: {
+    maxDownloadMb: number;
+    defaultSearchPath: string;
+  };
 }
 
 export async function getSettings(): Promise<AppSettings> {
