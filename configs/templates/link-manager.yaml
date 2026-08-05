@@ -1,0 +1,74 @@
+# Link Manager MCP — Permission Configuration Template
+#
+# Stores a curated collection of website links, documentation URLs,
+# and project references that Claude can browse and search.
+
+server:
+  name: link-manager
+  log_level: INFO
+  audit_log: /var/log/mcp/audit.log
+
+ui:
+  label: "Link Manager"
+  icon: "🔗"
+  sections:
+    paths: false
+    commands: false
+    tools: true
+    audit: true
+
+permissions:
+  default_access: none
+  tools:
+    - pattern: link_list
+      access: active
+      description: >-
+        List all stored links, optionally filtered by category or tag.
+      id: tool_0_list
+    - pattern: link_search
+      access: active
+      description: >-
+        Search links by name, description, or URL (case-insensitive).
+      id: tool_1_search
+    - pattern: link_get
+      access: active
+      description: >-
+        Get full details of a specific link by exact name.
+      id: tool_2_get
+    - pattern: link_categories
+      access: active
+      description: >-
+        List all categories with link counts.
+      id: tool_3_categories
+    - pattern: link_add
+      access: none
+      description: >-
+        Add a new link. DESTRUCTIVE — enable only for trusted users.
+      id: tool_4_add
+    - pattern: link_remove
+      access: none
+      description: >-
+        Remove a link by name. DESTRUCTIVE — enable only for trusted users.
+      id: tool_5_remove
+  default_tool_access: none
+
+# Links are defined here and can be managed through the MCP tools
+# or edited directly in this file.
+links:
+  - name: "Claude Code Docs"
+    url: "https://docs.anthropic.com/en/docs/claude-code"
+    description: "Official Claude Code documentation"
+    category: "documentation"
+    tags: ["claude", "official"]
+
+  - name: "MCP Specification"
+    url: "https://modelcontextprotocol.io/specification"
+    description: "Model Context Protocol specification"
+    category: "documentation"
+    tags: ["mcp", "protocol"]
+
+  - name: "Swiss Army Knife Repo"
+    url: "https://github.com/Piero24/claude-swiss-army-knife"
+    description: "Main repository for the MCP stack"
+    category: "development"
+    tags: ["github", "source"]
