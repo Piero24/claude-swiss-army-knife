@@ -56,7 +56,19 @@ const DEFAULTS: AppSettings = {
 };
 
 async function seedDefaultTemplates(configsDir: string): Promise<void> {
-  const templateDir = "/app/templates";
+  let templateDir = "/app/templates";
+  try {
+    await fs.access(templateDir);
+  } catch {
+    const local1 = path.join(process.cwd(), "configs/templates");
+    const local2 = path.join(process.cwd(), "../configs/templates");
+    try {
+      await fs.access(local1);
+      templateDir = local1;
+    } catch {
+      templateDir = local2;
+    }
+  }
   try {
     await fs.mkdir(configsDir, { recursive: true });
     // Seed settings.json if missing

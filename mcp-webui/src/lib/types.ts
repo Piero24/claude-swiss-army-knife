@@ -24,6 +24,14 @@ export interface ToolRule {
   description?: string;
 }
 
+export interface LinkItem {
+  name: string;
+  url: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+}
+
 export interface ServerConfig {
   server: {
     name: string;
@@ -38,6 +46,7 @@ export interface ServerConfig {
     tools: ToolRule[];
     default_tool_access: "none" | "active";
   };
+  links?: LinkItem[];
 }
 
 export interface AuditEntry {

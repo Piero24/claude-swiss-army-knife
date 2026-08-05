@@ -203,6 +203,9 @@ export default function DashboardPage() {
                     {Array.isArray(config.permissions?.tools) && (
                       <p>{config.permissions.tools.length} tool rules</p>
                     )}
+                    {Array.isArray(config.links) && (
+                      <p>{config.links.length} managed links</p>
+                    )}
                     <Badge variant="status" value="loaded" label="📄 Config loaded" />
                   </>
                 ) : (
