@@ -146,6 +146,25 @@ services:
     restart: unless-stopped
 
   # ============================================================
+  # Link Manager MCP — Curated link and documentation manager
+  # ============================================================
+  link-manager-mcp:
+    build:
+      context: ./mcp-servers/link-manager
+      args:
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+    image: link-manager-mcp:${LINK_MANAGER_MCP_IMAGE_TAG:-latest}
+    container_name: ${LINK_MANAGER_MCP_CONTAINER:-link-manager-mcp}
+    volumes:
+      - ./configs/link-manager.yaml:/app/config.yaml:ro
+      - ./configs/users.yaml:/app/users.yaml:ro
+      - ${MCP_LOG_DIR:-/var/log/mcp}/link-manager:/var/log/mcp
+    environment:
+      - LOG_LEVEL=${LINK_MANAGER_LOG_LEVEL:-INFO}
+    stdin_open: true
+    restart: unless-stopped
+
+  # ============================================================
   # Beszel Agent — System metrics
   # ============================================================
   beszel-agent:

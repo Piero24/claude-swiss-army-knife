@@ -37,6 +37,11 @@ jobs:
             build-args: |
               PERMISSION_ENGINE_PATH=shared/mcp-permission-engine
               PROXY_PATH=shared/mcp-proxy
+          - name: link-manager-mcp
+            context: ./mcp-servers/link-manager
+            dockerfile: ./mcp-servers/link-manager/Dockerfile
+            build-args: |
+              PERMISSION_ENGINE_PATH=shared/mcp-permission-engine
           - name: mcp-webui
             context: ./mcp-webui
             dockerfile: ./mcp-webui/Dockerfile

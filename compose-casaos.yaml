@@ -30,13 +30,14 @@
 #
 # Before starting on the host:
 #        mkdir -p /DATA/AppData/mcps-server/{shared,ubuntu-server,synology-nas,obsidian,github,mcp-webui,settings}
-#        mkdir -p /DATA/AppData/mcps-server/logs/{ubuntu-server,obsidian,synology-nas,github-mcp}
+#        mkdir -p /DATA/AppData/mcps-server/logs/{ubuntu-server,obsidian,synology-nas,github-mcp,link-manager}
 #   3. Copy config templates into settings:
 #        cp configs/templates/users.yaml /DATA/AppData/mcps-server/settings/
 #        cp configs/templates/ubuntu-server.yaml /DATA/AppData/mcps-server/settings/
 #        cp configs/templates/obsidian.yaml /DATA/AppData/mcps-server/settings/
 #        cp configs/templates/synology-nas.yaml /DATA/AppData/mcps-server/settings/
 #        cp configs/templates/github-mcp.yaml /DATA/AppData/mcps-server/settings/
+#        cp configs/templates/link-manager.yaml /DATA/AppData/mcps-server/settings/
 #   4. Fill in env vars in the CasaOS UI or edit them below.
 #   5. Generate API keys for the Web UI:
 #        WEBUI_API_KEY=$(openssl rand -hex 32)
@@ -255,6 +256,30 @@ services:
         source: /DATA/AppData/mcps-server/logs/github-mcp
         target: /var/log/mcp
     command: ["--config", "/app/configs/github-mcp.yaml"]
+
+  # ============================================================
+  # LINK MANAGER MCP — Curated link and documentation manager
+  # ============================================================
+  link-manager-mcp:
+    build:
+      context: ./mcp-servers/link-manager
+      args:
+        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+    image: ghcr.io/piero24/link-manager-mcp:latest
+    pull_policy: always
+    container_name: link-manager-mcp
+    stdin_open: true
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: "${LINK_MANAGER_LOG_LEVEL:-INFO}"
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mcps-server/settings
+        target: /app/configs
+      - type: bind
+        source: /DATA/AppData/mcps-server/logs/link-manager
+        target: /var/log/mcp
+    command: ["--config", "/app/configs/link-manager.yaml"]
 
   # ============================================================
   # BESZEL AGENT — System metrics for the Beszel hub
