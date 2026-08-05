@@ -67,6 +67,7 @@ services:
     volumes:
       - ./configs/synology-nas.yaml:/app/config.yaml:ro
       - ./configs/users.yaml:/app/users.yaml:ro
+      - ./configs/settings.json:/app/settings.json:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/synology-nas:/var/log/mcp
     environment:
       - SYNOLOGY_NAS_HOST=${SYNOLOGY_NAS_HOST}
