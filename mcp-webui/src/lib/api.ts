@@ -294,3 +294,24 @@ export async function updateAgent(
     body: JSON.stringify(data),
   });
 }
+
+// ── Links ───────────────────────────────────────────
+
+export async function addLink(
+  server: ServerName,
+  link: { name: string; url: string; description?: string; category?: string; tags?: string[] }
+): Promise<{ created: boolean; link: import("./types").LinkItem }> {
+  return fetchJSON(`${BASE}/config/${server}/links`, {
+    method: "POST",
+    body: JSON.stringify(link),
+  });
+}
+
+export async function deleteLink(
+  server: ServerName,
+  linkNameOrUrl: string
+): Promise<{ deleted: boolean }> {
+  return fetchJSON(`${BASE}/config/${server}/links/${encodeURIComponent(linkNameOrUrl)}`, {
+    method: "DELETE",
+  });
+}

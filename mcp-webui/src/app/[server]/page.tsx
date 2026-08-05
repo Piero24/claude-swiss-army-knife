@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { AccessLevel, CommandAccess, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName, LinkItem } from "@/lib/types";
-import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer, addToolRule, updateToolRule, deleteToolRule } from "@/lib/api";
+import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer, addToolRule, updateToolRule, deleteToolRule, addLink, deleteLink } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
 import PageHeader from "@/components/PageHeader";
@@ -39,6 +39,8 @@ export default function ServerDetailPage() {
   const [showAddPath, setShowAddPath] = useState(false);
   const [showAddCmd, setShowAddCmd] = useState(false);
   const [showAddTool, setShowAddTool] = useState(false);
+  const [showAddLink, setShowAddLink] = useState(false);
+  const [newLinkData, setNewLinkData] = useState({ name: "", url: "", description: "", category: "documentation", tags: "" });
   const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
   const [pathSearch, setPathSearch] = useState("");
   const [pathAccessFilter, setPathAccessFilter] = useState<AccessLevel | "all">("all");
@@ -288,6 +290,47 @@ export default function ServerDetailPage() {
       loadData();
     } catch (err) {
       toast.error("Failed to add rule");
+    }
+  }
+
+  async function handleAddLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newLinkData.name || !newLinkData.url) {
+      toast.error("Name and URL are required");
+      return;
+    }
+    try {
+      const tagsArray = newLinkData.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+      await addLink(server, {
+        name: newLinkData.name,
+        url: newLinkData.url,
+        description: newLinkData.description || undefined,
+        category: newLinkData.category || undefined,
+        tags: tagsArray.length > 0 ? tagsArray : undefined,
+      });
+      toast.success("Link added successfully");
+      setShowAddLink(false);
+      setNewLinkData({ name: "", url: "", description: "", category: "documentation", tags: "" });
+      loadData();
+    } catch {
+      toast.error("Failed to add link");
+    }
+  }
+
+  async function handleDeleteLink(linkNameOrUrl: string) {
+    if (!config) return;
+    const prev = structuredClone(config);
+    const newLinks = (config.links || []).filter((l) => l.name !== linkNameOrUrl && l.url !== linkNameOrUrl);
+    setConfig({ ...config, links: newLinks });
+    try {
+      await deleteLink(server, linkNameOrUrl);
+      toast.success("Link removed");
+    } catch {
+      setConfig(prev);
+      toast.error("Failed to delete link");
     }
   }
 
@@ -569,10 +612,16 @@ export default function ServerDetailPage() {
       </section>}
 
       {/* Managed Links (e.g. Link Manager MCP) */}
-      {config?.links && config.links.length > 0 && (
+      {(sectionVisible("tools") || server === "link-manager" || (config?.links && config.links.length > 0)) && (
         <section className="mb-8">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">Managed Links ({config.links.length})</h2>
+            <h2 className="text-lg font-semibold">Managed Links ({(config?.links || []).length})</h2>
+            <button
+              onClick={() => setShowAddLink(true)}
+              className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 font-medium"
+            >
+              <Plus size={16} /> Add Link
+            </button>
           </div>
           <div className="mb-3">
             <input
@@ -641,8 +690,19 @@ export default function ServerDetailPage() {
                 cellClassName: "text-gray-400 text-xs hidden lg:table-cell truncate",
                 render: (r: LinkItem) => r.description || "",
               },
+              {
+                key: "delete",
+                header: "",
+                headerClassName: "w-10",
+                cellClassName: "text-center",
+                render: (r: LinkItem) => (
+                  <button onClick={() => handleDeleteLink(r.name)} className="text-gray-600 hover:text-red-400" title="Delete link">
+                    <Trash2 size={14} />
+                  </button>
+                ),
+              },
             ]}
-            data={(config.links || []).filter((l) => {
+            data={(config?.links || []).filter((l) => {
               if (!linkSearch) return true;
               const q = linkSearch.toLowerCase();
               return (
@@ -654,7 +714,7 @@ export default function ServerDetailPage() {
               );
             })}
             rowKey={(r: LinkItem) => r.url || r.name}
-            emptyMessage="No links found."
+            emptyMessage="No links available. Click '+ Add Link' above to add one."
           />
         </section>
       )}
@@ -882,6 +942,79 @@ export default function ServerDetailPage() {
         onClose={() => setShowAddTool(false)}
         commandAccess
       />
+
+      {/* Add Link Dialog */}
+      <Modal open={showAddLink} onClose={() => setShowAddLink(false)} title="Add New Link">
+        <form onSubmit={handleAddLink} className="space-y-3">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Name *</label>
+            <input
+              type="text"
+              placeholder="e.g. Claude Docs"
+              required
+              value={newLinkData.name}
+              onChange={(e) => setNewLinkData({ ...newLinkData, name: e.target.value })}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">URL *</label>
+            <input
+              type="url"
+              placeholder="https://docs.anthropic.com"
+              required
+              value={newLinkData.url}
+              onChange={(e) => setNewLinkData({ ...newLinkData, url: e.target.value })}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Category</label>
+            <input
+              type="text"
+              placeholder="e.g. documentation, development, tools"
+              value={newLinkData.category}
+              onChange={(e) => setNewLinkData({ ...newLinkData, category: e.target.value })}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Tags (comma separated)</label>
+            <input
+              type="text"
+              placeholder="e.g. claude, docs, official"
+              value={newLinkData.tags}
+              onChange={(e) => setNewLinkData({ ...newLinkData, tags: e.target.value })}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Description</label>
+            <input
+              type="text"
+              placeholder="Optional description"
+              value={newLinkData.description}
+              onChange={(e) => setNewLinkData({ ...newLinkData, description: e.target.value })}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowAddLink(false)}
+              className="px-3 py-1.5 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
+            >
+              Add Link
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Bulk Confirm Dialog */}
       <Modal
