@@ -100,7 +100,7 @@ async function seedDefaultTemplates(configsDir: string): Promise<void> {
       /* template dir missing */
     }
 
-    // Seed mcp-launcher and client.env directly into configsDir (/DATA/AppData/mcps-server/settings) (#190)
+    // Seed mcp-launcher directly into configsDir (/DATA/AppData/mcps-server/settings) (#190)
     try {
       const launcherSrc = path.join(templateDir, "mcp-launcher.sh");
       const launcherDst = path.join(configsDir, "mcp-launcher");
@@ -110,16 +110,6 @@ async function seedDefaultTemplates(configsDir: string): Promise<void> {
         await fs.chmod(launcherDst, 0o755);
       } catch { /* ok */ }
 
-      const clientEnv = path.join(configsDir, "client.env");
-      try {
-        await fs.access(clientEnv);
-      } catch {
-        const envSrc = path.join(templateDir, "client.env.example");
-        try {
-          await fs.copyFile(envSrc, clientEnv);
-          await fs.chmod(clientEnv, 0o600);
-        } catch { /* ok */ }
-      }
     } catch {
       /* launcher creation failed */
     }

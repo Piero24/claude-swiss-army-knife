@@ -24,16 +24,6 @@ case "$CONTAINER" in
     ;;
 esac
 
-# Fallback to client.env if credentials not supplied as args or env
-if [ -z "$USER_ID" ] || [ -z "$USER_KEY" ]; then
-  if [ -f /DATA/AppData/mcps-server/bin/client.env ]; then
-    source /DATA/AppData/mcps-server/bin/client.env 2>/dev/null || true
-  elif [ -f /DATA/AppData/mcps-server/settings/client.env ]; then
-    source /DATA/AppData/mcps-server/settings/client.env 2>/dev/null || true
-  fi
-  USER_ID="${USER_ID:-$MCP_USER_ID}"
-  USER_KEY="${USER_KEY:-$MCP_USER_KEY}"
-fi
 
 exec docker exec -i \
   -e "MCP_USER_ID=${USER_ID}" \
