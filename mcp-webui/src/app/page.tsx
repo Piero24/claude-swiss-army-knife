@@ -194,8 +194,15 @@ export default function DashboardPage() {
               <div className="text-xs text-gray-400 space-y-0.5 flex-1">
                 {config ? (
                   <>
-                    <p>{config.permissions.paths.length} path rules</p>
-                    <p>{config.permissions.commands.length} command rules</p>
+                    {Array.isArray(config.permissions?.paths) && (
+                      <p>{config.permissions.paths.length} path rules</p>
+                    )}
+                    {Array.isArray(config.permissions?.commands) && (
+                      <p>{config.permissions.commands.length} command rules</p>
+                    )}
+                    {Array.isArray(config.permissions?.tools) && (
+                      <p>{config.permissions.tools.length} tool rules</p>
+                    )}
                     <Badge variant="status" value="loaded" label="📄 Config loaded" />
                   </>
                 ) : (

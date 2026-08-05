@@ -115,12 +115,13 @@ export default function ServerDetailPage() {
     if (!config) return;
     // Optimistic update — immutable to ensure React detects the change
     const prev = structuredClone(config);
-    const idx = config.permissions.paths.findIndex((p) => p.id === ruleId);
+    const paths = config.permissions?.paths || [];
+    const idx = paths.findIndex((p) => p.id === ruleId);
     if (idx < 0) return;
-    const newPaths = config.permissions.paths.map((p, i) =>
+    const newPaths = paths.map((p, i) =>
       i === idx ? { ...p, access } : p
     );
-    setConfig({ ...config, permissions: { ...config.permissions, paths: newPaths } });
+    setConfig({ ...config, permissions: { ...(config.permissions || {}), paths: newPaths } });
     try {
       await updatePathRule(server, ruleId, access);
       toast.success(`Path access set to ${access}`);
@@ -133,8 +134,8 @@ export default function ServerDetailPage() {
   async function handleDeletePath(ruleId: string) {
     if (!config) return;
     const prev = structuredClone(config);
-    const newPaths = config.permissions.paths.filter((p) => p.id !== ruleId);
-    setConfig({ ...config, permissions: { ...config.permissions, paths: newPaths } });
+    const newPaths = (config.permissions?.paths || []).filter((p) => p.id !== ruleId);
+    setConfig({ ...config, permissions: { ...(config.permissions || {}), paths: newPaths } });
     try {
       await deletePathRule(server, ruleId);
       toast.success("Path rule removed");
@@ -158,12 +159,13 @@ export default function ServerDetailPage() {
   async function handleToggleCommand(ruleId: string, access: CommandAccess) {
     if (!config) return;
     const prev = structuredClone(config);
-    const idx = config.permissions.commands.findIndex((c) => c.id === ruleId);
+    const commands = config.permissions?.commands || [];
+    const idx = commands.findIndex((c) => c.id === ruleId);
     if (idx < 0) return;
-    const newCommands = config.permissions.commands.map((c, i) =>
+    const newCommands = commands.map((c, i) =>
       i === idx ? { ...c, access } : c
     );
-    setConfig({ ...config, permissions: { ...config.permissions, commands: newCommands } });
+    setConfig({ ...config, permissions: { ...(config.permissions || {}), commands: newCommands } });
     try {
       await updateCommandRule(server, ruleId, access);
       toast.success(`Command access set to ${access}`);
@@ -176,8 +178,8 @@ export default function ServerDetailPage() {
   async function handleDeleteCommand(ruleId: string) {
     if (!config) return;
     const prev = structuredClone(config);
-    const newCommands = config.permissions.commands.filter((c) => c.id !== ruleId);
-    setConfig({ ...config, permissions: { ...config.permissions, commands: newCommands } });
+    const newCommands = (config.permissions?.commands || []).filter((c) => c.id !== ruleId);
+    setConfig({ ...config, permissions: { ...(config.permissions || {}), commands: newCommands } });
     try {
       await deleteCommandRule(server, ruleId);
       toast.success("Command rule removed");
@@ -460,7 +462,7 @@ export default function ServerDetailPage() {
               if (toggling) return;
               // Find matching rule
               const cleanPath = folderPath.replace(/\/\*\*$/, "");
-              const rule = config?.permissions.paths.find(
+              const rule = config?.permissions?.paths?.find(
                 (r) => r.path.replace(/\/\*\*$/, "") === cleanPath
               );
               if (!rule) return;
@@ -471,7 +473,7 @@ export default function ServerDetailPage() {
               const prevConfig = structuredClone(config!);
               const prefix = cleanPath + "/";
 
-              const newPaths = config!.permissions.paths.map((p) => {
+              const newPaths = (config!.permissions?.paths || []).map((p) => {
                 if (p.id === rule.id) return { ...p, access };
                 const childPath = p.path.replace(/\/\*\*$/, "");
                 if (childPath.startsWith(prefix)) {
@@ -480,7 +482,7 @@ export default function ServerDetailPage() {
                 }
                 return p;
               });
-              setConfig({ ...config!, permissions: { ...config!.permissions, paths: newPaths } });
+              setConfig({ ...config!, permissions: { ...(config!.permissions || {}), paths: newPaths } });
 
               // ── Single atomic API call ──
               setToggling(true);
@@ -509,9 +511,9 @@ export default function ServerDetailPage() {
         ) : (
           <DataTable
             columns={pathColumns}
-            data={config.permissions.paths.filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))}
+            data={(config.permissions?.paths || []).filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))}
             rowKey={(r) => r.id}
-            emptyMessage={`No path rules. Default: ${config.permissions.default_access}`}
+            emptyMessage={`No path rules. Default: ${config.permissions?.default_access || "none"}`}
           />
         )}
       </section>}
@@ -526,7 +528,7 @@ export default function ServerDetailPage() {
           </div>
           <DataTable
             columns={commandColumns}
-            data={config.permissions.commands}
+            data={config.permissions?.commands || []}
             rowKey={(r) => r.id}
             emptyMessage="No command rules."
           />
@@ -801,7 +803,7 @@ export default function ServerDetailPage() {
             <p className="text-sm text-gray-400 mb-4">
               This will change{' '}
               <span className="text-white font-semibold">
-                {bulkConfirm.type === "paths" ? config!.permissions.paths.length : config!.permissions.commands.length}
+                {bulkConfirm.type === "paths" ? (config!.permissions?.paths || []).length : (config!.permissions?.commands || []).length}
               </span>{' '}
               {bulkConfirm.type} to{' '}
               <span className="text-white font-semibold">{bulkConfirm.access}</span>.
