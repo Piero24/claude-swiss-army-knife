@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getStats, type StatsResponse } from "@/lib/api";
-import { serverLabel } from "@/lib/provider-stats/server-labels";
+import { serverLabel, SERVER_LABELS } from "@/lib/provider-stats/server-labels";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, ResponsiveContainer,
@@ -11,10 +11,19 @@ import {
 const PIE_COLORS = ["#3b82f6", "#8b5cf6", "#06b6d4", "#f59e0b", "#ef4444"];
 type Range = "week" | "month" | "year" | "all";
 
+/** Merge the known server list into by_server so the pie always shows all servers. */
+function mergeServerStats(byServer: Record<string, number>): Record<string, number> {
+  const merged = { ...byServer };
+  for (const key of Object.keys(SERVER_LABELS)) {
+    if (!(key in merged)) merged[key] = 0;
+  }
+  return merged;
+}
+
 export default function StatsCards() {
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [range, setRange] = useState<Range>("week");
+  const [range, setRange] = useState<Range>("all");
 
   useEffect(() => {
     function refresh() {
@@ -123,13 +132,13 @@ export default function StatsCards() {
 
         {/* Per server pie + by user side by side */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {stats.by_server && Object.keys(stats.by_server).length > 0 && (
+          {stats.by_server && (
             <div>
               <h3 className="text-xs font-medium text-gray-400 mb-2">By Server</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
-                    data={Object.entries(stats.by_server).map(([name, count]) => ({
+                    data={Object.entries(mergeServerStats(stats.by_server)).map(([name, count]) => ({
                       name: serverLabel(name),
                       value: count,
                     }))}
@@ -141,7 +150,7 @@ export default function StatsCards() {
                     label={({ name, value }) => `${name} (${value})`}
                     labelLine={false}
                   >
-                    {Object.keys(stats.by_server).map((_, i) => (
+                    {Object.keys(mergeServerStats(stats.by_server)).map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
