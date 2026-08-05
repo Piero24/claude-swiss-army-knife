@@ -175,7 +175,7 @@ class TestAccessControlFields:
 
     def test_users_config_default_mode(self):
         config = UsersConfig(users=[])
-        assert config.mode == "open"
+        assert config.mode == "allowlist"
 
     def test_users_config_custom_mode(self):
         config = UsersConfig(mode="allowlist", users=[])

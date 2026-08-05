@@ -30,7 +30,7 @@ class UsersConfig(BaseModel):
     """Top-level users configuration."""
 
     mode: str = Field(
-        default="open",
+        default="allowlist",
         description="Access mode: 'open', 'allowlist', or 'blocklist'",
     )
     users: list[UserConfig] = Field(
@@ -82,10 +82,6 @@ def validate_user(
         if user.id == user_id:
             if not user.enabled:
                 raise AuthenticationError(f"User '{user_id}' is disabled")
-
-            # Direct equality match (allows simple static tokens or matching string keys)
-            if user.key == provided_key:
-                return user
 
             # Parse stored key: "sha256$<salt>$<hash>"
             parts = user.key.split("$")

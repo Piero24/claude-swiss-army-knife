@@ -147,10 +147,6 @@ class PermissionEnforcer:
         Raises:
             AuthenticationError: If credentials are invalid or user is disabled.
         """
-        # If no identity is provided, skip authentication (allow "default")
-        if user_id == "default" and not user_key:
-            return True
-
         from .users import AuthenticationError, load_users, validate_user
 
         if not users_config_path:
@@ -186,6 +182,11 @@ class PermissionEnforcer:
         user = next((u for u in users.users if u.id == user_id), None)
 
         if mode == "open":
+            # Require at least one enabled user when using open mode
+            if not users.users:
+                raise ForbiddenError(
+                    "No users configured — cannot use open mode without at least one user"
+                )
             if user and not user.enabled:
                 raise ForbiddenError(f"User '{user_id}' is disabled")
             return True

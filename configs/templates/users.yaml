@@ -12,5 +12,5 @@
 #
 # tools: ["*"] = all tools, or list specific tool names per server
 
-mode: open
+mode: allowlist
 users: []
