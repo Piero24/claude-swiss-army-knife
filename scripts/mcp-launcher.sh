@@ -1,16 +1,14 @@
 #!/bin/bash
 # mcp-launcher — dispatcher for all MCP containers
-# Install: sudo cp scripts/server/mcp-launcher.sh /usr/local/bin/mcp-launcher
-#
 # Maps container names to python modules and config paths.
-# Credentials from /DATA/AppData/mcps-server/bin/client.env.
-# Usage in .claude.json:
-#   "obsidian": { "command": "ssh", "args": ["server@172.168.1.41", "obsidian-mcp"] }
 set -e
 
 CONTAINER="$1"
+USER_ID="${2:-$MCP_USER_ID}"
+USER_KEY="${3:-$MCP_USER_KEY}"
+
 if [ -z "$CONTAINER" ]; then
-  echo "Usage: mcp-launcher <container-name>" >&2
+  echo "Usage: mcp-launcher <container-name> [user-id] [user-key]" >&2
   exit 1
 fi
 
@@ -26,9 +24,18 @@ case "$CONTAINER" in
     ;;
 esac
 
-source /DATA/AppData/mcps-server/bin/client.env 2>/dev/null || true
+# Fallback to client.env if credentials not supplied as args or env
+if [ -z "$USER_ID" ] || [ -z "$USER_KEY" ]; then
+  if [ -f /DATA/AppData/mcps-server/bin/client.env ]; then
+    source /DATA/AppData/mcps-server/bin/client.env 2>/dev/null || true
+  elif [ -f /DATA/AppData/mcps-server/settings/client.env ]; then
+    source /DATA/AppData/mcps-server/settings/client.env 2>/dev/null || true
+  fi
+  USER_ID="${USER_ID:-$MCP_USER_ID}"
+  USER_KEY="${USER_KEY:-$MCP_USER_KEY}"
+fi
 
 exec docker exec -i \
-  -e "MCP_USER_ID=${MCP_USER_ID:-}" \
-  -e "MCP_USER_KEY=${MCP_USER_KEY:-}" \
+  -e "MCP_USER_ID=${USER_ID}" \
+  -e "MCP_USER_KEY=${USER_KEY}" \
   "$CONTAINER" python -m "$MODULE" --config "/app/configs/$CONFIG"
