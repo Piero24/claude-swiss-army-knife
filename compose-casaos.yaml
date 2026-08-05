@@ -154,7 +154,6 @@ services:
       SYNOLOGY_NAS_USER: ""
       SYNOLOGY_NAS_PASSWORD: ""
       SYNOLOGY_NAS_OTP_SECRET: ""
-      SYNOLOGY_DEFAULT_SEARCH_PATH: "/home"
       LOG_LEVEL: "${SYNOLOGY_MCP_LOG_LEVEL:-INFO}"
     x-casaos:
       envs:
@@ -173,9 +172,6 @@ services:
         - container: SYNOLOGY_NAS_OTP_SECRET
           description:
             en_us: "Base32 TOTP secret if 2FA is enabled. Copy only the secret= value from your otpauth:// URL. Leave empty if 2FA is disabled."
-        - container: SYNOLOGY_DEFAULT_SEARCH_PATH
-          description:
-            en_us: Default folder for file_search when none is specified (must be a share the DSM user can access).
     volumes:
       - type: bind
         source: /DATA/AppData/mcps-server/settings
