@@ -90,6 +90,7 @@ services:
     container_name: mcp-webui
     volumes:
       - ./configs:/app/configs:rw
+      - ./scripts/server:/app/scripts:rw
       - ${MCP_LOG_DIR:-/var/log/mcp}:/var/log/mcp:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -97,6 +98,7 @@ services:
       - WEBUI_AUTH_SECRET=${WEBUI_AUTH_SECRET}
       - CONFIGS_PATH=/app/configs
       - LOGS_PATH=/var/log/mcp
+      - SCRIPTS_PATH=/app/scripts
       - LOG_LEVEL=${WEBUI_LOG_LEVEL:-INFO}
     ports:
       - "${WEBUI_PORT:-8280}:8280"

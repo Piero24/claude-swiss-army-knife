@@ -196,6 +196,7 @@ services:
       WEBUI_AUTH_SECRET: ""
       CONFIGS_PATH: /app/configs
       LOGS_PATH: /var/log/mcp
+      SCRIPTS_PATH: /app/scripts
       LOG_LEVEL: "${WEBUI_LOG_LEVEL:-INFO}"
     x-casaos:
       envs:
@@ -213,6 +214,9 @@ services:
       - type: bind
         source: /DATA/AppData/mcps-server/settings
         target: /app/configs
+      - type: bind
+        source: /DATA/AppData/mcps-server/bin
+        target: /app/scripts
       - type: bind
         source: /DATA/AppData/mcps-server/logs
         target: /var/log/mcp

@@ -87,6 +87,26 @@ async function seedDefaultTemplates(configsDir: string): Promise<void> {
     } catch {
       /* template dir missing */
     }
+
+    // Seed mcp-launcher for .claude.json simplification (#190)
+    try {
+      const scriptsDir = process.env.SCRIPTS_PATH || "/app/scripts";
+      await fs.mkdir(scriptsDir, { recursive: true });
+
+      // Copy launcher
+      const launcherSrc = path.join(templateDir, "mcp-launcher.sh");
+      const launcherDst = path.join(scriptsDir, "mcp-launcher.sh");
+      try { await fs.access(launcherSrc); await fs.copyFile(launcherSrc, launcherDst); await fs.chmod(launcherDst, 0o755); } catch { /* ok */ }
+
+      // Seed client.env if missing
+      const clientEnv = path.join(scriptsDir, "client.env");
+      try { await fs.access(clientEnv); } catch {
+        const envSrc = path.join(templateDir, "client.env.example");
+        try { await fs.copyFile(envSrc, clientEnv); await fs.chmod(clientEnv, 0o600); } catch { /* ok */ }
+      }
+    } catch {
+      /* scripts dir not mounted */
+    }
   } catch {
     /* configsDir creation failed */
   }
