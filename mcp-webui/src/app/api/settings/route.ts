@@ -26,7 +26,7 @@ const settingsSchema = z.object({
   synology: z.object({
     maxDownloadMb: z.number().min(1).max(10240).default(100),
     defaultSearchPath: z.string().default("/home"),
-  }).default({}),
+  }).optional(),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;
