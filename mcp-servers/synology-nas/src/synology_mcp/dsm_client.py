@@ -2,6 +2,7 @@
 
 import base64
 import hmac
+import json
 import logging
 import os
 import struct
@@ -10,6 +11,21 @@ import urllib.parse
 from typing import Any, Optional
 
 import httpx
+
+
+def _get_synology_setting(key: str, env_var: str, default: str) -> str:
+    """Read a Synology setting from settings.json, falling back to env var then default."""
+    for settings_path in ("/app/settings.json", "/app/configs/settings.json"):
+        try:
+            with open(settings_path) as fh:
+                syn = json.load(fh).get("synology", {})
+                val = syn.get(key)
+                if val is not None:
+                    return str(val)
+        except Exception:
+            continue
+    return os.environ.get(env_var, default)
+
 
 logger = logging.getLogger("synology-mcp")
 
@@ -262,7 +278,11 @@ class DSMClient:
                     )
                 # Reject files larger than the configured max (default 100MB)
                 size = int(info.get("additional", {}).get("size", 0) or 0)
-                max_mb = int(os.environ.get("SYNOLOGY_MAX_DOWNLOAD_MB", "100"))
+                max_mb = int(
+                    _get_synology_setting(
+                        "maxDownloadMb", "SYNOLOGY_MAX_DOWNLOAD_MB", "100"
+                    )
+                )
                 if size > max_mb * 1024 * 1024:
                     raise ValueError(
                         f"'{file_path}' is {size / (1024*1024):.1f} MB — exceeds "

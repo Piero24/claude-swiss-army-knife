@@ -23,6 +23,10 @@ const settingsSchema = z.object({
   }),
   servers: z.record(z.string(), serverEntrySchema).default({}),
   auditPageSize: z.number().refine((n) => [50, 100, 150].includes(n), { message: "Must be 50, 100, or 150" }).default(50),
+  synology: z.object({
+    maxDownloadMb: z.number().min(1).max(10240).default(100),
+    defaultSearchPath: z.string().default("/home"),
+  }).optional(),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;
@@ -45,6 +49,10 @@ const DEFAULTS: AppSettings = {
     "synology-nas": { enabled: true },
   },
   auditPageSize: 50,
+  synology: {
+    maxDownloadMb: 100,
+    defaultSearchPath: "/home",
+  },
 };
 
 async function seedDefaultTemplates(configsDir: string): Promise<void> {
