@@ -1,6 +1,10 @@
 """Tool: Docker container management via Docker socket."""
 
+import logging
+
 from permission_engine import PermissionEnforcer
+
+logger = logging.getLogger(__name__)
 
 
 async def docker_ps(
@@ -12,6 +16,7 @@ async def docker_ps(
     enforcer.check_command(f"docker {'ps -a' if show_all else 'ps'}", tool=name)
     result = await host.run_host_command(cmd)
     if result.get("error"):
+        logger.warning("docker_ps failed: %s", result.get("error"))
         return result
     containers = []
     for line in result["stdout"].strip().split("\n"):
@@ -38,6 +43,10 @@ async def docker_logs(
     result = await host.run_host_command(
         f"docker logs --tail {tail} {container}"
     )
+    if result.get("error"):
+        logger.warning(
+            "docker_logs failed for %s: %s", container, result.get("error")
+        )
     return {
         "container": container,
         "logs": result.get("stdout", "") + result.get("stderr", ""),
@@ -50,6 +59,12 @@ async def docker_restart(
     container = args["container"]
     enforcer.check_command(f"docker restart {container}", tool=name)
     result = await host.run_host_command(f"docker restart {container}")
+    if not result.get("exit_code") == 0:
+        logger.warning(
+            "docker_restart failed for %s: %s",
+            container,
+            result.get("stderr", "").strip(),
+        )
     return {
         "container": container,
         "restarted": result.get("exit_code") == 0,

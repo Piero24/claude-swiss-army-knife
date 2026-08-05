@@ -162,16 +162,28 @@ class ProxyServer(BaseMCPServer):
             try:
                 self.enforcer.authenticate(user_id, user_key)
             except Exception as e:
+                logger.info(
+                    "Auth failed for user=%s tool=%s: %s", user_id, name, e
+                )
                 return self.format_error(e)
 
             try:
                 self.enforcer.check_tool_access(user_id, name)
             except Exception as e:
+                logger.info(
+                    "Tool access denied for user=%s tool=%s: %s",
+                    user_id,
+                    name,
+                    e,
+                )
                 return self.format_error(e)
 
             try:
                 self.enforcer.check_tool(name)
             except Exception as e:
+                logger.warning(
+                    "Proxy tool deny: user=%s tool=%s: %s", user_id, name, e
+                )
                 return self.format_error(e)
 
             try:
@@ -211,4 +223,7 @@ class ProxyServer(BaseMCPServer):
                     )
                 ]
             except Exception as e:
+                logger.error(
+                    "Proxy tool %s failed for user=%s: %s", name, user_id, e
+                )
                 return self.format_error(e)

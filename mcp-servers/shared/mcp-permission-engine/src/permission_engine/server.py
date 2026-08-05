@@ -89,18 +89,25 @@ class BaseMCPServer:
 
         user_key = os.environ.get("MCP_USER_KEY", "")
 
+        logger.debug("Tool call: %s user=%s", name, user_id)
+
         try:
             self.enforcer.authenticate(user_id, user_key)
         except Exception as e:
+            logger.info("Auth failed for user=%s tool=%s: %s", user_id, name, e)
             return self.format_error(e)
 
         try:
             self.enforcer.check_tool_access(user_id, name)
         except Exception as e:
+            logger.info(
+                "Tool access denied for user=%s tool=%s: %s", user_id, name, e
+            )
             return self.format_error(e)
 
         try:
             result = await handler_fn(name, arguments)
             return self.format_result(result)
         except Exception as e:
+            logger.error("Tool %s failed for user=%s: %s", name, user_id, e)
             return self.format_error(e)

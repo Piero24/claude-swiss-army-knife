@@ -110,6 +110,7 @@ class DSMClient:
 
         if not data.get("success"):
             error = data.get("error", {})
+            logger.error("DSM login failed: %s", error)
             raise RuntimeError(f"DSM login failed: {error}")
 
         self._sid = data["data"]["sid"]
@@ -177,6 +178,7 @@ class DSMClient:
         data = resp.json()
         if not data.get("success"):
             error = data.get("error", {})
+            logger.error("File Station '%s' failed: %s", method, error)
             raise RuntimeError(f"File Station '{method}' failed: {error}")
         # Some APIs (delete) return success without a data payload
         return data.get("data", {})
@@ -200,6 +202,7 @@ class DSMClient:
         data = resp.json()
         if not data.get("success"):
             error = data.get("error", {})
+            logger.error("API '%s.%s' failed: %s", api, method, error)
             raise RuntimeError(f"API '{api}.{method}' failed: {error}")
         return data["data"]
 
@@ -324,6 +327,7 @@ class DSMClient:
         )
         data = resp.json()
         if not data.get("success"):
+            logger.error("File upload failed: %s", data.get("error"))
             raise RuntimeError(f"File upload failed: {data.get('error')}")
         return {
             "written": True,
@@ -500,6 +504,7 @@ class DSMClient:
         data = resp.json()
         if not data.get("success"):
             error = data.get("error", {})
+            logger.error("list_share failed: %s", error)
             raise RuntimeError(f"list_share failed: {error}")
         return [
             {"name": s["name"], "path": f"/{s['name']}"}

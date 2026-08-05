@@ -308,6 +308,7 @@ def _ripgrep_search(
             if (parts := line.split(":", 2))
         ]
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        logger.warning("ripgrep search failed: %s", e)
         return [{"error": str(e)}]
 
 
@@ -385,8 +386,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    )
     asyncio.run(main())

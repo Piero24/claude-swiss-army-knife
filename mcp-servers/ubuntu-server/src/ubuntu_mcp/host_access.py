@@ -114,6 +114,9 @@ class LocalHostAccess(HostAccess):
                 "exit_code": proc.returncode or 0,
             }
         except asyncio.TimeoutError:
+            logger.warning(
+                "Command timed out after %ds: %s", timeout, cmd[:120]
+            )
             return {
                 "stdout": "",
                 "stderr": "Command timed out",
@@ -248,6 +251,9 @@ class RemoteHostAccess(HostAccess):
                 "exit_code": result.exit_status or 0,
             }
         except asyncio.TimeoutError:
+            logger.warning(
+                "Command timed out after %ds: %s", timeout, cmd[:120]
+            )
             return {
                 "stdout": "",
                 "stderr": "Command timed out",
