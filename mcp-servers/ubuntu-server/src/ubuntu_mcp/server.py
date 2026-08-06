@@ -35,15 +35,26 @@ from .tools import (
 logger = logging.getLogger("ubuntu-mcp")
 
 DENY_ALL_UBUNTU = {
-    "server": {"name": "ubuntu-server", "log_level": "INFO", "audit_log": "/var/log/mcp/audit.log"},
+    "server": {
+        "name": "ubuntu-server",
+        "log_level": "INFO",
+        "audit_log": "/var/log/mcp/audit.log",
+    },
     "connection": {"mode": "local", "local": {"mount_prefix": "/mnt/host"}},
-    "permissions": {"default_access": "none", "paths": [], "commands": [],
-                    "default_command_access": "none", "tools": [], "default_tool_access": "none"},
+    "permissions": {
+        "default_access": "none",
+        "paths": [],
+        "commands": [],
+        "default_command_access": "none",
+        "tools": [],
+        "default_tool_access": "none",
+    },
 }
 
 
 def _resolve_config(config_dir: str) -> dict:
     import yaml as _yaml
+
     user_id = os.environ.get("MCP_USER_ID", "")
     if not user_id or user_id == "default":
         return dict(DENY_ALL_UBUNTU)
@@ -59,7 +70,10 @@ class UbuntuServer(BaseMCPServer):
     def __init__(self, config_dir: str):
         config = _resolve_config(config_dir)
         import tempfile, yaml as _yaml
-        self._tmp_config = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+
+        self._tmp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        )
         _yaml.dump(config, self._tmp_config)
         self._tmp_config.flush()
         super().__init__("ubuntu-mcp", self._tmp_config.name)
@@ -371,7 +385,9 @@ async def main() -> None:
     """Entry point: parse args, load config, start MCP server with hot-reload."""
     parser = argparse.ArgumentParser(description="Ubuntu Server MCP")
     parser.add_argument(
-        "--config-dir", default="/app/configs/ubuntu-server", help="Directory with per-user YAML configs"
+        "--config-dir",
+        default="/app/configs/ubuntu-server",
+        help="Directory with per-user YAML configs",
     )
     args = parser.parse_args()
 

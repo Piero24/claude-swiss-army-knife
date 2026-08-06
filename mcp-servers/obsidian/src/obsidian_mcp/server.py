@@ -21,9 +21,19 @@ logger = logging.getLogger("obsidian-mcp")
 
 
 DENY_ALL = {
-    "server": {"name": "obsidian", "log_level": "INFO", "audit_log": "/var/log/mcp/audit.log"},
-    "permissions": {"default_access": "none", "paths": [], "commands": [],
-                    "default_command_access": "none", "tools": [], "default_tool_access": "none"},
+    "server": {
+        "name": "obsidian",
+        "log_level": "INFO",
+        "audit_log": "/var/log/mcp/audit.log",
+    },
+    "permissions": {
+        "default_access": "none",
+        "paths": [],
+        "commands": [],
+        "default_command_access": "none",
+        "tools": [],
+        "default_tool_access": "none",
+    },
 }
 
 
@@ -47,8 +57,12 @@ class ObsidianServer(BaseMCPServer):
         config = _resolve_config(config_dir)
         # Write resolved config to a temp file for the permission engine
         import tempfile
-        self._tmp_config = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+
+        self._tmp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        )
         import yaml as _yaml
+
         _yaml.dump(config, self._tmp_config)
         self._tmp_config.flush()
         super().__init__("obsidian-mcp", self._tmp_config.name)
@@ -367,7 +381,9 @@ async def _get_all_tags(vault: LocalVaultBackend) -> list[dict]:
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Obsidian MCP")
     parser.add_argument(
-        "--config-dir", default="/app/configs/obsidian", help="Directory with per-user YAML configs"
+        "--config-dir",
+        default="/app/configs/obsidian",
+        help="Directory with per-user YAML configs",
     )
     args = parser.parse_args()
 

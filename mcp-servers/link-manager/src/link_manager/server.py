@@ -31,8 +31,17 @@ def _load_config(path: str) -> dict:
 
 
 DENY_ALL_LINKS = {
-    "server": {"name": "link-manager", "log_level": "INFO", "audit_log": "/var/log/mcp/audit.log"},
-    "permissions": {"default_access": "none", "paths": [], "tools": [], "default_tool_access": "none"},
+    "server": {
+        "name": "link-manager",
+        "log_level": "INFO",
+        "audit_log": "/var/log/mcp/audit.log",
+    },
+    "permissions": {
+        "default_access": "none",
+        "paths": [],
+        "tools": [],
+        "default_tool_access": "none",
+    },
 }
 
 
@@ -56,7 +65,10 @@ class LinkManagerServer(BaseMCPServer):
                 self._config_path = None
                 config = dict(DENY_ALL_LINKS)
         import tempfile
-        self._tmp_config = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+
+        self._tmp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        )
         yaml.dump(config, self._tmp_config)
         self._tmp_config.flush()
         super().__init__("link-manager", self._tmp_config.name)

@@ -31,9 +31,19 @@ def _resolve_config(config_dir: str) -> dict:
 
 
 DENY_ALL_SYNOLOGY = {
-    "server": {"name": "synology-nas", "log_level": "INFO", "audit_log": "/var/log/mcp/audit.log"},
-    "permissions": {"default_access": "none", "paths": [], "commands": [],
-                    "default_command_access": "none", "tools": [], "default_tool_access": "none"},
+    "server": {
+        "name": "synology-nas",
+        "log_level": "INFO",
+        "audit_log": "/var/log/mcp/audit.log",
+    },
+    "permissions": {
+        "default_access": "none",
+        "paths": [],
+        "commands": [],
+        "default_command_access": "none",
+        "tools": [],
+        "default_tool_access": "none",
+    },
 }
 
 
@@ -41,9 +51,13 @@ class SynologyServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
         import yaml as _yaml
+
         config = _resolve_config(config_dir)
         import tempfile
-        self._tmp_config = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+
+        self._tmp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        )
         _yaml.dump(config, self._tmp_config)
         self._tmp_config.flush()
         super().__init__("synology-mcp", self._tmp_config.name)
@@ -262,7 +276,9 @@ class SynologyServer(BaseMCPServer):
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Synology NAS MCP")
     parser.add_argument(
-        "--config-dir", default="/app/configs/synology-nas", help="Directory with per-user YAML configs"
+        "--config-dir",
+        default="/app/configs/synology-nas",
+        help="Directory with per-user YAML configs",
     )
     args = parser.parse_args()
 

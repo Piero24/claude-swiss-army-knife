@@ -39,9 +39,7 @@ def _resolve_github_config(config_dir: str) -> str:
         if user_config.exists():
             return str(user_config)
         config = deny_all
-    tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", delete=False
-    )
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
     yaml.dump(config, tmp)
     tmp.flush()
     return tmp.name
