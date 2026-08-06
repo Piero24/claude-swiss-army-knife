@@ -30,18 +30,55 @@ def _load_config(path: str) -> dict:
     return yaml.safe_load(raw) or {}
 
 
+DENY_ALL_LINKS = {
+    "server": {
+        "name": "link-manager",
+        "log_level": "INFO",
+        "audit_log": "/var/log/mcp/audit.log",
+    },
+    "permissions": {
+        "default_access": "none",
+        "paths": [],
+        "tools": [],
+        "default_tool_access": "none",
+    },
+}
+
+
 class LinkManagerServer(BaseMCPServer):
     """MCP server that provides tools for browsing and searching a curated
     collection of website and documentation links stored in the YAML config."""
 
-    def __init__(self, config_path: str):
-        super().__init__("link-manager", config_path)
-        self._config_path = Path(config_path)
+    def __init__(self, config_dir: str):
+        self._config_dir = Path(config_dir)
+        # Resolve per-user config
+        user_id = os.environ.get("MCP_USER_ID", "")
+        if not user_id or user_id == "default":
+            self._config_path = None
+            config = dict(DENY_ALL_LINKS)
+        else:
+            user_config = self._config_dir / f"{user_id}.yaml"
+            if user_config.exists():
+                self._config_path = user_config
+                config = _load_config(str(user_config))
+            else:
+                self._config_path = None
+                config = dict(DENY_ALL_LINKS)
+        import tempfile
+
+        self._tmp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        )
+        yaml.dump(config, self._tmp_config)
+        self._tmp_config.flush()
+        super().__init__("link-manager", self._tmp_config.name)
         self.setup()
 
     def _read_config(self) -> dict:
-        """Re-read the config from disk (links are in the same YAML file)."""
-        return _load_config(str(self._config_path))
+        """Re-read the config from disk."""
+        if self._config_path and self._config_path.exists():
+            return _load_config(str(self._config_path))
+        return dict(DENY_ALL_LINKS)
 
     def setup(self):
         @self.server.list_tools()
@@ -205,6 +242,9 @@ class LinkManagerServer(BaseMCPServer):
 
     def _save_config(self, config: dict) -> None:
         """Write the config back to disk."""
+        if not self._config_path:
+            logger.warning("Cannot save config: no per-user config resolved")
+            return
         import yaml as yaml_writer
 
         with open(self._config_path, "w") as f:
@@ -216,16 +256,16 @@ class LinkManagerServer(BaseMCPServer):
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Link Manager MCP")
     parser.add_argument(
-        "--config",
-        default="/app/config.yaml",
-        help="Path to config YAML file",
+        "--config-dir",
+        default="/app/configs/link-manager",
+        help="Directory with per-user YAML configs",
     )
     args = parser.parse_args()
 
-    config_path = Path(args.config).resolve()
-    logger.info("Loading config from: %s", config_path)
+    config_dir = str(Path(args.config_dir).resolve())
+    logger.info("Loading config dir: %s", config_dir)
 
-    app = LinkManagerServer(str(config_path))
+    app = LinkManagerServer(config_dir)
     logger.info("Link Manager MCP server starting (stdio mode)")
 
     async with stdio_server() as (read_stream, write_stream):

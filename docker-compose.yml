@@ -26,9 +26,10 @@ services:
       - ${UBUNTU_HOST_VAR:-/var}:/mnt/host/var:rw
       - ${UBUNTU_HOST_OPT:-/opt}:/mnt/host/opt:rw
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./configs/ubuntu-server.yaml:/app/config.yaml:ro
+      - ./configs/ubuntu-server:/app/configs/ubuntu-server:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu-server:/var/log/mcp
+    command: ["--config-dir", "/app/configs/ubuntu-server"]
     environment:
       - UBUNTU_REMOTE_HOST=${UBUNTU_REMOTE_HOST:-}
       - UBUNTU_REMOTE_PORT=${UBUNTU_REMOTE_PORT:-22}
@@ -49,9 +50,10 @@ services:
     volumes:
       # Vault mount
       - ${OBSIDIAN_LOCAL_VAULT_PATH:-/DATA/obsidian-vaults}:/data/vaults:rw
-      - ./configs/obsidian.yaml:/app/config.yaml:ro
+      - ./configs/obsidian:/app/configs/obsidian:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/obsidian:/var/log/mcp
+    command: ["--config-dir", "/app/configs/obsidian"]
     environment:
       - LOG_LEVEL=${OBSIDIAN_MCP_LOG_LEVEL:-WARNING}
     stdin_open: true
@@ -65,10 +67,11 @@ services:
     image: synology-mcp:${SYNOLOGY_MCP_IMAGE_TAG:-latest}
     container_name: ${SYNOLOGY_MCP_CONTAINER:-synology-mcp}
     volumes:
-      - ./configs/synology-nas.yaml:/app/config.yaml:ro
+      - ./configs/synology-nas:/app/configs/synology-nas:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ./configs/settings.json:/app/settings.json:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/synology-nas:/var/log/mcp
+    command: ["--config-dir", "/app/configs/synology-nas"]
     environment:
       - SYNOLOGY_NAS_HOST=${SYNOLOGY_NAS_HOST}
       - SYNOLOGY_NAS_PORT=${SYNOLOGY_NAS_PORT}
@@ -117,9 +120,10 @@ services:
     image: github-mcp:${GITHUB_MCP_IMAGE_TAG:-latest}
     container_name: ${GITHUB_MCP_CONTAINER:-github-mcp}
     volumes:
-      - ./configs/github-mcp.yaml:/app/config.yaml:ro
+      - ./configs/github-mcp:/app/configs/github-mcp:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/github-mcp:/var/log/mcp
+    command: ["--config-dir", "/app/configs/github-mcp"]
     environment:
       - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN:-}
       - LOG_LEVEL=${GITHUB_MCP_LOG_LEVEL:-WARNING}
@@ -138,28 +142,10 @@ services:
     image: link-manager-mcp:${LINK_MANAGER_IMAGE_TAG:-latest}
     container_name: ${LINK_MANAGER_CONTAINER:-link-manager}
     volumes:
-      - ./configs/link-manager.yaml:/app/config.yaml:ro
+      - ./configs/link-manager:/app/configs/link-manager:ro
       - ./configs/users.yaml:/app/users.yaml:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/link-manager:/var/log/mcp
-    environment:
-      - LOG_LEVEL=${LINK_MANAGER_LOG_LEVEL:-INFO}
-    stdin_open: true
-    restart: unless-stopped
-
-  # ============================================================
-  # Link Manager MCP — Curated link and documentation manager
-  # ============================================================
-  link-manager-mcp:
-    build:
-      context: ./mcp-servers/link-manager
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-    image: link-manager-mcp:${LINK_MANAGER_MCP_IMAGE_TAG:-latest}
-    container_name: ${LINK_MANAGER_MCP_CONTAINER:-link-manager-mcp}
-    volumes:
-      - ./configs/link-manager.yaml:/app/config.yaml:ro
-      - ./configs/users.yaml:/app/users.yaml:ro
-      - ${MCP_LOG_DIR:-/var/log/mcp}/link-manager:/var/log/mcp
+    command: ["--config-dir", "/app/configs/link-manager"]
     environment:
       - LOG_LEVEL=${LINK_MANAGER_LOG_LEVEL:-INFO}
     stdin_open: true

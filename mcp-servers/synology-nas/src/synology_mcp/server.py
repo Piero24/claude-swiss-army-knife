@@ -16,10 +16,51 @@ from .dsm_client import DSMClient, _get_synology_setting
 logger = logging.getLogger("synology-mcp")
 
 
+def _resolve_config(config_dir: str) -> dict:
+    """Load per-user config, or return deny-all if no file exists."""
+    import yaml as _yaml
+
+    user_id = os.environ.get("MCP_USER_ID", "")
+    if not user_id or user_id == "default":
+        return dict(DENY_ALL_SYNOLOGY)
+    user_config = Path(config_dir) / f"{user_id}.yaml"
+    if user_config.exists():
+        with open(user_config, "r") as f:
+            return _yaml.safe_load(f) or dict(DENY_ALL_SYNOLOGY)
+    return dict(DENY_ALL_SYNOLOGY)
+
+
+DENY_ALL_SYNOLOGY = {
+    "server": {
+        "name": "synology-nas",
+        "log_level": "INFO",
+        "audit_log": "/var/log/mcp/audit.log",
+    },
+    "permissions": {
+        "default_access": "none",
+        "paths": [],
+        "commands": [],
+        "default_command_access": "none",
+        "tools": [],
+        "default_tool_access": "none",
+    },
+}
+
+
 class SynologyServer(BaseMCPServer):
 
-    def __init__(self, config_path: str):
-        super().__init__("synology-mcp", config_path)
+    def __init__(self, config_dir: str):
+        import yaml as _yaml
+
+        config = _resolve_config(config_dir)
+        import tempfile
+
+        self._tmp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        )
+        _yaml.dump(config, self._tmp_config)
+        self._tmp_config.flush()
+        super().__init__("synology-mcp", self._tmp_config.name)
 
         nas_host = os.environ.get("SYNOLOGY_NAS_HOST", "192.168.1.100")
         nas_port = os.environ.get("SYNOLOGY_NAS_PORT", "5001")
@@ -235,14 +276,16 @@ class SynologyServer(BaseMCPServer):
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Synology NAS MCP")
     parser.add_argument(
-        "--config", default="/app/config.yaml", help="Path to config YAML"
+        "--config-dir",
+        default="/app/configs/synology-nas",
+        help="Directory with per-user YAML configs",
     )
     args = parser.parse_args()
 
-    config_path = Path(args.config).resolve()
-    logger.info("Loading config from: %s", config_path)
+    config_dir = str(Path(args.config_dir).resolve())
+    logger.info("Loading config dir: %s", config_dir)
 
-    app = SynologyServer(str(config_path))
+    app = SynologyServer(config_dir)
 
     try:
         await app.dsm.login()
@@ -253,7 +296,7 @@ async def main() -> None:
         )
 
     watch_task = asyncio.create_task(
-        watch_config(config_path, app.reload_config)
+        watch_config(Path(config_dir), app.reload_config)
     )
 
     async with stdio_server() as (read_stream, write_stream):

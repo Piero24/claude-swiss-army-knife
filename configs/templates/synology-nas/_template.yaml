@@ -1,0 +1,86 @@
+# Synology NAS MCP — Permission Configuration Template
+
+server:
+  name: synology-nas
+  log_level: INFO
+  audit_log: /var/log/mcp/audit.log
+
+ui:
+  label: "Synology NAS"
+  icon: "💾"
+  sections:
+    paths: true
+    commands: false
+    tools: true
+    audit: true
+
+connection:
+  host: ${SYNOLOGY_NAS_HOST:-}
+  port: ${SYNOLOGY_NAS_PORT:-5001}
+
+permissions:
+  default_access: none
+  paths: []
+  commands: []
+  default_command_access: none
+  tools:
+    - pattern: syno_file_list
+      access: active
+      description: >-
+        List files and folders inside a Synology shared folder. Use this to
+        browse your storage, explore nested directories, or find what you need
+        before reading or moving files.
+      id: tool_0_list
+    - pattern: syno_file_read
+      access: active
+      description: >-
+        Read a file from the NAS. Use this to retrieve documents, check file
+        contents, or inspect stored data.
+      id: tool_1_read
+    - pattern: syno_file_write
+      access: none
+      description: >-
+        Upload or create a new file on the NAS. DESTRUCTIVE — enable only when
+        you need to store or update documents.
+      id: tool_2_write
+    - pattern: syno_file_delete
+      access: none
+      description: >-
+        Delete a file or folder from the NAS, optionally recursive. DESTRUCTIVE
+        — enable only when you need to remove files or free space.
+      id: tool_3_delete
+    - pattern: syno_file_move
+      access: none
+      description: >-
+        Move or rename a file or folder on the NAS. DESTRUCTIVE — enable only
+        when you need to reorganize your storage.
+      id: tool_4_move
+    - pattern: syno_file_search
+      access: active
+      description: >-
+        Search for files by name across the NAS. Use this to find a document
+        when you know its name but not its location, or to discover files
+        matching a pattern.
+      id: tool_5_search
+    - pattern: syno_system_info
+      access: active
+      description: >-
+        Get NAS hardware and software info: model, DSM version, CPU, RAM,
+        temperature, uptime. Use this to check system health or verify the
+        device is operational.
+      id: tool_6_sysinfo
+    - pattern: syno_storage_info
+      access: active
+      description: >-
+        Get storage details: volumes, RAID status, disk health, used and free
+        space. Use this to monitor capacity, check for failing drives, or plan
+        before uploading large files.
+      id: tool_7_storage
+    - pattern: syno_list_shares
+      access: active
+      description: >-
+        List all shared folders on the NAS with their paths. Use this to
+        discover available storage locations before browsing or searching
+        for files.
+      id: tool_8_shares
+  default_tool_access: none

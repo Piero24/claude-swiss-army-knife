@@ -20,24 +20,52 @@ from .wikilinks import extract_links, find_backlinks
 logger = logging.getLogger("obsidian-mcp")
 
 
+DENY_ALL = {
+    "server": {
+        "name": "obsidian",
+        "log_level": "INFO",
+        "audit_log": "/var/log/mcp/audit.log",
+    },
+    "permissions": {
+        "default_access": "none",
+        "paths": [],
+        "commands": [],
+        "default_command_access": "none",
+        "tools": [],
+        "default_tool_access": "none",
+    },
+}
+
+
+def _resolve_config(config_dir: str) -> dict:
+    """Load per-user config, or return deny-all if no file exists."""
+    import yaml as _yaml
+
+    user_id = os.environ.get("MCP_USER_ID", "")
+    if not user_id or user_id == "default":
+        return dict(DENY_ALL)
+    user_config = Path(config_dir) / f"{user_id}.yaml"
+    if user_config.exists():
+        with open(user_config, "r") as f:
+            return _yaml.safe_load(f) or dict(DENY_ALL)
+    return dict(DENY_ALL)
+
+
 class ObsidianServer(BaseMCPServer):
 
-    def __init__(self, config_path: str):
-        super().__init__("obsidian-mcp", config_path)
-        # Read raw config with env var substitution for connection settings
-        import re, os as _os
+    def __init__(self, config_dir: str):
+        config = _resolve_config(config_dir)
+        # Write resolved config to a temp file for the permission engine
+        import tempfile
+
+        self._tmp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        )
         import yaml as _yaml
 
-        with open(config_path, "r") as f:
-            raw = f.read()
-
-        # Substitute ${VAR} and ${VAR:-default}
-        def _sub(m):
-            var, _, default = m.group(1).partition(":-")
-            return _os.environ.get(var, default) or default
-
-        raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
-        config = _yaml.safe_load(raw) or {}
+        _yaml.dump(config, self._tmp_config)
+        self._tmp_config.flush()
+        super().__init__("obsidian-mcp", self._tmp_config.name)
         self.vault: LocalVaultBackend = create_backend(config)
         self.setup()
 
@@ -353,21 +381,20 @@ async def _get_all_tags(vault: LocalVaultBackend) -> list[dict]:
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Obsidian MCP")
     parser.add_argument(
-        "--config", default="/app/config.yaml", help="Path to config YAML"
+        "--config-dir",
+        default="/app/configs/obsidian",
+        help="Directory with per-user YAML configs",
     )
     args = parser.parse_args()
 
-    config_path = Path(args.config).resolve()
-    logger.info("Loading config from: %s", config_path)
+    config_dir = str(Path(args.config_dir).resolve())
+    logger.info("Loading config dir: %s", config_dir)
 
-    app = ObsidianServer(str(config_path))
-    logger.info(
-        "Vault opened at %s",
-        app.vault.root,
-    )
+    app = ObsidianServer(config_dir)
+    logger.info("Vault opened at %s", app.vault.root)
 
     watch_task = asyncio.create_task(
-        watch_config(config_path, app.reload_config)
+        watch_config(Path(config_dir), app.reload_config)
     )
 
     async with stdio_server() as (read_stream, write_stream):

@@ -34,27 +34,49 @@ from .tools import (
 
 logger = logging.getLogger("ubuntu-mcp")
 
+DENY_ALL_UBUNTU = {
+    "server": {
+        "name": "ubuntu-server",
+        "log_level": "INFO",
+        "audit_log": "/var/log/mcp/audit.log",
+    },
+    "connection": {"mode": "local", "local": {"mount_prefix": "/mnt/host"}},
+    "permissions": {
+        "default_access": "none",
+        "paths": [],
+        "commands": [],
+        "default_command_access": "none",
+        "tools": [],
+        "default_tool_access": "none",
+    },
+}
+
+
+def _resolve_config(config_dir: str) -> dict:
+    import yaml as _yaml
+
+    user_id = os.environ.get("MCP_USER_ID", "")
+    if not user_id or user_id == "default":
+        return dict(DENY_ALL_UBUNTU)
+    user_config = Path(config_dir) / f"{user_id}.yaml"
+    if user_config.exists():
+        with open(user_config, "r") as f:
+            return _yaml.safe_load(f) or dict(DENY_ALL_UBUNTU)
+    return dict(DENY_ALL_UBUNTU)
+
 
 class UbuntuServer(BaseMCPServer):
 
-    def __init__(self, config_path: str):
-        super().__init__("ubuntu-mcp", config_path)
-        # Read config for connection settings
-        config = {}
-        try:
-            import yaml, re
+    def __init__(self, config_dir: str):
+        config = _resolve_config(config_dir)
+        import tempfile, yaml as _yaml
 
-            with open(config_path, "r") as f:
-                raw = f.read()
-
-            def _sub(m):
-                var, _, default = m.group(1).partition(":-")
-                return os.environ.get(var, default) or default
-
-            raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
-            config = yaml.safe_load(raw) or {}
-        except Exception:
-            pass
+        self._tmp_config = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        )
+        _yaml.dump(config, self._tmp_config)
+        self._tmp_config.flush()
+        super().__init__("ubuntu-mcp", self._tmp_config.name)
         self.host: HostAccess = create_host_access(config)
         self.setup()
 
@@ -363,18 +385,20 @@ async def main() -> None:
     """Entry point: parse args, load config, start MCP server with hot-reload."""
     parser = argparse.ArgumentParser(description="Ubuntu Server MCP")
     parser.add_argument(
-        "--config", default="/app/config.yaml", help="Path to config YAML file"
+        "--config-dir",
+        default="/app/configs/ubuntu-server",
+        help="Directory with per-user YAML configs",
     )
     args = parser.parse_args()
 
-    config_path = Path(args.config).resolve()
-    logger.info("Loading config from: %s", config_path)
+    config_dir = str(Path(args.config_dir).resolve())
+    logger.info("Loading config dir: %s", config_dir)
 
-    app = UbuntuServer(str(config_path))
+    app = UbuntuServer(config_dir)
 
     # Start config file watcher (background task)
     watch_task = asyncio.create_task(
-        watch_config(config_path, app.reload_config)
+        watch_config(Path(config_dir), app.reload_config)
     )
 
     # Run MCP server
