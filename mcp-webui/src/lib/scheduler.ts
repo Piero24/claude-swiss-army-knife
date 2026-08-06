@@ -36,9 +36,27 @@ async function runScanForServer(server: string) {
 }
 
 async function runAllScans() {
+  if (!(await hasUsers())) {
+    console.log("[scheduler] No users — skipping scan cycle");
+    return;
+  }
   touchAutoScan();
-  // Run scans independently per MCP server
   await Promise.allSettled(SCAN_SERVERS.map((server) => runScanForServer(server)));
+}
+
+async function hasUsers(): Promise<boolean> {
+  try {
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const yaml = await import("js-yaml");
+    const configsDir = process.env.CONFIGS_PATH || "/app/configs";
+    const usersPath = path.join(configsDir, "users.yaml");
+    const raw = await fs.readFile(usersPath, "utf-8");
+    const data = yaml.load(raw) as Record<string, unknown>;
+    return Array.isArray(data?.users) && (data.users as unknown[]).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export function startScheduler() {
@@ -46,7 +64,13 @@ export function startScheduler() {
   _started = true;
   console.log(`[scheduler] Scan every ${_intervalMs / 60000} min`);
   _timer = setInterval(runAllScans, _intervalMs);
-  setTimeout(() => runAllScans(), 30000);
+  setTimeout(async () => {
+    if (await hasUsers()) {
+      runAllScans();
+    } else {
+      console.log("[scheduler] No users configured — skipping auto-scan");
+    }
+  }, 30000);
 }
 
 export function setScanInterval(minutes: number) {

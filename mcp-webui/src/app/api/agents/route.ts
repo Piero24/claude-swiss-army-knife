@@ -79,13 +79,79 @@ export async function GET() {
   }
 }
 
+const DENY_ALL_TEMPLATE: Record<string, unknown> = {
+  permissions: {
+    default_access: "none",
+    paths: [],
+    commands: [],
+    default_command_access: "none",
+    tools: [],
+    default_tool_access: "none",
+  },
+};
+
+async function discoverServerDirs(): Promise<string[]> {
+  const dirs: string[] = [];
+  try {
+    const entries = await fs.readdir(CONFIGS_PATH, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      if (e.name === "templates") continue;
+      // Skip non-server dirs (settings.json, users.yaml are files, not dirs)
+      try {
+        const hasYaml = (await fs.readdir(path.join(CONFIGS_PATH, e.name)))
+          .some((f) => f.endsWith(".yaml"));
+        if (hasYaml) dirs.push(e.name);
+      } catch { /* skip */ }
+    }
+  } catch { /* dir missing */ }
+  return dirs;
+}
+
+async function generateUserConfigs(userId: string, serverName: string) {
+  const serverDir = path.join(CONFIGS_PATH, serverName);
+  await fs.mkdir(serverDir, { recursive: true });
+  const filePath = path.join(serverDir, `${userId}.yaml`);
+  try {
+    await fs.access(filePath);
+    return; // already exists
+  } catch {
+    const config = {
+      server: { name: serverName, log_level: "INFO", audit_log: "/var/log/mcp/audit.log" },
+      ...DENY_ALL_TEMPLATE,
+    };
+    await fs.writeFile(filePath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
+  }
+}
+
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
     const validated = usersSchema.parse(body);
+
+    // Detect new users before saving
+    let oldUserIds: string[] = [];
+    try {
+      const oldRaw = await fs.readFile(USERS_PATH, "utf-8");
+      const oldData = yaml.load(oldRaw) as Record<string, unknown>;
+      oldUserIds = ((oldData?.users as Array<{id: string}>) || []).map((u) => u.id);
+    } catch { /* no previous users.yaml */ }
+
     await fs.mkdir(path.dirname(USERS_PATH), { recursive: true });
     const yamlStr = yaml.dump(validated, { noRefs: true, lineWidth: -1 });
     await fs.writeFile(USERS_PATH, yamlStr, "utf-8");
+
+    // Auto-generate configs for new users
+    const newUsers = validated.users.filter((u) => !oldUserIds.includes(u.id));
+    if (newUsers.length > 0) {
+      const servers = await discoverServerDirs();
+      for (const user of newUsers) {
+        for (const server of servers) {
+          await generateUserConfigs(user.id, server);
+        }
+      }
+    }
+
     return NextResponse.json({ saved: true });
   } catch (err) {
     if (err instanceof z.ZodError) {

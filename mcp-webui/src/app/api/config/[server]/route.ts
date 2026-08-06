@@ -73,21 +73,27 @@ function simpleHash(s: string): string {
   return Math.abs(h).toString(36);
 }
 
-export const GET = apiHandler(async (_request, { params }) => {
+function getUserId(request: Request): string | undefined {
+  const { searchParams } = new URL(request.url);
+  return searchParams.get("user") || undefined;
+}
+
+export const GET = apiHandler(async (request, { params }) => {
   const { server } = await params;
-  const config = await readServerConfig(server);
+  const userId = getUserId(request);
+  const config = await readServerConfig(server, userId);
   if (ensureRuleIds(config)) {
-    await writeServerConfig(server, config);
+    await writeServerConfig(server, config, userId);
   }
   return NextResponse.json(config);
 });
 
 export const PUT = apiHandler(async (request, { params }) => {
   const { server } = await params;
+  const userId = getUserId(request);
   const body = await request.json();
-  // Validate required structure but preserve ALL fields
   serverConfigSchema.parse(body);
-  await writeServerConfig(server, body);
+  await writeServerConfig(server, body, userId);
   return NextResponse.json({ saved: true, server });
 });
 

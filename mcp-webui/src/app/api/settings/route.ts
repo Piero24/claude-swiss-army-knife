@@ -142,15 +142,27 @@ async function discoverServers(): Promise<Array<{ name: string; label: string; i
   };
   const servers: Array<{ name: string; label: string; icon: string }> = [];
   try {
-    const files = await fs.readdir(configsDir);
-    for (const file of files) {
-      if (!file.endsWith(".yaml")) continue;
-      if (file === "users.yaml") continue;
+    const entries = await fs.readdir(configsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === "templates") continue;
+      const serverDir = path.join(configsDir, entry.name);
+      // Look for any .yaml file in the directory (per-user configs or template)
       try {
-        const raw = await fs.readFile(path.join(configsDir, file), "utf-8");
-        const config = yaml.load(raw) as Record<string, unknown> | null;
-        const ui = (config?.ui || {}) as Record<string, string>;
-        const name = file.replace(".yaml", "");
+        const files = await fs.readdir(serverDir);
+        const hasConfig = files.some((f) => f.endsWith(".yaml"));
+        if (!hasConfig) continue;
+        // Read UI metadata from any YAML in the directory
+        let ui: Record<string, string> = {};
+        for (const file of files) {
+          if (!file.endsWith(".yaml")) continue;
+          try {
+            const raw = await fs.readFile(path.join(serverDir, file), "utf-8");
+            const config = yaml.load(raw) as Record<string, unknown> | null;
+            if (config?.ui) { ui = config.ui as Record<string, string>; break; }
+          } catch { /* skip */ }
+        }
+        const name = entry.name;
         const derived = map[name] || { label: name, icon: "🔌" };
         servers.push({
           name,
@@ -158,6 +170,19 @@ async function discoverServers(): Promise<Array<{ name: string; label: string; i
           icon: ui.icon || derived.icon,
         });
       } catch { /* skip */ }
+    }
+    // Fallback: flat YAML files for backward compatibility
+    if (servers.length === 0) {
+      const files = await fs.readdir(configsDir);
+      for (const file of files) {
+        if (!file.endsWith(".yaml")) continue;
+        if (file === "users.yaml") continue;
+        try {
+          const name = file.replace(".yaml", "");
+          const derived = map[name] || { label: name, icon: "🔌" };
+          servers.push({ name, label: derived.label, icon: derived.icon });
+        } catch { /* skip */ }
+      }
     }
   } catch { /* dir missing */ }
   return servers;

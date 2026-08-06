@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ServerConfig } from "@/lib/types";
-import { getConfig, getHealth, getServersStatus, toggleServerStatus } from "@/lib/api";
+import { getConfig, getHealth, getServersStatus, toggleServerStatus, getAgents } from "@/lib/api";
 import { logout } from "@/lib/api";
 import type { HealthStatus } from "@/lib/api";
 import type { ServerStatus } from "@/lib/api";
-import { LogOut, Settings, Shield, Power } from "lucide-react";
+import { LogOut, Settings, Shield, Power, AlertTriangle, User } from "lucide-react";
 import Toggle from "@/components/Toggle";
 import Badge from "@/components/Badge";
 import StatsCards from "@/components/StatsCards";
@@ -33,21 +33,58 @@ export default function DashboardPage() {
   const [scanServer, setScanServer] = useState("");
   const [activeScanningServers, setActiveScanningServers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<Array<{id: string; name: string}>>([]);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
+    const stored = localStorage.getItem("selectedUser");
+    if (stored) setSelectedUser(stored);
     loadAll();
     const interval = setInterval(loadScanStatus, 3000);
     return () => clearInterval(interval);
   }, []);
 
+  const handleUserChange = useCallback((userId: string) => {
+    setSelectedUser(userId);
+    localStorage.setItem("selectedUser", userId);
+    // Reload configs for selected user
+    loadConfigsForUser(userId);
+  }, [servers]);
+
+  async function loadConfigsForUser(userId: string) {
+    const names = servers.map((s) => s.name);
+    const r: Record<string, ServerConfig> = {};
+    for (const s of names) {
+      try { r[s] = await getConfig(s, userId); } catch { /* */ }
+    }
+    setConfigs(r);
+  }
+
   async function loadAll() {
     const svrs = await getServers();
     setServers(svrs);
     const names = svrs.map((s) => s.name);
-    const [c, h, st] = await Promise.all([loadConfigs(names), loadHealth(names), loadServersStatus()]);
+    const [c, h, st, u] = await Promise.all([
+      loadConfigs(names, selectedUser),
+      loadHealth(names),
+      loadServersStatus(),
+      loadUsers(),
+    ]);
     loadScanStatus();
-    setConfigs(c); setHealth(h); setServerStatus(st); setLoading(false);
+    setConfigs(c); setHealth(h); setServerStatus(st); setUsers(u as Array<{id: string; name: string}>);
+    setLoading(false);
+  }
+  async function loadUsers() {
+    try {
+      const data = await getAgents();
+      return (data?.users || []).map((u: {id: string; name: string}) => ({id: u.id, name: u.name}));
+    } catch { return []; }
+  }
+  async function loadConfigs(names: string[], userId?: string | null) {
+    const r: Record<string, ServerConfig> = {};
+    for (const s of names) { try { r[s] = await getConfig(s, userId || undefined); } catch { /* */ } }
+    return r;
   }
   async function loadServersStatus() {
     try {
@@ -66,11 +103,6 @@ export default function DashboardPage() {
       setActiveScanningServers(active);
       setScanServer(data.server || "");
     } catch { /* */ }
-  }
-  async function loadConfigs(names: string[]) {
-    const r: Record<string, ServerConfig> = {};
-    for (const s of names) { try { r[s] = await getConfig(s); } catch { /* */ } }
-    return r;
   }
   async function loadHealth(names: string[]) {
     const r: Record<string, HealthStatus> = {};
@@ -133,14 +165,46 @@ export default function DashboardPage() {
     );
   }
 
+  const hasUsers = users.length > 0;
+  const effectiveUser = selectedUser && users.some((u) => u.id === selectedUser)
+    ? selectedUser
+    : users[0]?.id || null;
+
   return (
     <div className="max-w-4xl mx-auto p-6">
+      {/* No users banner */}
+      {!hasUsers && (
+        <div className="mb-6 p-4 rounded-lg border border-red-800 bg-red-950/30 flex items-center gap-3">
+          <AlertTriangle size={20} className="text-red-400 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-red-300">No users configured</p>
+            <p className="text-xs text-red-400 mt-0.5">
+              Go to <Link href="/agents" className="underline">Agents</Link> to create a user.
+              All MCP access is disabled until at least one user exists.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold">🔐 MCP Permissions Manager</h1>
         {activeScanningServers.length > 0 && (
           <span className="text-xs text-blue-400 animate-pulse font-medium bg-blue-950/40 px-2.5 py-1 rounded border border-blue-800/60">
             🔄 Scanning ({activeScanningServers.map((s) => meta(s).label || s).join(", ")})…
           </span>
+        )}
+        {/* User profile dropdown */}
+        {hasUsers && (
+          <select
+            value={effectiveUser || ""}
+            onChange={(e) => handleUserChange(e.target.value)}
+            className="rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>{u.name || u.id}</option>
+            ))}
+          </select>
+        )}
         )}
         <Link href="/agents" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
           <Shield size={16} /> Agents

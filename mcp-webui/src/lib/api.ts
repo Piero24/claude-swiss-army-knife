@@ -24,8 +24,11 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
 
 // ── Config ──────────────────────────────────────────
 
-export async function getConfig(server: ServerName): Promise<ServerConfig> {
-  return fetchJSON<ServerConfig>(`${BASE}/config/${server}`);
+export async function getConfig(server: ServerName, userId?: string): Promise<ServerConfig> {
+  const url = userId
+    ? `${BASE}/config/${server}?user=${encodeURIComponent(userId)}`
+    : `${BASE}/config/${server}`;
+  return fetchJSON<ServerConfig>(url);
 }
 
 export async function updateConfig(server: ServerName, config: ServerConfig): Promise<{ saved: boolean }> {
