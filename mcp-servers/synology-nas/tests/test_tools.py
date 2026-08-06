@@ -76,12 +76,14 @@ def synology_server(synology_config, mock_dsm, monkeypatch):
     monkeypatch.setenv("MCP_USER_ID", test_user_id)
 
     from synology_mcp.server import SynologyServer
+
     server = SynologyServer.__new__(SynologyServer)
     server._config_dir = Path(config_dir)
     server._config_path = Path(user_config)
     server.dsm = mock_dsm
 
     from permission_engine import BaseMCPServer
+
     BaseMCPServer.__init__(server, "synology-mcp", str(user_config))
 
     return server

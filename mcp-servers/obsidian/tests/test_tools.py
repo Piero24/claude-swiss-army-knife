@@ -91,6 +91,7 @@ def obsidian_server(obsidian_config, mock_vault, monkeypatch):
     monkeypatch.setenv("MCP_USER_ID", test_user_id)
     with patch("obsidian_mcp.server.create_backend", return_value=mock_vault):
         from obsidian_mcp.server import ObsidianServer
+
         server = ObsidianServer(config_dir)
     return server
 

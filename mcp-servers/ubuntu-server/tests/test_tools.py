@@ -111,6 +111,7 @@ def ubuntu_server(ubuntu_config, mock_host, monkeypatch):
     monkeypatch.setenv("MCP_USER_ID", test_user_id)
     with patch("ubuntu_mcp.server.create_host_access", return_value=mock_host):
         from ubuntu_mcp.server import UbuntuServer
+
         server = UbuntuServer(config_dir)
     return server
 
