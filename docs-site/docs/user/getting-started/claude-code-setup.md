@@ -51,52 +51,80 @@ Host my-mcp-server
 
 ## Configure Claude Code MCP Servers
 
-Add MCP server definitions to `~/.claude/settings.json` on your local machine:
+Add MCP server definitions to `~/.claude.json` on your local machine.
+
+### Simplified Setup (mcp-launcher)
+
+The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simplified format:
 
 ```json
 {
   "mcpServers": {
     "ubuntu-server": {
+      "description": "Ubuntu Server — manage the CasaOS host. Read/write files, run docker commands, control systemd services, check system health, view logs.",
       "command": "ssh",
       "args": [
-        "my-mcp-server",
-        "docker", "exec", "-i", "ubuntu-mcp",
-        "python", "-m", "ubuntu_mcp"
+        "server@192.168.1.41",
+        "MCP_USER_ID=4923472957",
+        "MCP_USER_KEY=K7mX-p3vN-change-me",
+        "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
+        "ubuntu-mcp"
       ]
     },
     "obsidian": {
+      "description": "Obsidian — personal knowledge base vault. Read notes, search by tag or full-text, get backlinks, list the vault structure.",
       "command": "ssh",
       "args": [
-        "my-mcp-server",
-        "docker", "exec", "-i", "obsidian-mcp",
-        "python", "-m", "obsidian_mcp"
+        "server@192.168.1.41",
+        "MCP_USER_ID=4923472957",
+        "MCP_USER_KEY=K7mX-p3vN-change-me",
+        "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
+        "obsidian-mcp"
       ]
     },
     "synology-nas": {
+      "description": "Synology NAS — main file storage. Browse shared folders, read files, search by name, check storage health and system info.",
       "command": "ssh",
       "args": [
-        "my-mcp-server",
-        "docker", "exec", "-i", "synology-mcp",
-        "python", "-m", "synology_mcp"
+        "server@192.168.1.41",
+        "MCP_USER_ID=4923472957",
+        "MCP_USER_KEY=K7mX-p3vN-change-me",
+        "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
+        "synology-mcp"
       ]
     },
     "github": {
+      "description": "GitHub — search repos, code, issues and PRs. Read/create issues, get file contents.",
       "command": "ssh",
       "args": [
-        "my-mcp-server",
-        "docker", "exec", "-i", "github-mcp",
-        "python", "-m", "server"
+        "server@192.168.1.41",
+        "MCP_USER_ID=4923472957",
+        "MCP_USER_KEY=K7mX-p3vN-change-me",
+        "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
+        "github-mcp"
       ]
     }
   }
 }
 ```
 
-Replace `my-mcp-server` with the SSH host alias you configured above.
+**Args explained** (5 total per server):
 
-## User Identity (Multi-User Setup)
+| Arg | Purpose |
+|-----|---------|
+| `server@192.168.1.41` | SSH connection to your server |
+| `MCP_USER_ID=...` | Your user ID (from Web UI → Agents → Generate) |
+| `MCP_USER_KEY=...` | Your plaintext key (**not** the sha256 hash) |
+| `/DATA/.../mcp-launcher.sh` | Server-side dispatcher script |
+| `ubuntu-mcp` | Container name to launch |
 
-If you have multiple users configured in `users.yaml`, each Claude Code instance can identify itself:
+No `docker exec`, `python -m`, or `--config` needed — the launcher handles all of that server-side.
+
+Get your `MCP_USER_ID` and `MCP_USER_KEY` from the Web UI: **Agents → Add User → Generate**.
+
+### Manual Setup (without launcher)
+
+If the launcher isn't deployed yet, use the full format:
 
 ```json
 {
@@ -106,17 +134,20 @@ If you have multiple users configured in `users.yaml`, each Claude Code instance
       "args": [
         "my-mcp-server",
         "docker", "exec", "-i",
-        "-e", "MCP_USER_ID=alice",
-        "-e", "MCP_USER_KEY=<alice-key>",
+        "-e", "MCP_USER_ID=4923472957",
+        "-e", "MCP_USER_KEY=K7mX-p3vN-change-me",
         "ubuntu-mcp",
-        "python", "-m", "ubuntu_mcp"
+        "python", "-m", "ubuntu_mcp",
+        "--config", "/app/configs/ubuntu-server.yaml"
       ]
     }
   }
 }
 ```
 
-The environment variables `MCP_USER_ID` and `MCP_USER_KEY` are read by the permission engine to identify the calling user. If omitted, the user defaults to `"default"` with no authentication.
+## User Identity
+
+`MCP_USER_ID` and `MCP_USER_KEY` identify you to the permission engine. Get them from the Web UI (Agents page). If omitted, the user defaults to `"default"` with no authentication.
 
 Claude Code also sets `CLAUDE_AGENT_ID` automatically when using sub-agents, which appears in audit logs but is not used for access control decisions.
 
@@ -131,8 +162,8 @@ Claude should list all 12 Ubuntu MCP tools.
 You can also test manually from your terminal:
 
 ```bash
-# Test Ubuntu MCP
-ssh my-mcp-server "echo '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}' | docker exec -i ubuntu-mcp python -m ubuntu_mcp"
+# Test Ubuntu MCP via the launcher
+ssh server@192.168.1.41 /DATA/AppData/mcps-server/bin/mcp-launcher.sh ubuntu-mcp
 ```
 
 A successful response will show the full tool list as JSON.
