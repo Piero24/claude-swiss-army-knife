@@ -116,11 +116,18 @@ async function generateUserConfigs(userId: string, serverName: string) {
     await fs.access(filePath);
     return; // already exists
   } catch {
-    const config = {
-      server: { name: serverName, log_level: "INFO", audit_log: "/var/log/mcp/audit.log" },
-      ...DENY_ALL_TEMPLATE,
-    };
-    await fs.writeFile(filePath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
+    let templateConfig = {};
+    try {
+      const templatePath = path.join(CONFIGS_PATH, "templates", serverName, "_template.yaml");
+      const raw = await fs.readFile(templatePath, "utf-8");
+      templateConfig = yaml.load(raw) as Record<string, unknown>;
+    } catch {
+      templateConfig = {
+        server: { name: serverName, log_level: "INFO", audit_log: "/var/log/mcp/audit.log" },
+        ...DENY_ALL_TEMPLATE,
+      };
+    }
+    await fs.writeFile(filePath, yaml.dump(templateConfig, { noRefs: true, lineWidth: -1 }), "utf-8");
   }
 }
 

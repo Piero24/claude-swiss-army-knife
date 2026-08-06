@@ -86,15 +86,11 @@ async function seedDefaultTemplates(configsDir: string): Promise<void> {
 
     // Seed YAML templates if missing
     try {
-      const files = await fs.readdir(templateDir);
-      for (const file of files) {
-        if (!file.endsWith(".yaml")) continue;
-        const targetPath = path.join(configsDir, file);
-        try {
-          await fs.access(targetPath);
-        } catch {
-          await fs.copyFile(path.join(templateDir, file), targetPath);
-        }
+      const targetPath = path.join(configsDir, "templates");
+      try {
+        await fs.access(targetPath);
+      } catch {
+        await fs.cp(templateDir, targetPath, { recursive: true });
       }
     } catch {
       /* template dir missing */

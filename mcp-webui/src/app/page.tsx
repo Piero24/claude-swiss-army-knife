@@ -205,7 +205,6 @@ export default function DashboardPage() {
             ))}
           </select>
         )}
-        )}
         <Link href="/agents" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
           <Shield size={16} /> Agents
         </Link>
