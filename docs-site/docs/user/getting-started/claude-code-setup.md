@@ -64,7 +64,7 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
       "description": "Ubuntu Server — manage the CasaOS host. Read/write files, run docker commands, control systemd services, check system health, view logs.",
       "command": "ssh",
       "args": [
-        "server@192.168.1.41",
+        "server@<YOUR_IP_ADDRESS>",
         "MCP_USER_ID=4923472957",
         "MCP_USER_KEY=K7mX-p3vN-change-me",
         "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
@@ -75,7 +75,7 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
       "description": "Obsidian — personal knowledge base vault. Read notes, search by tag or full-text, get backlinks, list the vault structure.",
       "command": "ssh",
       "args": [
-        "server@192.168.1.41",
+        "server@<YOUR_IP_ADDRESS>",
         "MCP_USER_ID=4923472957",
         "MCP_USER_KEY=K7mX-p3vN-change-me",
         "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
@@ -86,7 +86,7 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
       "description": "Synology NAS — main file storage. Browse shared folders, read files, search by name, check storage health and system info.",
       "command": "ssh",
       "args": [
-        "server@192.168.1.41",
+        "server@<YOUR_IP_ADDRESS>",
         "MCP_USER_ID=4923472957",
         "MCP_USER_KEY=K7mX-p3vN-change-me",
         "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
@@ -97,7 +97,7 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
       "description": "GitHub — search repos, code, issues and PRs. Read/create issues, get file contents.",
       "command": "ssh",
       "args": [
-        "server@192.168.1.41",
+        "server@<YOUR_IP_ADDRESS>",
         "MCP_USER_ID=4923472957",
         "MCP_USER_KEY=K7mX-p3vN-change-me",
         "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
@@ -112,7 +112,7 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
 
 | Arg | Purpose |
 |-----|---------|
-| `server@192.168.1.41` | SSH connection to your server |
+| `server@<YOUR_IP_ADDRESS>` | SSH connection to your server |
 | `MCP_USER_ID=...` | Your user ID (from Web UI → Agents → Generate) |
 | `MCP_USER_KEY=...` | Your plaintext key (**not** the sha256 hash) |
 | `/DATA/.../mcp-launcher.sh` | Server-side dispatcher script |
@@ -163,7 +163,7 @@ You can also test manually from your terminal:
 
 ```bash
 # Test Ubuntu MCP via the launcher
-ssh server@192.168.1.41 /DATA/AppData/mcps-server/bin/mcp-launcher.sh ubuntu-mcp
+ssh server@<YOUR_IP_ADDRESS> /DATA/AppData/mcps-server/bin/mcp-launcher.sh ubuntu-mcp
 ```
 
 A successful response will show the full tool list as JSON.
