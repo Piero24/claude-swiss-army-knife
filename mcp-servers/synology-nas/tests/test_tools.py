@@ -1,6 +1,8 @@
 """Unit tests for synology MCP tool handlers with mocked DSM client."""
 
+import os
 import tempfile
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -65,23 +67,22 @@ def synology_config():
 
 
 @pytest.fixture
-def synology_server(synology_config, mock_dsm):
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", delete=False
-    ) as f:
+def synology_server(synology_config, mock_dsm, monkeypatch):
+    config_dir = tempfile.mkdtemp(suffix="_synology_test")
+    test_user_id = "test_user"
+    user_config = os.path.join(config_dir, f"{test_user_id}.yaml")
+    with open(user_config, "w") as f:
         yaml.dump(synology_config, f)
-        config_path = f.name
+    monkeypatch.setenv("MCP_USER_ID", test_user_id)
 
     from synology_mcp.server import SynologyServer
-
     server = SynologyServer.__new__(SynologyServer)
-    server._config_path = config_path
+    server._config_dir = Path(config_dir)
+    server._config_path = Path(user_config)
     server.dsm = mock_dsm
 
-    # Initialize base class manually
-    from permission_engine import BaseMCPServer, PermissionEnforcer
-
-    BaseMCPServer.__init__(server, "synology-mcp", config_path)
+    from permission_engine import BaseMCPServer
+    BaseMCPServer.__init__(server, "synology-mcp", str(user_config))
 
     return server
 

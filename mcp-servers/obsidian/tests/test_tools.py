@@ -1,6 +1,7 @@
 """Unit tests for obsidian MCP tool handlers with mocked vault."""
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, AsyncMock, patch
@@ -80,18 +81,17 @@ def obsidian_config():
 
 
 @pytest.fixture
-def obsidian_server(obsidian_config, mock_vault):
+def obsidian_server(obsidian_config, mock_vault, monkeypatch):
     """Create an ObsidianServer with a mocked vault."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", delete=False
-    ) as f:
+    config_dir = tempfile.mkdtemp(suffix="_obsidian_test")
+    test_user_id = "test_user"
+    user_config = os.path.join(config_dir, f"{test_user_id}.yaml")
+    with open(user_config, "w") as f:
         yaml.dump(obsidian_config, f)
-        config_path = f.name
-
+    monkeypatch.setenv("MCP_USER_ID", test_user_id)
     with patch("obsidian_mcp.server.create_backend", return_value=mock_vault):
         from obsidian_mcp.server import ObsidianServer
-
-        server = ObsidianServer(config_path)
+        server = ObsidianServer(config_dir)
     return server
 
 

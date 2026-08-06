@@ -1,5 +1,6 @@
 """Unit tests for ubuntu MCP tool handlers with mocked host access."""
 
+import os
 import tempfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -101,17 +102,16 @@ def ubuntu_config():
 
 
 @pytest.fixture
-def ubuntu_server(ubuntu_config, mock_host):
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", delete=False
-    ) as f:
+def ubuntu_server(ubuntu_config, mock_host, monkeypatch):
+    config_dir = tempfile.mkdtemp(suffix="_ubuntu_test")
+    test_user_id = "test_user"
+    user_config = os.path.join(config_dir, f"{test_user_id}.yaml")
+    with open(user_config, "w") as f:
         yaml.dump(ubuntu_config, f)
-        config_path = f.name
-
+    monkeypatch.setenv("MCP_USER_ID", test_user_id)
     with patch("ubuntu_mcp.server.create_host_access", return_value=mock_host):
         from ubuntu_mcp.server import UbuntuServer
-
-        server = UbuntuServer(config_path)
+        server = UbuntuServer(config_dir)
     return server
 
 
