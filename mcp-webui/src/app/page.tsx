@@ -4,11 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ServerConfig } from "@/lib/types";
-import { getConfig, getHealth, getServersStatus, toggleServerStatus, getAgents } from "@/lib/api";
+import { getConfig, updateConfig, getHealth, getServersStatus, toggleServerStatus, getAgents } from "@/lib/api";
 import { logout } from "@/lib/api";
 import type { HealthStatus } from "@/lib/api";
 import type { ServerStatus } from "@/lib/api";
-import { LogOut, Settings, Shield, Power, AlertTriangle, User } from "lucide-react";
+import { toast } from "sonner";
+import { LogOut, Settings, Shield, AlertTriangle, User } from "lucide-react";
 import Toggle from "@/components/Toggle";
 import Badge from "@/components/Badge";
 import StatsCards from "@/components/StatsCards";
@@ -138,42 +139,23 @@ export default function DashboardPage() {
   }
 
   async function handleToggleServer(server: string, enabled: boolean) {
-    // Optimistic update
-    setServerStatus((prev) => ({
-      ...prev,
-      [server]: { ...(prev[server] || {}), enabled },
-    }));
+    if (!effectiveUser) return;
+    const prevCfg = configs[server];
+    const updatedCfg = { ...(prevCfg || {}), enabled } as ServerConfig;
+    setConfigs((prev) => ({ ...prev, [server]: updatedCfg }));
     try {
-      await toggleServerStatus(server, enabled);
+      await updateConfig(server, updatedCfg, effectiveUser);
     } catch {
-      // Revert
-      setServerStatus((prev) => ({
-        ...prev,
-        [server]: { ...(prev[server] || {}), enabled: !enabled },
-      }));
+      if (prevCfg) {
+        setConfigs((prev) => ({ ...prev, [server]: prevCfg }));
+      }
+      toast.error("Failed to update status");
     }
   }
 
   function meta(name: string): ServerMeta {
     return servers.find((s) => s.name === name) || { name, label: name, icon: "🔌" };
   }
-
-  async function handleBulkToggle(enabled: boolean) {
-    const names = servers.map((s) => s.name);
-    setServerStatus((prev) => {
-      const next = { ...prev };
-      for (const s of names) {
-        next[s] = { ...(next[s] || {}), enabled };
-      }
-      return next;
-    });
-    await Promise.allSettled(names.map((s) => toggleServerStatus(s, enabled)));
-    loadServersStatus().then(setServerStatus);
-  }
-
-  const names = servers.map((s) => s.name);
-  const hasEnabled = names.some((s) => !serverStatus[s] || serverStatus[s].enabled !== false);
-  const hasDisabled = names.some((s) => serverStatus[s] && serverStatus[s].enabled === false);
 
   if (loading) {
     return (
@@ -197,60 +179,47 @@ export default function DashboardPage() {
           <div>
             <p className="text-sm font-medium text-red-300">No users configured</p>
             <p className="text-xs text-red-400 mt-0.5">
-              Go to <Link href="/agents" className="underline">Agents</Link> to create a user.
+              Go to <Link href="/agents" className="underline">Users & Agents</Link> to create a user.
               All MCP access is disabled until at least one user exists.
             </p>
           </div>
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">🔐 MCP Permissions Manager</h1>
-        {activeScanningServers.length > 0 && (
-          <span className="text-xs text-blue-400 animate-pulse font-medium bg-blue-950/40 px-2.5 py-1 rounded border border-blue-800/60">
-            🔄 Scanning ({activeScanningServers.map((s) => meta(s).label || s).join(", ")})…
-          </span>
-        )}
-        {/* User profile dropdown */}
-        {hasUsers && (
-          <select
-            value={effectiveUser || ""}
-            onChange={(e) => handleUserChange(e.target.value)}
-            className="rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>{u.name || u.id}</option>
-            ))}
-          </select>
-        )}
-        <Link href="/agents" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
-          <Shield size={16} /> Agents
-        </Link>
-        <Link href="/settings" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
-          <Settings size={16} /> Settings
-        </Link>
-        <button onClick={handleLogout} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
-          <LogOut size={16} /> Logout
-        </button>
+        <div className="flex items-center gap-4">
+          {hasUsers && (
+            <select
+              value={effectiveUser || ""}
+              onChange={(e) => handleUserChange(e.target.value)}
+              className="rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name || u.id}</option>
+              ))}
+            </select>
+          )}
+          <Link href="/agents" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
+            <Shield size={16} /> Users & Agents
+          </Link>
+          <Link href="/settings" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
+            <Settings size={16} /> Settings
+          </Link>
+          <button onClick={handleLogout} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white">
+            <LogOut size={16} /> Logout
+          </button>
+        </div>
       </div>
 
-      {/* Bulk toggle buttons */}
-      <div className="flex items-center gap-2 mb-4">
-        <button
-          onClick={() => handleBulkToggle(true)}
-          disabled={!hasDisabled}
-          className="flex items-center gap-1 px-3 py-1 text-xs rounded border border-green-700 text-green-400 hover:bg-green-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <Power size={12} /> Activate all
-        </button>
-        <button
-          onClick={() => handleBulkToggle(false)}
-          disabled={!hasEnabled}
-          className="flex items-center gap-1 px-3 py-1 text-xs rounded border border-red-700 text-red-400 hover:bg-red-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <Power size={12} /> Deactivate all
-        </button>
-      </div>
+      {/* Autoscan banner under header */}
+      {activeScanningServers.length > 0 && (
+        <div className="mb-6 p-3 rounded-lg border border-blue-800/60 bg-blue-950/40 flex items-center justify-between">
+          <span className="text-sm text-blue-400 animate-pulse font-medium flex items-center gap-2">
+            🔄 Auto-discovery scanning in progress ({activeScanningServers.map((s) => meta(s).label || s).join(", ")})…
+          </span>
+        </div>
+      )}
 
       {/* Stats overview */}
       <StatsCards />
@@ -259,16 +228,19 @@ export default function DashboardPage() {
         {servers.map((srv) => {
           const config = configs[srv.name];
           const h = health[srv.name];
-          const enabled = !serverStatus[srv.name] || serverStatus[srv.name].enabled !== false;
+          const isGlobalEnabled = !serverStatus[srv.name] || serverStatus[srv.name].enabled !== false;
+          const isUserEnabled = config?.enabled !== false;
+          const enabled = isGlobalEnabled && isUserEnabled;
           const isServerScanning = activeScanningServers.includes(srv.name);
           const cardContent = (
             <div className={`rounded-lg border p-5 transition-colors h-full flex flex-col ${enabled ? "border-gray-800 bg-gray-900 hover:border-gray-600" : "border-gray-800/50 bg-gray-900/50 opacity-50"}`}>
               <div className="flex items-start justify-between mb-2">
                 <div className="text-3xl">{srv.icon}</div>
                 <Toggle
-                  checked={enabled}
+                  checked={isUserEnabled && isGlobalEnabled}
+                  disabled={!isGlobalEnabled}
                   onChange={(checked) => handleToggleServer(srv.name, checked)}
-                  label={enabled ? "Deactivate" : "Activate"}
+                  label={!isGlobalEnabled ? "Disabled globally in Settings" : (isUserEnabled ? "Deactivate for user" : "Activate for user")}
                 />
               </div>
               <h2 className="font-semibold mb-1">{srv.label}</h2>

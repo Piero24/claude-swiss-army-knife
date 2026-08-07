@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSettings, updateSettings, getConfig, updateConfig } from "@/lib/api";
+import { getSettings, updateSettings, getConfig, updateConfig, getServersStatus, bulkToggleServers, toggleServerStatus } from "@/lib/api";
 import type { AppSettings } from "@/lib/api";
 import type { ServerConfig } from "@/lib/types";
 import { getServers } from "@/lib/servers";
 import type { ServerMeta } from "@/lib/servers";
 import { toast } from "sonner";
-import { X } from "lucide-react";
+import { X, Shield } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import Toggle from "@/components/Toggle";
 
@@ -22,6 +22,8 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [servers, setServers] = useState<ServerMeta[]>([]);
   const [serverConfigs, setServerConfigs] = useState<Record<string, ServerConfig>>({});
+  const [serverStatus, setServerStatus] = useState<Record<string, { enabled?: boolean }>>({});
+  const [masterDisabled, setMasterDisabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [excludeInput, setExcludeInput] = useState("");
@@ -30,9 +32,14 @@ export default function SettingsPage() {
     Promise.all([
       getSettings().catch(() => null),
       getServers(),
-    ]).then(([s, svrs]) => {
+      getServersStatus().catch(() => ({ servers: {} })),
+    ]).then(([s, svrs, st]) => {
       setSettings(s);
       setServers(svrs);
+      const stMap = (st.servers || {}) as Record<string, { enabled?: boolean }>;
+      setServerStatus(stMap);
+      const allDisabled = svrs.length > 0 && svrs.every((sv) => stMap[sv.name]?.enabled === false);
+      setMasterDisabled(allDisabled);
       return Promise.all(svrs.map((sv) => getConfig(sv.name).then((cfg) => [sv.name, cfg] as const).catch(() => null)));
     }).then((cfgs) => {
       const map: Record<string, ServerConfig> = {};
@@ -40,6 +47,36 @@ export default function SettingsPage() {
       setServerConfigs(map);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  async function handleMasterDisable(disable: boolean) {
+    setMasterDisabled(disable);
+    try {
+      await bulkToggleServers(!disable);
+      toast.success(disable ? "All MCP servers disabled" : "All MCP servers enabled");
+      const st = await getServersStatus().catch(() => ({ servers: {} }));
+      setServerStatus((st.servers || {}) as Record<string, { enabled?: boolean }>);
+    } catch {
+      setMasterDisabled(!disable);
+      toast.error("Failed to update master status");
+    }
+  }
+
+  async function handleGlobalServerToggle(server: string, enabled: boolean) {
+    setServerStatus((prev) => ({
+      ...prev,
+      [server]: { ...(prev[server] || {}), enabled },
+    }));
+    try {
+      await toggleServerStatus(server, enabled);
+      toast.success(`Global ${server} ${enabled ? "enabled" : "disabled"}`);
+    } catch {
+      setServerStatus((prev) => ({
+        ...prev,
+        [server]: { ...(prev[server] || {}), enabled: !enabled },
+      }));
+      toast.error("Failed to update server status");
+    }
+  }
 
   async function handleSave() {
     if (!settings) return;
@@ -279,6 +316,52 @@ export default function SettingsPage() {
           })}
         </div>
       </section>}
+
+      {/* Security Area — Master Killswitch & Global Per-MCP Controls */}
+      <section className="mb-8 p-4 rounded-lg border border-red-900/50 bg-red-950/20">
+        <h2 className="text-lg font-semibold text-red-400 mb-2 flex items-center gap-2">
+          <Shield size={20} /> Security Area & Global Controls
+        </h2>
+        <p className="text-xs text-gray-400 mb-4">
+          Emergency controls to disable MCP servers globally for all users.
+        </p>
+
+        {/* Emergency Master Killswitch */}
+        <div className="flex items-center justify-between p-3 rounded bg-gray-900 border border-gray-800 mb-4">
+          <div>
+            <span className="font-medium text-sm text-gray-200">Emergency Master Disable</span>
+            <p className="text-xs text-gray-500">Deactivates ALL MCP servers for all users immediately.</p>
+          </div>
+          <Toggle
+            checked={masterDisabled}
+            onChange={(v) => handleMasterDisable(v)}
+            label="Master Disable All"
+          />
+        </div>
+
+        {/* Global Per-MCP Controls */}
+        <h3 className="text-sm font-semibold text-gray-300 mb-2">Global Per-MCP Controls</h3>
+        <p className="text-xs text-gray-500 mb-3">Deactivate specific MCP servers globally across all users.</p>
+        <div className="space-y-2">
+          {servers.map((srv) => {
+            const isGloballyEnabled = !serverStatus[srv.name] || serverStatus[srv.name].enabled !== false;
+            return (
+              <div key={srv.name} className="flex items-center justify-between p-2.5 rounded bg-gray-900 border border-gray-800">
+                <div className="flex items-center gap-2">
+                  <span>{srv.icon}</span>
+                  <span className="text-sm font-medium text-gray-300">{srv.label}</span>
+                </div>
+                <Toggle
+                  checked={isGloballyEnabled && !masterDisabled}
+                  disabled={masterDisabled}
+                  onChange={(v) => handleGlobalServerToggle(srv.name, v)}
+                  label={`Global ${srv.label}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
     </div>
   );

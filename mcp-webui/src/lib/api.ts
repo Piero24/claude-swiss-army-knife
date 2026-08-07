@@ -222,6 +222,13 @@ export async function toggleServerStatus(server: string, enabled: boolean): Prom
   });
 }
 
+export async function bulkToggleServers(enabled: boolean): Promise<{ enabled: boolean; servers: string[] }> {
+  return fetchJSON(`${BASE}/servers/bulk-status`, {
+    method: "POST",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
 // ── Tool Rules (proxy servers) ──────────────────────
 
 export async function addToolRule(

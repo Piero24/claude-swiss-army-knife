@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 import { getAgents, updateAgentsSettings, updateAgent } from "@/lib/api";
 import type { UserConfig, UsersConfig } from "@/lib/types";
 import { toast } from "sonner";
-import { Plus, Shield, X } from "lucide-react";
+import { Plus, Shield, X, Code, Copy, Check } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import Toggle from "@/components/Toggle";
 import EmptyState from "@/components/EmptyState";
 import DataTable from "@/components/DataTable";
-import Badge from "@/components/Badge";
 import type { Column } from "@/components/DataTable";
 
 const MODES = [
@@ -39,17 +38,15 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [newUser, setNewUser] = useState({ id: "", name: "", key: "" });
-  const [generatedSecret, setGeneratedSecret] = useState("");
-
-  function autoId(): string {
-    return String(Math.floor(1000000000 + Math.random() * 9000000000));
-  }
+  const [newUserName, setNewUserName] = useState("");
+  const [userSecrets, setUserSecrets] = useState<Record<string, string>>({});
+  const [jsonModalUser, setJsonModalUser] = useState<{ id: string; name: string; secret: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     getAgents()
       .then(setData)
-      .catch(() => toast.error("Failed to load agents"))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -57,16 +54,9 @@ export default function AgentsPage() {
     if (!data) return;
     setSaving(true);
     try {
-      // Send full config including users so they persist to users.yaml
       await updateAgentsSettings({
         mode: data.mode,
-        users: data.users.map((u) => ({
-          id: u.id,
-          key: u.key,
-          name: u.name,
-          enabled: u.enabled,
-          tools: u.tools,
-        })),
+        users: data.users,
       });
       toast.success("Settings saved");
     } catch {
@@ -78,25 +68,18 @@ export default function AgentsPage() {
 
   async function handleToggleUser(user: UserConfig) {
     if (!data) return;
-    const enabled = !user.enabled;
-    // Optimistic update
+    const updated = !user.enabled;
     setData({
       ...data,
       users: data.users.map((u) =>
-        u.id === user.id ? { ...u, enabled } : u
+        u.id === user.id ? { ...u, enabled: updated } : u
       ),
     });
     try {
-      await updateAgent(user.id, { enabled });
+      await updateAgent(user.id, { enabled: updated });
+      toast.success(`User ${user.name} ${updated ? "enabled" : "disabled"}`);
     } catch {
-      toast.error("Failed to update user");
-      // Revert
-      setData({
-        ...data,
-        users: data.users.map((u) =>
-          u.id === user.id ? { ...u, enabled: !enabled } : u
-        ),
-      });
+      toast.error("Failed to update user status");
     }
   }
 
@@ -122,62 +105,56 @@ export default function AgentsPage() {
     }
   }
 
-  function handleAddUser() {
-    if (!data || !newUser.id.trim() || !newUser.key.trim()) return;
-    const keyHash = newUser.key; // already hashed if generated, or plaintext from manual entry
+  async function handleAddUser() {
+    if (!data || !newUserName.trim()) return;
+    const name = newUserName.trim();
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "user";
+    const id = `${slug}_${Math.random().toString(36).slice(2, 6)}`;
+
+    // Generate 32-character secret
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    let secret = "";
+    for (let i = 0; i < 32; i++) {
+      secret += chars[array[i] % chars.length];
+    }
+
+    // Generate 16-byte salt & sha256 hash
+    const saltBytes = new Uint8Array(16);
+    crypto.getRandomValues(saltBytes);
+    const salt = Array.from(saltBytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    let hex: string;
+    if (crypto.subtle) {
+      const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + secret));
+      hex = Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    } else {
+      const { sha256hex } = await import("@/lib/sha256-fallback");
+      hex = sha256hex(salt + secret);
+    }
+    const keyHash = `sha256$${salt}$${hex}`;
+
+    const newUserObj: UserConfig = {
+      id,
+      name,
+      key: keyHash,
+      enabled: true,
+      tools: ["*"],
+    };
+
     setData({
       ...data,
-      users: [
-        ...data.users,
-        {
-          id: newUser.id.trim(),
-          key: keyHash,
-          name: newUser.name.trim() || newUser.id.trim(),
-          enabled: true,
-          tools: ["*"],
-        },
-      ],
+      users: [...data.users, newUserObj],
     });
-    setNewUser({ id: "", name: "", key: "" });
-    setGeneratedSecret("");
+
+    setUserSecrets((prev) => ({ ...prev, [id]: secret }));
+    setNewUserName("");
     setShowAdd(false);
     toast.success("User added — click Save to persist");
-  }
 
-  async function generateKey() {
-    try {
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-      const array = new Uint8Array(32);
-      crypto.getRandomValues(array);
-      let secret = "";
-      for (let i = 0; i < 32; i++) {
-        secret += chars[array[i] % chars.length];
-      }
-
-      // Generate a random 16-byte salt
-      const saltBytes = new Uint8Array(16);
-      crypto.getRandomValues(saltBytes);
-      const salt = Array.from(saltBytes)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
-      // Hash salt + secret — use native crypto when available, pure-JS fallback otherwise
-      let hex: string;
-      if (crypto.subtle) {
-        const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + secret));
-        hex = Array.from(new Uint8Array(hash))
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-      } else {
-        const { sha256hex } = await import("@/lib/sha256-fallback");
-        hex = sha256hex(salt + secret);
-      }
-
-      setNewUser((prev) => ({ ...prev, key: `sha256$${salt}$${hex}` }));
-      setGeneratedSecret(secret);
-    } catch (err) {
-      toast.error(`Key generation failed: ${err instanceof Error ? err.message : "Unknown error"}`);
-    }
+    // Auto open MCP JSON template modal
+    setJsonModalUser({ id, name, secret });
   }
 
   function handleRemoveUser(userId: string) {
@@ -187,6 +164,27 @@ export default function AgentsPage() {
       users: data.users.filter((u) => u.id !== userId),
     });
     toast.success("User removed — click Save to persist");
+  }
+
+  function getMcpJsonSnippet(userId: string, secretKey: string) {
+    const keyVal = secretKey || "<YOUR_MCP_USER_KEY>";
+    const serversList = ["ubuntu-server", "synology-nas", "obsidian", "github-mcp", "link-manager-mcp"];
+    const mcpServersObj: Record<string, unknown> = {};
+
+    for (const srv of serversList) {
+      mcpServersObj[srv] = {
+        command: "ssh",
+        args: [
+          "user@<YOUR_SERVER_IP>",
+          `MCP_USER_ID=${userId}`,
+          `MCP_USER_KEY=${keyVal}`,
+          "/DATA/AppData/mcps-server/settings/mcp-launcher",
+          srv,
+        ],
+      };
+    }
+
+    return JSON.stringify({ mcpServers: mcpServersObj }, null, 2);
   }
 
   if (loading)
@@ -205,8 +203,8 @@ export default function AgentsPage() {
 
   // ── Column definitions for user table ──
   const userColumns: Column<UserConfig>[] = [
-    { key: "name", header: "Name", render: (u) => u.name },
-    { key: "id", header: "ID", cellClassName: "font-mono text-xs text-gray-500", render: (u) => u.id },
+    { key: "name", header: "Name", render: (u) => <span className="font-medium text-gray-200">{u.name}</span> },
+    { key: "id", header: "User ID", cellClassName: "font-mono text-xs text-blue-400", render: (u) => u.id },
     { key: "tools", header: "Tools", render: (u) => (
       <input
         type="text"
@@ -217,14 +215,19 @@ export default function AgentsPage() {
         placeholder="*"
       />
     )},
-    { key: "key", header: "Key", headerClassName: "w-[80px]", render: (u) => (
-      <Badge variant="status" value={u.key ? "set" : "none"} label={u.key ? "Set" : "None"} />
-    )},
     { key: "lastSeen", header: "Last seen", headerClassName: "w-[90px]", render: (u) => (
       <span className="text-xs text-gray-500">{relativeTime(u.lastSeen)}</span>
     )},
     { key: "status", header: "Status", headerClassName: "w-[80px]", render: (u) => (
       <Toggle checked={u.enabled} onChange={() => handleToggleUser(u)} label={`Toggle ${u.name}`} />
+    )},
+    { key: "actions", header: "Config", headerClassName: "w-[120px]", cellClassName: "text-center", render: (u) => (
+      <button
+        onClick={() => setJsonModalUser({ id: u.id, name: u.name, secret: userSecrets[u.id] || "" })}
+        className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/60 transition-colors"
+      >
+        <Code size={12} /> Generate JSON
+      </button>
     )},
     { key: "remove", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (u) => (
       <button onClick={() => handleRemoveUser(u.id)} className="text-gray-600 hover:text-red-400">
@@ -236,12 +239,12 @@ export default function AgentsPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <PageHeader
-        title="Agents"
+        title="Users & Agents"
         actions={
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
+            className="px-4 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 font-medium"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -275,89 +278,44 @@ export default function AgentsPage() {
           <h2 className="text-lg font-semibold">Users</h2>
           <button
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-gray-800 hover:bg-gray-700"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 font-medium text-white transition-colors"
           >
-            <Plus size={14} /> Add
+            <Plus size={14} /> Add User
           </button>
         </div>
 
+        {/* Simplified Add User Form */}
         {showAdd && (
           <div className="mb-4 p-4 rounded-lg border border-gray-700 bg-gray-900">
-            <div className="grid grid-cols-3 gap-3 mb-3">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">ID</label>
-                <input
-                  type="text"
-                  placeholder="Auto-generated 10 digits"
-                  value={newUser.id}
-                  onChange={(e) =>
-                    setNewUser({ ...newUser, id: e.target.value })
-                  }
-                  className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                />
-                <p className="text-[10px] text-gray-600 mt-0.5">Machine identifier for the LLM. Auto-generated, editable.</p>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Name</label>
-                <input
-                  type="text"
-                  placeholder="Claude Code"
-                  value={newUser.name}
-                  onChange={(e) => {
-                    const name = e.target.value;
-                    setNewUser({ ...newUser, name, id: newUser.id || autoId() });
-                  }}
-                  className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-[10px] text-gray-600 mt-0.5">Human-readable name shown in dashboards and audit logs.</p>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Key (sha256 hash)</label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    placeholder="sha256$..."
-                    value={newUser.key}
-                    onChange={(e) =>
-                      setNewUser({ ...newUser, key: e.target.value })
-                    }
-                    className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={generateKey}
-                    className="px-3 py-1.5 text-xs rounded bg-gray-700 hover:bg-gray-600 whitespace-nowrap"
-                  >
-                    Generate
-                  </button>
-                </div>
-                {generatedSecret && (
-                  <div className="mt-2 p-2 rounded border border-yellow-600/50 bg-yellow-900/20 space-y-2">
-                    <p className="text-xs text-yellow-400 font-medium">Copy this into your .claude.json args array — it cannot be shown again:</p>
-                    <code className="block text-xs text-yellow-300 break-all select-all whitespace-pre-wrap">{`"args": [
-  "server@<your-nas-ip>",
-  "MCP_USER_ID=${newUser.id || "USER_ID"}",
-  "MCP_USER_KEY=${generatedSecret}",
-  "/DATA/AppData/mcps-server/settings/mcp-launcher",
-  "<server-name>"
-]`}</code>
-                    <p className="text-[10px] text-yellow-600">Only the plaintext secret works. The sha256$... hash will NOT authenticate.</p>
-                  </div>
-                )}
-              </div>
+            <h3 className="text-sm font-semibold text-gray-200 mb-2">Create New User</h3>
+            <div className="mb-3">
+              <label className="block text-xs text-gray-400 mb-1">Name (mandatory)</label>
+              <input
+                type="text"
+                placeholder="e.g. Claude Code / Piero Work Laptop"
+                value={newUserName}
+                onChange={(e) => setNewUserName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAddUser(); }}
+                className="w-full max-w-md rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+              <p className="text-[10px] text-gray-500 mt-1">
+                The User ID and secret key will be generated automatically upon creation.
+              </p>
             </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => { setShowAdd(false); setNewUser({ id: "", name: "", key: "" }); setGeneratedSecret(""); }}
-                className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700"
-              >
-                Cancel
-              </button>
+            <div className="flex gap-2">
               <button
                 onClick={handleAddUser}
-                className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500"
+                disabled={!newUserName.trim()}
+                className="px-4 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-40 font-medium"
               >
-                Add
+                Create User
+              </button>
+              <button
+                onClick={() => { setShowAdd(false); setNewUserName(""); }}
+                className="px-3 py-1.5 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300"
+              >
+                Cancel
               </button>
             </div>
           </div>
@@ -367,11 +325,11 @@ export default function AgentsPage() {
           <EmptyState
             icon={<Shield size={40} />}
             title="No users configured"
-            description="Agents will appear here after their first MCP request, or add one manually."
+            description="Add your first user to enable MCP server permissions."
             action={
               <button
                 onClick={() => setShowAdd(true)}
-                className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500"
+                className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 font-medium"
               >
                 Add your first user
               </button>
@@ -386,6 +344,67 @@ export default function AgentsPage() {
           />
         )}
       </section>
+
+      {/* Modal for MCP JSON Template */}
+      {jsonModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-lg border border-gray-800 bg-gray-900 p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-100 flex items-center gap-2">
+                  <Code className="text-blue-400" size={20} /> MCP JSON Configuration Template
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  User: <span className="text-white font-medium">{jsonModalUser.name}</span> (ID: <code className="text-blue-400 font-mono">{jsonModalUser.id}</code>)
+                </p>
+              </div>
+              <button
+                onClick={() => { setJsonModalUser(null); setCopied(false); }}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-300 mb-3">
+              Copy this JSON template into your CLI IDE setup (e.g. <code className="text-yellow-400">.claude.json</code> or MCP extension config):
+            </p>
+
+            <div className="relative mb-4">
+              <pre className="p-4 rounded border border-gray-800 bg-black/80 text-xs text-green-400 font-mono overflow-x-auto max-h-80 select-all">
+                {getMcpJsonSnippet(jsonModalUser.id, jsonModalUser.secret)}
+              </pre>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(getMcpJsonSnippet(jsonModalUser.id, jsonModalUser.secret));
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                  toast.success("MCP JSON copied to clipboard");
+                }}
+                className="absolute top-3 right-3 flex items-center gap-1 px-3 py-1 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow"
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? "Copied!" : "Copy JSON"}
+              </button>
+            </div>
+
+            {!jsonModalUser.secret && (
+              <p className="text-xs text-yellow-400 bg-yellow-950/40 p-2.5 rounded border border-yellow-800/60 mb-4">
+                Note: Replace <code className="text-white font-mono">&lt;YOUR_MCP_USER_KEY&gt;</code> with the plaintext secret key generated when this user was created.
+              </p>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => { setJsonModalUser(null); setCopied(false); }}
+                className="px-4 py-1.5 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

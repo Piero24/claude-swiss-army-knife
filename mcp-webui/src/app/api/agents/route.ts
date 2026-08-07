@@ -149,6 +149,16 @@ async function generateUserConfigs(userId: string, serverName: string) {
   }
 }
 
+async function deleteUserConfigs(userId: string) {
+  const servers = await discoverServerDirs();
+  for (const server of servers) {
+    const filePath = path.join(CONFIGS_PATH, server, `${userId}.yaml`);
+    try {
+      await fs.unlink(filePath);
+    } catch { /* file may not exist */ }
+  }
+}
+
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
@@ -175,6 +185,12 @@ export async function PUT(request: Request) {
           await generateUserConfigs(user.id, server);
         }
       }
+    }
+
+    // Purge configs for deleted users
+    const deletedUserIds = oldUserIds.filter((id) => !validated.users.some((u) => u.id === id));
+    for (const deletedId of deletedUserIds) {
+      await deleteUserConfigs(deletedId);
     }
 
     return NextResponse.json({ saved: true });

@@ -11,6 +11,8 @@ const CONTAINER_MAP: Record<string, string> = {
   obsidian: process.env.OBSIDIAN_MCP_CONTAINER || "obsidian-mcp",
   "synology-nas": process.env.SYNOLOGY_MCP_CONTAINER || "synology-mcp",
   "github-mcp": process.env.GITHUB_MCP_CONTAINER || "github-mcp",
+  "link-manager-mcp": process.env.LINK_MANAGER_MCP_CONTAINER || "link-manager-mcp",
+  "link-manager": process.env.LINK_MANAGER_MCP_CONTAINER || "link-manager-mcp",
 };
 
 const LOG_DIRS: Record<string, string> = {
@@ -18,6 +20,8 @@ const LOG_DIRS: Record<string, string> = {
   obsidian: "obsidian",
   "synology-nas": "synology",
   "github-mcp": "github",
+  "link-manager-mcp": "link-manager",
+  "link-manager": "link-manager",
 };
 
 const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
@@ -136,11 +140,11 @@ export async function GET(
       status = "unconfigured";
       detail = `Default credentials detected: ${badKeys.join(", ")}`;
     } else if (lastActivity) {
-      const hourAgo = Date.now() - 60 * 60 * 1000;
-      if (lastActivity.getTime() > hourAgo) {
+      const fiveHoursAgo = Date.now() - 5 * 60 * 60 * 1000;
+      if (lastActivity.getTime() > fiveHoursAgo) {
         status = "healthy"; detail = `Active — last activity ${timeAgo(lastActivity)}`;
       } else {
-        status = "idle"; detail = `No activity since ${lastActivity.toISOString().slice(0, 16)}`;
+        status = "idle"; detail = `No activity in last 5 hours (${timeAgo(lastActivity)})`;
       }
     } else {
       status = "idle"; detail = "Running but no activity yet";

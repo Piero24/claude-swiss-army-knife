@@ -648,8 +648,8 @@ export default function ServerDetailPage() {
         />
       </section>}
 
-      {/* Managed Links (e.g. Link Manager MCP) */}
-      {(sectionVisible("tools") || server === "link-manager" || (config?.links && config.links.length > 0)) && (
+      {/* Managed Links (strictly for Link Manager MCP) */}
+      {(server === "link-manager" || server === "link-manager-mcp") && (
         <section className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Managed Links ({(config?.links || []).length})</h2>

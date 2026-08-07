@@ -33,6 +33,7 @@ export interface LinkItem {
 }
 
 export interface ServerConfig {
+  enabled?: boolean;
   server: {
     name: string;
     log_level: string;

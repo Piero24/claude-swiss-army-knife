@@ -14,12 +14,12 @@ const VARIANT_STYLES: Record<string, Record<string, string>> = {
     denied: "bg-red-900/50 text-red-400",
   },
   health: {
-    healthy: "bg-green-900/50 text-green-400",
-    idle: "bg-yellow-900/50 text-yellow-400",
-    unconfigured: "bg-orange-900/50 text-orange-400",
-    stopped: "bg-red-900/50 text-red-400",
-    "not-found": "bg-gray-800 text-gray-400",
-    error: "bg-gray-800 text-gray-400",
+    healthy: "bg-green-900/50 text-green-400 border border-green-800/60",
+    idle: "bg-yellow-900/50 text-yellow-400 border border-yellow-800/60",
+    unconfigured: "bg-amber-900/50 text-amber-400 border border-amber-800/60",
+    stopped: "bg-red-900/50 text-red-400 border border-red-800/60",
+    "not-found": "bg-red-900/50 text-red-400 border border-red-800/60",
+    error: "bg-red-900/50 text-red-400 border border-red-800/60",
   },
   status: {
     set: "bg-green-900/50 text-green-400",
@@ -34,8 +34,8 @@ const HEALTH_ICONS: Record<string, string> = {
   idle: "🟡",
   unconfigured: "🟠",
   stopped: "🔴",
-  "not-found": "⚪",
-  error: "⚪",
+  "not-found": "🔴",
+  error: "🔴",
 };
 
 interface BadgeProps {

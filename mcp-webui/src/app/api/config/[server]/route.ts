@@ -24,18 +24,19 @@ const commandRuleSchema = z.object({
 });
 
 const serverConfigSchema = z.object({
+  enabled: z.boolean().optional(),
   server: z.object({
     name: z.string(),
     log_level: z.string(),
     audit_log: z.string(),
-  }),
+  }).passthrough(),
   permissions: z.object({
     default_access: accessLevelSchema,
-    paths: z.array(pathRuleSchema),
-    commands: z.array(commandRuleSchema),
-    default_command_access: accessLevelSchema,
-  }),
-});
+    paths: z.array(pathRuleSchema).optional(),
+    commands: z.array(commandRuleSchema).optional(),
+    default_command_access: accessLevelSchema.optional(),
+  }).passthrough(),
+}).passthrough();
 
 function ensureRuleIds(config: Record<string, unknown>): boolean {
   const perms = config.permissions as Record<string, unknown> | undefined;
