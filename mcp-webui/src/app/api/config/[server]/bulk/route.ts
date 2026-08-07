@@ -17,6 +17,7 @@ const bulkSchema = z.object({
 
 export const PATCH = apiHandler(async (request, { params }) => {
   const { server } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
   const validated = await withValidation(bulkSchema, request);
   const { access, type, updates } = validated;
 
@@ -49,7 +50,7 @@ export const PATCH = apiHandler(async (request, { params }) => {
       }
       updatedCount = rules.length;
     }
-  });
+  }, userId);
 
   return NextResponse.json({ updated: updatedCount, access: access ?? "mixed", type });
 });

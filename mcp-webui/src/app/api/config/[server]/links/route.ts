@@ -15,6 +15,7 @@ const addLinkSchema = z.object({
 
 export const POST = apiHandler(async (request, { params }) => {
   const { server } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
   const validated = await withValidation(addLinkSchema, request);
 
   const newLink = {
@@ -36,7 +37,7 @@ export const POST = apiHandler(async (request, { params }) => {
     } else {
       config.links.push(newLink);
     }
-  });
+  }, userId);
 
   return NextResponse.json({ created: true, link: newLink });
 });

@@ -91,12 +91,13 @@ function buildTree(paths: Array<{ path: string; access: string; description?: st
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ server: string }> }
 ) {
   const { server } = await params;
   try {
-    const filePath = getConfigPath(server);
+    const userId = new URL(request.url).searchParams.get("user") || undefined;
+    const filePath = getConfigPath(server, userId);
     const raw = await fs.readFile(filePath, "utf-8");
     const config = yaml.load(raw) as Record<string, unknown>;
     const perms = config.permissions as Record<string, unknown>;

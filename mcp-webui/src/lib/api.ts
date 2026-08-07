@@ -4,6 +4,12 @@ import type { AccessLevel, CommandAccess, AuditEntry, PathRule, ServerConfig, Se
 
 const BASE = "/api";
 
+function withUser(url: string, userId?: string | null): string {
+  if (!userId) return url;
+  return url + (url.includes("?") ? "&" : "?") + `user=${encodeURIComponent(userId)}`;
+}
+
+
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...options,
@@ -24,15 +30,12 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
 
 // ── Config ──────────────────────────────────────────
 
-export async function getConfig(server: ServerName, userId?: string): Promise<ServerConfig> {
-  const url = userId
-    ? `${BASE}/config/${server}?user=${encodeURIComponent(userId)}`
-    : `${BASE}/config/${server}`;
-  return fetchJSON<ServerConfig>(url);
+export async function getConfig(server: ServerName, userId?: string | null): Promise<ServerConfig> {
+  return fetchJSON<ServerConfig>(withUser(`${BASE}/config/${server}`, userId));
 }
 
-export async function updateConfig(server: ServerName, config: ServerConfig): Promise<{ saved: boolean }> {
-  return fetchJSON(`${BASE}/config/${server}`, {
+export async function updateConfig(server: ServerName, config: ServerConfig, userId?: string | null): Promise<{ saved: boolean }> {
+  return fetchJSON(withUser(`${BASE}/config/${server}`, userId), {
     method: "PUT",
     body: JSON.stringify(config),
   });
@@ -40,44 +43,44 @@ export async function updateConfig(server: ServerName, config: ServerConfig): Pr
 
 // ── Path Rules ─────────────────────────────────────
 
-export async function addPathRule(server: ServerName, rule: Omit<PathRule, "id">): Promise<{ created: boolean; rule: PathRule }> {
-  return fetchJSON(`${BASE}/config/${server}/paths`, {
+export async function addPathRule(server: ServerName, rule: Omit<PathRule, "id">, userId?: string | null): Promise<{ created: boolean; rule: PathRule }> {
+  return fetchJSON(withUser(`${BASE}/config/${server}/paths`, userId), {
     method: "POST",
     body: JSON.stringify(rule),
   });
 }
 
-export async function updatePathRule(server: ServerName, ruleId: string, access: AccessLevel): Promise<{ updated: boolean }> {
-  return fetchJSON(`${BASE}/config/${server}/paths/${ruleId}`, {
+export async function updatePathRule(server: ServerName, ruleId: string, access: AccessLevel, userId?: string | null): Promise<{ updated: boolean }> {
+  return fetchJSON(withUser(`${BASE}/config/${server}/paths/${ruleId}`, userId), {
     method: "PATCH",
     body: JSON.stringify({ access }),
   });
 }
 
-export async function deletePathRule(server: ServerName, ruleId: string): Promise<{ deleted: boolean }> {
-  return fetchJSON(`${BASE}/config/${server}/paths/${ruleId}`, {
+export async function deletePathRule(server: ServerName, ruleId: string, userId?: string | null): Promise<{ deleted: boolean }> {
+  return fetchJSON(withUser(`${BASE}/config/${server}/paths/${ruleId}`, userId), {
     method: "DELETE",
   });
 }
 
 // ── Command Rules ──────────────────────────────────
 
-export async function addCommandRule(server: ServerName, rule: { pattern: string; access: CommandAccess; description?: string }): Promise<{ created: boolean }> {
-  return fetchJSON(`${BASE}/config/${server}/commands`, {
+export async function addCommandRule(server: ServerName, rule: { pattern: string; access: CommandAccess; description?: string }, userId?: string | null): Promise<{ created: boolean }> {
+  return fetchJSON(withUser(`${BASE}/config/${server}/commands`, userId), {
     method: "POST",
     body: JSON.stringify(rule),
   });
 }
 
-export async function updateCommandRule(server: ServerName, ruleId: string, access: CommandAccess): Promise<{ updated: boolean }> {
-  return fetchJSON(`${BASE}/config/${server}/commands/${ruleId}`, {
+export async function updateCommandRule(server: ServerName, ruleId: string, access: CommandAccess, userId?: string | null): Promise<{ updated: boolean }> {
+  return fetchJSON(withUser(`${BASE}/config/${server}/commands/${ruleId}`, userId), {
     method: "PATCH",
     body: JSON.stringify({ access }),
   });
 }
 
-export async function deleteCommandRule(server: ServerName, ruleId: string): Promise<{ deleted: boolean }> {
-  return fetchJSON(`${BASE}/config/${server}/commands/${ruleId}`, {
+export async function deleteCommandRule(server: ServerName, ruleId: string, userId?: string | null): Promise<{ deleted: boolean }> {
+  return fetchJSON(withUser(`${BASE}/config/${server}/commands/${ruleId}`, userId), {
     method: "DELETE",
   });
 }
@@ -98,9 +101,10 @@ export async function getAuditLog(
 export async function bulkSetAccess(
   server: ServerName,
   access: AccessLevel,
-  type: "paths" | "commands" = "paths"
+  type: "paths" | "commands" = "paths",
+  userId?: string | null
 ): Promise<{ updated: number; access: string; type: string }> {
-  return fetchJSON(`${BASE}/config/${server}/bulk`, {
+  return fetchJSON(withUser(`${BASE}/config/${server}/bulk`, userId), {
     method: "PATCH",
     body: JSON.stringify({ access, type }),
   });
@@ -108,9 +112,10 @@ export async function bulkSetAccess(
 
 export async function bulkUpdatePathRules(
   server: ServerName,
-  updates: Array<{ id: string; access: AccessLevel }>
+  updates: Array<{ id: string; access: AccessLevel }>,
+  userId?: string | null
 ): Promise<{ updated: number }> {
-  return fetchJSON(`${BASE}/config/${server}/bulk`, {
+  return fetchJSON(withUser(`${BASE}/config/${server}/bulk`, userId), {
     method: "PATCH",
     body: JSON.stringify({ type: "paths", updates }),
   });
@@ -121,9 +126,10 @@ export async function bulkUpdatePathRules(
 export async function cascadePathAccess(
   server: ServerName,
   ruleId: string,
-  access: AccessLevel
+  access: AccessLevel,
+  userId?: string | null
 ): Promise<{ updated: number; changes: Array<{ id: string; access: string }> }> {
-  return fetchJSON(`${BASE}/config/${server}/cascade`, {
+  return fetchJSON(withUser(`${BASE}/config/${server}/cascade`, userId), {
     method: "PATCH",
     body: JSON.stringify({ ruleId, access }),
   });
@@ -171,8 +177,8 @@ export interface FolderNode {
   children: FolderNode[];
 }
 
-export async function getFolders(server: ServerName): Promise<{ server: string; folders: FolderNode[]; count: number }> {
-  return fetchJSON(`${BASE}/folders/${server}`);
+export async function getFolders(server: ServerName, userId?: string | null): Promise<{ server: string; folders: FolderNode[]; count: number }> {
+  return fetchJSON(withUser(`${BASE}/folders/${server}`, userId));
 }
 
 // ── Health ──────────────────────────────────────────
@@ -220,10 +226,11 @@ export async function toggleServerStatus(server: string, enabled: boolean): Prom
 
 export async function addToolRule(
   server: string,
-  rule: { pattern: string; access: "none" | "active"; description?: string }
+  rule: { pattern: string; access: "none" | "active"; description?: string },
+  userId?: string | null
 ) {
   return fetchJSON<{ created: boolean; rule: { id: string } }>(
-    `${BASE}/config/${server}/tools`,
+    withUser(`${BASE}/config/${server}/tools`, userId),
     { method: "POST", body: JSON.stringify(rule) }
   );
 }
@@ -231,17 +238,18 @@ export async function addToolRule(
 export async function updateToolRule(
   server: string,
   ruleId: string,
-  access: "none" | "active"
+  access: "none" | "active",
+  userId?: string | null
 ) {
   return fetchJSON<{ updated: boolean }>(
-    `${BASE}/config/${server}/tools/${ruleId}`,
+    withUser(`${BASE}/config/${server}/tools/${ruleId}`, userId),
     { method: "PATCH", body: JSON.stringify({ access }) }
   );
 }
 
-export async function deleteToolRule(server: string, ruleId: string) {
+export async function deleteToolRule(server: string, ruleId: string, userId?: string | null) {
   return fetchJSON<{ deleted: boolean }>(
-    `${BASE}/config/${server}/tools/${ruleId}`,
+    withUser(`${BASE}/config/${server}/tools/${ruleId}`, userId),
     { method: "DELETE" }
   );
 }
@@ -302,9 +310,10 @@ export async function updateAgent(
 
 export async function addLink(
   server: ServerName,
-  link: { name: string; url: string; description?: string; category?: string; tags?: string[] }
+  link: { name: string; url: string; description?: string; category?: string; tags?: string[] },
+  userId?: string | null
 ): Promise<{ created: boolean; link: import("./types").LinkItem }> {
-  return fetchJSON(`${BASE}/config/${server}/links`, {
+  return fetchJSON(withUser(`${BASE}/config/${server}/links`, userId), {
     method: "POST",
     body: JSON.stringify(link),
   });
@@ -312,9 +321,10 @@ export async function addLink(
 
 export async function deleteLink(
   server: ServerName,
-  linkNameOrUrl: string
+  linkNameOrUrl: string,
+  userId?: string | null
 ): Promise<{ deleted: boolean }> {
-  return fetchJSON(`${BASE}/config/${server}/links/${encodeURIComponent(linkNameOrUrl)}`, {
+  return fetchJSON(withUser(`${BASE}/config/${server}/links/${encodeURIComponent(linkNameOrUrl)}`, userId), {
     method: "DELETE",
   });
 }

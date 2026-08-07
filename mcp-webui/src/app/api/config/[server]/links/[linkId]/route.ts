@@ -4,8 +4,9 @@ import { NextResponse } from "next/server";
 import { withServerConfig } from "@/lib/yaml-config";
 import { apiHandler } from "@/lib/api-helpers";
 
-export const DELETE = apiHandler(async (_request, { params }) => {
+export const DELETE = apiHandler(async (request, { params }) => {
   const { server, linkId } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
   const targetName = decodeURIComponent(linkId);
 
   await withServerConfig(server, (config) => {
@@ -17,7 +18,7 @@ export const DELETE = apiHandler(async (_request, { params }) => {
     if (idx !== -1) {
       links.splice(idx, 1);
     }
-  });
+  }, userId);
 
   return NextResponse.json({ deleted: true, linkId: targetName });
 });

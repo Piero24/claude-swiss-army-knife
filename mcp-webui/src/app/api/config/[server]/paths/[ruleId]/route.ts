@@ -9,6 +9,7 @@ const patchSchema = z.object({ access: z.enum(["none", "read", "write"]) });
 
 export const PATCH = apiHandler(async (request, { params }) => {
   const { server, ruleId } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
   const { access } = await withValidation(patchSchema, request);
 
   const updatedRule = await withServerConfig(server, (config) => {
@@ -19,13 +20,14 @@ export const PATCH = apiHandler(async (request, { params }) => {
     }
     paths[idx].access = access;
     return paths[idx];
-  });
+  }, userId);
 
   return NextResponse.json({ updated: true, rule: updatedRule });
 });
 
-export const DELETE = apiHandler(async (_request, { params }) => {
+export const DELETE = apiHandler(async (request, { params }) => {
   const { server, ruleId } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
 
   await withServerConfig(server, (config) => {
     const paths = config.permissions.paths as Array<Record<string, unknown>>;
@@ -34,7 +36,7 @@ export const DELETE = apiHandler(async (_request, { params }) => {
       throw new Error("Rule not found");
     }
     paths.splice(idx, 1);
-  });
+  }, userId);
 
   return NextResponse.json({ deleted: true, ruleId });
 });

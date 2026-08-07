@@ -27,6 +27,7 @@ function clampAccess(childAccess: string, parentAccess: AccessLevel): AccessLeve
 
 export const PATCH = apiHandler(async (request, { params }) => {
   const { server } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
   const { ruleId, access } = await withValidation(cascadeSchema, request);
 
   const updated: Array<{ id: string; access: string }> = [
@@ -66,7 +67,7 @@ export const PATCH = apiHandler(async (request, { params }) => {
         }
       }
     }
-  });
+  }, userId);
 
   return NextResponse.json({
     updated: updated.length,

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { AccessLevel, CommandAccess, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName, LinkItem } from "@/lib/types";
-import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer, addToolRule, updateToolRule, deleteToolRule, addLink, deleteLink } from "@/lib/api";
+import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer, addToolRule, updateToolRule, deleteToolRule, addLink, deleteLink, getAgents } from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
 import FolderTree from "@/components/FolderTree";
 import PageHeader from "@/components/PageHeader";
@@ -58,14 +58,22 @@ export default function ServerDetailPage() {
   const [collapseKey, setCollapseKey] = useState(0);
   const [serverEnabled, setServerEnabled] = useState(true);
   const [toggling, setToggling] = useState(false);
+  const [users, setUsers] = useState<Array<{id: string; name: string}>>([]);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const toggleAbort = useRef<AbortController | null>(null);
 
   const loadData = useCallback(async () => {
     try {
+      const uRes = await getAgents().catch(() => ({ users: [] }));
+      setUsers(uRes.users || []);
+      const stored = localStorage.getItem("selectedUser");
+      const effectiveUser = stored && uRes.users.some(u => u.id === stored) ? stored : (uRes.users[0]?.id || null);
+      if (stored) setSelectedUser(stored);
+
       const [cfg, audit, tree, st, settings] = await Promise.all([
-        getConfig(server),
+        getConfig(server, effectiveUser || undefined),
         getAuditLog(server, auditPageSize, 0),
-        getFolders(server).catch(() => ({ folders: [], server: "", count: 0 })),
+        getFolders(server, effectiveUser || undefined).catch(() => ({ folders: [], server: "", count: 0 })),
         getServersStatus().catch(() => ({ servers: {} as Record<string, { enabled: boolean }> })),
         getSettings().catch(() => null),
       ]);
@@ -126,7 +134,7 @@ export default function ServerDetailPage() {
     );
     setConfig({ ...config, permissions: { ...(config.permissions || {}), paths: newPaths } });
     try {
-      await updatePathRule(server, ruleId, access);
+      await updatePathRule(server, ruleId, access, selectedUser);
       toast.success(`Path access set to ${access}`);
     } catch (err) {
       setConfig(prev);
@@ -140,7 +148,7 @@ export default function ServerDetailPage() {
     const newPaths = (config.permissions?.paths || []).filter((p) => p.id !== ruleId);
     setConfig({ ...config, permissions: { ...(config.permissions || {}), paths: newPaths } });
     try {
-      await deletePathRule(server, ruleId);
+      await deletePathRule(server, ruleId, selectedUser);
       toast.success("Path rule removed");
     } catch (err) {
       setConfig(prev);
@@ -150,7 +158,7 @@ export default function ServerDetailPage() {
 
   async function handleAddPath(data: { path: string; access: AccessLevel; description?: string }) {
     try {
-      const res = await addPathRule(server, data);
+      const res = await addPathRule(server, data, selectedUser);
       toast.success("Path rule added");
       setShowAddPath(false);
       loadData();
@@ -170,7 +178,7 @@ export default function ServerDetailPage() {
     );
     setConfig({ ...config, permissions: { ...(config.permissions || {}), commands: newCommands } });
     try {
-      await updateCommandRule(server, ruleId, access);
+      await updateCommandRule(server, ruleId, access, selectedUser);
       toast.success(`Command access set to ${access}`);
     } catch (err) {
       setConfig(prev);
@@ -184,7 +192,7 @@ export default function ServerDetailPage() {
     const newCommands = (config.permissions?.commands || []).filter((c) => c.id !== ruleId);
     setConfig({ ...config, permissions: { ...(config.permissions || {}), commands: newCommands } });
     try {
-      await deleteCommandRule(server, ruleId);
+      await deleteCommandRule(server, ruleId, selectedUser);
       toast.success("Command rule removed");
     } catch (err) {
       setConfig(prev);
@@ -195,11 +203,11 @@ export default function ServerDetailPage() {
   async function handleBulkSet(access: AccessLevel, type: "paths" | "commands") {
     if (!config) return;
     try {
-      await bulkSetAccess(server, access, type);
+      await bulkSetAccess(server, access, type, selectedUser);
       toast.success(`All ${type} set to ${access}`);
       setBulkConfirm(null);
       loadData();
-      getFolders(server).then((t) => setFolders(t.folders || [])).catch(() => {});
+      getFolders(server, selectedUser || undefined).then((t) => setFolders(t.folders || [])).catch(() => {});
     } catch (err) {
       toast.error("Failed to update");
     }
@@ -208,7 +216,7 @@ export default function ServerDetailPage() {
   async function handleAddTool(data: { pattern: string; access: "none" | "active"; description?: string }) {
     if (!config) return;
     try {
-      const res = await addToolRule(server, data);
+      const res = await addToolRule(server, data, selectedUser);
       setConfig({
         ...config,
         permissions: {
@@ -228,7 +236,7 @@ export default function ServerDetailPage() {
     if (idx >= 0) tools[idx] = { ...tools[idx], access };
     setConfig({ ...config, permissions: { ...config.permissions, tools } });
     try {
-      await updateToolRule(server, ruleId, access);
+      await updateToolRule(server, ruleId, access, selectedUser);
     } catch { setConfig(prev); toast.error("Failed to update"); }
   }
 
@@ -240,7 +248,7 @@ export default function ServerDetailPage() {
       permissions: { ...config.permissions, tools: (config.permissions.tools || []).filter((t) => t.id !== ruleId) },
     });
     try {
-      await deleteToolRule(server, ruleId);
+      await deleteToolRule(server, ruleId, selectedUser);
       toast.success("Tool rule removed");
     } catch { setConfig(prev); toast.error("Failed to delete"); }
   }
@@ -284,7 +292,7 @@ export default function ServerDetailPage() {
 
   async function handleAddCommand(data: { pattern: string; access: CommandAccess; description?: string }) {
     try {
-      await addCommandRule(server, data);
+      await addCommandRule(server, data, selectedUser);
       toast.success("Command rule added");
       setShowAddCmd(false);
       loadData();
@@ -326,7 +334,7 @@ export default function ServerDetailPage() {
     const newLinks = (config.links || []).filter((l) => l.name !== linkNameOrUrl && l.url !== linkNameOrUrl);
     setConfig({ ...config, links: newLinks });
     try {
-      await deleteLink(server, linkNameOrUrl);
+      await deleteLink(server, linkNameOrUrl, selectedUser);
       toast.success("Link removed");
     } catch {
       setConfig(prev);
@@ -411,7 +419,31 @@ export default function ServerDetailPage() {
         title={serverLabel}
         backHref="/"
         actions={
-          <>
+          <div className="flex items-center gap-4">
+            {users.length > 0 && (
+              <select
+                value={selectedUser || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedUser(val);
+                  localStorage.setItem("selectedUser", val);
+                  // Quick reload for the newly selected user without spinning whole page
+                  setLoading(true);
+                  getConfig(server, val).then(cfg => {
+                    setConfig(cfg);
+                    setLoading(false);
+                  }).catch(() => {
+                    toast.error("Failed to load user config");
+                    setLoading(false);
+                  });
+                }}
+                className="rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name || u.id}</option>
+                ))}
+              </select>
+            )}
             <button
               onClick={handleScan}
               disabled={scanning}
@@ -426,7 +458,7 @@ export default function ServerDetailPage() {
               </button>
             )}
             {lastScan && <span className="text-xs text-gray-500">{lastScan}</span>}
-          </>
+          </div>
         }
       />
 
@@ -531,7 +563,7 @@ export default function ServerDetailPage() {
               // ── Single atomic API call ──
               setToggling(true);
               try {
-                const result = await cascadePathAccess(server, rule.id, access);
+                const result = await cascadePathAccess(server, rule.id, access, selectedUser);
                 if (result.updated > 1) {
                   toast.success(`Updated ${result.updated} rules`);
                 } else {
@@ -539,8 +571,8 @@ export default function ServerDetailPage() {
                 }
                 // Single reload after the atomic operation
                 const [fresh, tree] = await Promise.all([
-                  getConfig(server),
-                  getFolders(server).catch(() => ({ folders: [], server: "", count: 0 })),
+                  getConfig(server, selectedUser || undefined),
+                  getFolders(server, selectedUser || undefined).catch(() => ({ folders: [], server: "", count: 0 })),
                 ]);
                 setConfig(fresh);
                 setFolders(tree.folders || []);

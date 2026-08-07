@@ -13,6 +13,7 @@ const addCommandSchema = z.object({
 
 export const POST = apiHandler(async (request, { params }) => {
   const { server } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
   const validated = await withValidation(addCommandSchema, request);
 
   const newRule = {
@@ -25,7 +26,7 @@ export const POST = apiHandler(async (request, { params }) => {
   await withServerConfig(server, (config) => {
     if (!config.permissions.commands) config.permissions.commands = [];
     config.permissions.commands.push(newRule);
-  });
+  }, userId);
 
   return NextResponse.json({ created: true, rule: newRule });
 });

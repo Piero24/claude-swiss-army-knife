@@ -9,6 +9,7 @@ const patchSchema = z.object({ access: z.enum(["none", "active"]) });
 
 export const PATCH = apiHandler(async (request, { params }) => {
   const { server, ruleId } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
   const { access } = await withValidation(patchSchema, request);
 
   const updatedRule = await withServerConfig(server, (config) => {
@@ -17,20 +18,21 @@ export const PATCH = apiHandler(async (request, { params }) => {
     if (idx === -1) throw new Error("Rule not found");
     tools[idx].access = access;
     return tools[idx];
-  });
+  }, userId);
 
   return NextResponse.json({ updated: true, rule: updatedRule });
 });
 
-export const DELETE = apiHandler(async (_request, { params }) => {
+export const DELETE = apiHandler(async (request, { params }) => {
   const { server, ruleId } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
 
   await withServerConfig(server, (config) => {
     const tools = config.permissions.tools as Array<Record<string, unknown>>;
     const idx = tools.findIndex((p) => p.id === ruleId);
     if (idx === -1) throw new Error("Rule not found");
     tools.splice(idx, 1);
-  });
+  }, userId);
 
   return NextResponse.json({ deleted: true, ruleId });
 });
