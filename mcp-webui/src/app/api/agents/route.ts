@@ -93,18 +93,25 @@ const DENY_ALL_TEMPLATE: Record<string, unknown> = {
 async function discoverServerDirs(): Promise<string[]> {
   const dirs: string[] = [];
   try {
-    const entries = await fs.readdir(CONFIGS_PATH, { withFileTypes: true });
-    for (const e of entries) {
-      if (!e.isDirectory()) continue;
-      if (e.name === "templates") continue;
-      // Skip non-server dirs (settings.json, users.yaml are files, not dirs)
+    let templateDir = "/app/templates";
+    try {
+      await fs.access(templateDir);
+    } catch {
       try {
-        const hasYaml = (await fs.readdir(path.join(CONFIGS_PATH, e.name)))
-          .some((f) => f.endsWith(".yaml"));
-        if (hasYaml) dirs.push(e.name);
-      } catch { /* skip */ }
+        templateDir = "/app/configs/templates";
+        await fs.access(templateDir);
+      } catch {
+        templateDir = path.join(process.cwd(), "../configs/templates");
+      }
     }
-  } catch { /* dir missing */ }
+    const entries = await fs.readdir(templateDir, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      if (!e.name.endsWith(".yaml")) continue;
+      if (e.name === "users.yaml") continue;
+      dirs.push(e.name.replace(".yaml", ""));
+    }
+  } catch { /* template dir missing */ }
   return dirs;
 }
 
@@ -118,7 +125,18 @@ async function generateUserConfigs(userId: string, serverName: string) {
   } catch {
     let templateConfig = {};
     try {
-      const templatePath = path.join(CONFIGS_PATH, "templates", serverName, "_template.yaml");
+      let templateDir = "/app/templates";
+      try {
+        await fs.access(templateDir);
+      } catch {
+        try {
+          templateDir = "/app/configs/templates";
+          await fs.access(templateDir);
+        } catch {
+          templateDir = path.join(process.cwd(), "../configs/templates");
+        }
+      }
+      const templatePath = path.join(templateDir, `${serverName}.yaml`);
       const raw = await fs.readFile(templatePath, "utf-8");
       templateConfig = yaml.load(raw) as Record<string, unknown>;
     } catch {

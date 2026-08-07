@@ -60,13 +60,11 @@ async function seedDefaultTemplates(configsDir: string): Promise<void> {
   try {
     await fs.access(templateDir);
   } catch {
-    const local1 = path.join(process.cwd(), "configs/templates");
-    const local2 = path.join(process.cwd(), "../configs/templates");
     try {
-      await fs.access(local1);
-      templateDir = local1;
+      templateDir = "/app/configs/templates";
+      await fs.access(templateDir);
     } catch {
-      templateDir = local2;
+      templateDir = path.join(process.cwd(), "../configs/templates");
     }
   }
   try {
@@ -84,17 +82,7 @@ async function seedDefaultTemplates(configsDir: string): Promise<void> {
       }
     }
 
-    // Seed YAML templates if missing
-    try {
-      const targetPath = path.join(configsDir, "templates");
-      try {
-        await fs.access(targetPath);
-      } catch {
-        await fs.cp(templateDir, targetPath, { recursive: true });
-      }
-    } catch {
-      /* template dir missing */
-    }
+
 
     // Seed mcp-launcher directly into configsDir (/DATA/AppData/mcps-server/settings) (#190)
     try {
@@ -138,49 +126,40 @@ async function discoverServers(): Promise<Array<{ name: string; label: string; i
   };
   const servers: Array<{ name: string; label: string; icon: string }> = [];
   try {
-    const entries = await fs.readdir(configsDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      if (entry.name === "templates") continue;
-      const serverDir = path.join(configsDir, entry.name);
-      // Look for any .yaml file in the directory (per-user configs or template)
+    let templateDir = "/app/templates";
+    try {
+      await fs.access(templateDir);
+    } catch {
       try {
-        const files = await fs.readdir(serverDir);
-        const hasConfig = files.some((f) => f.endsWith(".yaml"));
-        if (!hasConfig) continue;
-        // Read UI metadata from any YAML in the directory
-        let ui: Record<string, string> = {};
-        for (const file of files) {
-          if (!file.endsWith(".yaml")) continue;
-          try {
-            const raw = await fs.readFile(path.join(serverDir, file), "utf-8");
-            const config = yaml.load(raw) as Record<string, unknown> | null;
-            if (config?.ui) { ui = config.ui as Record<string, string>; break; }
-          } catch { /* skip */ }
-        }
-        const name = entry.name;
-        const derived = map[name] || { label: name, icon: "🔌" };
-        servers.push({
-          name,
-          label: ui.label || derived.label,
-          icon: ui.icon || derived.icon,
-        });
-      } catch { /* skip */ }
-    }
-    // Fallback: flat YAML files for backward compatibility
-    if (servers.length === 0) {
-      const files = await fs.readdir(configsDir);
-      for (const file of files) {
-        if (!file.endsWith(".yaml")) continue;
-        if (file === "users.yaml") continue;
-        try {
-          const name = file.replace(".yaml", "");
-          const derived = map[name] || { label: name, icon: "🔌" };
-          servers.push({ name, label: derived.label, icon: derived.icon });
-        } catch { /* skip */ }
+        templateDir = "/app/configs/templates";
+        await fs.access(templateDir);
+      } catch {
+        templateDir = path.join(process.cwd(), "../configs/templates");
       }
     }
-  } catch { /* dir missing */ }
+
+    const entries = await fs.readdir(templateDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (!entry.name.endsWith(".yaml")) continue;
+      if (entry.name === "users.yaml") continue;
+
+      const serverName = entry.name.replace(".yaml", "");
+      let ui: Record<string, string> = {};
+      try {
+        const raw = await fs.readFile(path.join(templateDir, entry.name), "utf-8");
+        const config = yaml.load(raw) as Record<string, unknown> | null;
+        if (config?.ui) { ui = config.ui as Record<string, string>; }
+      } catch { /* skip */ }
+      
+      const derived = map[serverName] || { label: serverName, icon: "🔌" };
+      servers.push({
+        name: serverName,
+        label: ui.label || derived.label,
+        icon: ui.icon || derived.icon,
+      });
+    }
+  } catch { /* template dir missing */ }
   return servers;
 }
 
@@ -220,46 +199,52 @@ export async function PUT(request: Request) {
     // Discover servers dynamically from configs directory
     let servers: string[] = [];
     try {
-      const files = await fs.readdir(configsDir);
-      servers = files.filter((f) => f.endsWith(".yaml") && f !== "users.yaml").map((f) => f.replace(".yaml", ""));
+      const files = await fs.readdir(configsDir, { withFileTypes: true });
+      servers = files.filter((f) => f.isDirectory() && f.name !== "templates").map((f) => f.name);
     } catch { /* directory missing */ }
 
     for (const server of servers) {
       try {
-        const configPath = path.join(configsDir, `${server}.yaml`);
-        const raw = await fs.readFile(configPath, "utf-8");
-        const config = yaml.load(raw) as Record<string, unknown>;
-        const perms = config.permissions as Record<string, unknown>;
-        const paths = (perms?.paths || []) as Array<{ path: string; description?: string }>;
-        const before = paths.length;
+        const serverDir = path.join(configsDir, server);
+        const userFiles = await fs.readdir(serverDir);
+        for (const userFile of userFiles) {
+          if (!userFile.endsWith(".yaml")) continue;
+          const configPath = path.join(serverDir, userFile);
+          
+          const raw = await fs.readFile(configPath, "utf-8");
+          const config = yaml.load(raw) as Record<string, unknown>;
+          const perms = config.permissions as Record<string, unknown>;
+          const paths = (perms?.paths || []) as Array<{ path: string; description?: string }>;
+          const before = paths.length;
 
-        const filtered = paths.filter((r) => {
-          const segments = r.path.replace(/\/\*\*$/, "").split("/").filter(Boolean);
-          // Check every segment against exclude patterns (exact + wildcard)
-          return !segments.some((seg) =>
-            mergedExcludes.some((p) => {
-              if (p.startsWith("*.")) return seg.endsWith(p.slice(1));
-              return seg === p;
-            })
-          );
-        });
-        cleaned += before - filtered.length;
+          const filtered = paths.filter((r) => {
+            const segments = r.path.replace(/\/\*\*$/, "").split("/").filter(Boolean);
+            // Check every segment against exclude patterns (exact + wildcard)
+            return !segments.some((seg) =>
+              mergedExcludes.some((p) => {
+                if (p.startsWith("*.")) return seg.endsWith(p.slice(1));
+                return seg === p;
+              })
+            );
+          });
+          cleaned += before - filtered.length;
 
-        if (filtered.length !== before) {
-          // Snapshot non-path permission fields before replacement (#193)
-          const cmds = (perms as Record<string, unknown>).commands;
-          const cmdDefault = (perms as Record<string, unknown>).default_command_access;
-          const tools = (perms as Record<string, unknown>).tools;
-          const toolDefault = (perms as Record<string, unknown>).default_tool_access;
+          if (filtered.length !== before) {
+            // Snapshot non-path permission fields before replacement (#193)
+            const cmds = (perms as Record<string, unknown>).commands;
+            const cmdDefault = (perms as Record<string, unknown>).default_command_access;
+            const tools = (perms as Record<string, unknown>).tools;
+            const toolDefault = (perms as Record<string, unknown>).default_tool_access;
 
-          (perms as Record<string, unknown>).paths = filtered;
-          // Restore non-path permission fields
-          if (cmds !== undefined) { (perms as Record<string, unknown>).commands = cmds; }
-          if (cmdDefault !== undefined) { (perms as Record<string, unknown>).default_command_access = cmdDefault; }
-          if (tools !== undefined) { (perms as Record<string, unknown>).tools = tools; }
-          if (toolDefault !== undefined) { (perms as Record<string, unknown>).default_tool_access = toolDefault; }
+            (perms as Record<string, unknown>).paths = filtered;
+            // Restore non-path permission fields
+            if (cmds !== undefined) { (perms as Record<string, unknown>).commands = cmds; }
+            if (cmdDefault !== undefined) { (perms as Record<string, unknown>).default_command_access = cmdDefault; }
+            if (tools !== undefined) { (perms as Record<string, unknown>).tools = tools; }
+            if (toolDefault !== undefined) { (perms as Record<string, unknown>).default_tool_access = toolDefault; }
 
-          await fs.writeFile(configPath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
+            await fs.writeFile(configPath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
+          }
         }
       } catch { /* skip */ }
     }
