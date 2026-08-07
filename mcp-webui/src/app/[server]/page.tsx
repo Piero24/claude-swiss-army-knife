@@ -66,9 +66,10 @@ export default function ServerDetailPage() {
     try {
       const uRes = await getAgents().catch(() => ({ users: [] }));
       setUsers(uRes.users || []);
-      const stored = localStorage.getItem("selectedUser");
+      const stored = typeof window !== "undefined" ? localStorage.getItem("selectedUser") : null;
       const effectiveUser = stored && uRes.users.some(u => u.id === stored) ? stored : (uRes.users[0]?.id || null);
-      if (stored) setSelectedUser(stored);
+      setSelectedUser(effectiveUser);
+      if (effectiveUser) localStorage.setItem("selectedUser", effectiveUser);
 
       const [cfg, audit, tree, st, settings] = await Promise.all([
         getConfig(server, effectiveUser || undefined),
@@ -257,7 +258,7 @@ export default function ServerDetailPage() {
     setScanning(true);
     const started = Date.now();
     try {
-      const res = await scanServer(server);
+      const res = await scanServer(server, selectedUser);
       const elapsed = Date.now() - started;
       const dur = elapsed < 60000
         ? `${(elapsed / 1000).toFixed(0)}s`
@@ -444,20 +445,24 @@ export default function ServerDetailPage() {
                 ))}
               </select>
             )}
-            <button
-              onClick={handleScan}
-              disabled={scanning}
-              className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
-            >
-              <RefreshCw size={16} className={scanning ? "animate-spin" : ""} />
-              {scanning ? "Scanning…" : "Scan folders"}
-            </button>
-            {scanning && (
-              <button onClick={handleCancelScan} className="text-sm text-red-400 hover:text-red-300">
-                Cancel
-              </button>
+            {["synology-nas", "obsidian", "ubuntu-server"].includes(server) && (
+              <>
+                <button
+                  onClick={handleScan}
+                  disabled={scanning}
+                  className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
+                >
+                  <RefreshCw size={16} className={scanning ? "animate-spin" : ""} />
+                  {scanning ? "Scanning…" : "Scan folders"}
+                </button>
+                {scanning && (
+                  <button onClick={handleCancelScan} className="text-sm text-red-400 hover:text-red-300">
+                    Cancel
+                  </button>
+                )}
+                {lastScan && <span className="text-xs text-gray-500">{lastScan}</span>}
+              </>
             )}
-            {lastScan && <span className="text-xs text-gray-500">{lastScan}</span>}
           </div>
         }
       />

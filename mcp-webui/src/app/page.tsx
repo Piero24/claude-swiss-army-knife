@@ -39,8 +39,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const stored = localStorage.getItem("selectedUser");
-    if (stored) setSelectedUser(stored);
-    loadAll();
+    loadAll(stored);
     const interval = setInterval(loadScanStatus, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -48,7 +47,6 @@ export default function DashboardPage() {
   const handleUserChange = useCallback((userId: string) => {
     setSelectedUser(userId);
     localStorage.setItem("selectedUser", userId);
-    // Reload configs for selected user
     loadConfigsForUser(userId);
   }, [servers]);
 
@@ -61,24 +59,44 @@ export default function DashboardPage() {
     setConfigs(r);
   }
 
-  async function loadAll() {
+  async function loadAll(initialUser?: string | null) {
     const svrs = await getServers();
     setServers(svrs);
     const names = svrs.map((s) => s.name);
-    const [c, h, st, u] = await Promise.all([
-      loadConfigs(names, selectedUser),
+
+    const [u, h, st] = await Promise.all([
+      loadUsers(),
       loadHealth(names),
       loadServersStatus(),
-      loadUsers(),
     ]);
+
+    const userList = u as Array<{ id: string; name: string }>;
+    setUsers(userList);
+
+    let effectiveUser: string | null = initialUser || null;
+    if (userList.length > 0) {
+      const exists = userList.some((usr) => usr.id === effectiveUser);
+      if (!exists) {
+        effectiveUser = userList[0].id;
+      }
+    }
+
+    setSelectedUser(effectiveUser);
+    if (effectiveUser) {
+      localStorage.setItem("selectedUser", effectiveUser);
+    }
+
+    const c = await loadConfigs(names, effectiveUser);
+    setConfigs(c);
+    setHealth(h);
+    setServerStatus(st);
     loadScanStatus();
-    setConfigs(c); setHealth(h); setServerStatus(st); setUsers(u as Array<{id: string; name: string}>);
     setLoading(false);
   }
   async function loadUsers() {
     try {
       const data = await getAgents();
-      return (data?.users || []).map((u: {id: string; name: string}) => ({id: u.id, name: u.name}));
+      return (data?.users || []).map((u: { id: string; name: string }) => ({ id: u.id, name: u.name }));
     } catch { return []; }
   }
   async function loadConfigs(names: string[], userId?: string | null) {

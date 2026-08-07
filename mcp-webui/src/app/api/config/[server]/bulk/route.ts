@@ -8,7 +8,7 @@ import { apiHandler, withValidation } from "@/lib/api-helpers";
 
 const bulkSchema = z.object({
   access: z.enum(["none", "read", "write", "active"]).optional(),
-  type: z.enum(["paths", "commands"]).default("paths"),
+  type: z.enum(["paths", "commands", "tools"]).default("paths"),
   updates: z.array(z.object({
     id: z.string(),
     access: z.enum(["none", "read", "write", "active"]),
@@ -29,9 +29,12 @@ export const PATCH = apiHandler(async (request, { params }) => {
 
   await withServerConfig(server, (config) => {
     const perms = config.permissions as Record<string, unknown>;
-    const rules = perms[type as string] as Array<Record<string, unknown>> | undefined;
+    let rules = perms[type as string] as Array<Record<string, unknown>> | undefined;
     
-    if (!rules) throw new Error(`No ${type} configured`);
+    if (!rules) {
+      rules = [];
+      perms[type as string] = rules;
+    }
 
     if (updates) {
       // Targeted updates

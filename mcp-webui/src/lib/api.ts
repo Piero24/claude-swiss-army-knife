@@ -137,8 +137,8 @@ export async function cascadePathAccess(
 
 // ── Scan ────────────────────────────────────────────
 
-export async function scanServer(server: ServerName): Promise<{ scanned: boolean; discovered: number; added: number; total: number; message?: string }> {
-  return fetchJSON(`${BASE}/scan/${server}`, { method: "POST" });
+export async function scanServer(server: ServerName, userId?: string | null): Promise<{ scanned: boolean; discovered: number; added: number; total: number; message?: string }> {
+  return fetchJSON(withUser(`${BASE}/scan/${server}`, userId), { method: "POST" });
 }
 
 // ── Settings ────────────────────────────────────────

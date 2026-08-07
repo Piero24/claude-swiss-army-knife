@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import http from "http";
 import * as fs from "fs/promises";
 import * as yaml from "js-yaml";
-import { getConfigPath } from "@/lib/config";
+import { getConfigPath, getAllUserConfigPaths } from "@/lib/config";
 import { endScan, isCancelled, startScan } from "@/lib/scan-status";
 import { getScanTimeoutSeconds, isExcluded } from "@/lib/scan-constants";
 
@@ -25,7 +25,7 @@ const SCAN_CONFIG: Record<string, { container: string; cmd: string[] }> = {
   },
   "ubuntu-server": {
     container: "ubuntu-mcp",
-    cmd: ["python", "-m", "ubuntu_mcp", "discover", "--config", "/app/configs/ubuntu-server.yaml"],
+    cmd: ["python", "-m", "ubuntu_mcp", "discover"],
   },
 };
 
@@ -133,10 +133,11 @@ async function dockerExec(
 // ── POST handler ────────────────────────────────────────────────────────
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ server: string }> },
 ) {
   const { server } = await params;
+  const userId = new URL(request.url).searchParams.get("user") || undefined;
   const scanCfg = SCAN_CONFIG[server];
 
   if (!scanCfg) {
@@ -147,17 +148,11 @@ export async function POST(
   }
 
   try {
-    const filePath = getConfigPath(server);
-    const raw = await fs.readFile(filePath, "utf-8");
-    const config = yaml.load(raw) as Record<string, unknown>;
-    const perms = config.permissions as Record<string, unknown>;
-    const existing = (perms?.paths || []) as Array<{
-      path: string;
-      access: string;
-      description?: string;
-    }>;
+    const targetFilePaths = userId
+      ? [getConfigPath(server, userId)]
+      : await getAllUserConfigPaths(server);
 
-    // Run discovery inside the MCP container
+    // Run discovery inside the MCP container ONCE
     startScan(server);
     const timeoutSec = getScanTimeoutSeconds();
     const timeoutMs = timeoutSec > 0 ? timeoutSec * 1000 : -1;
@@ -182,7 +177,7 @@ export async function POST(
       const msg = String(execErr);
       if (msg.includes("cancelled") || msg.includes("Cancelled")) {
         return NextResponse.json(
-          { scanned: true, discovered: 0, added: 0, removed: 0, total: existing.length,
+          { scanned: true, discovered: 0, added: 0, removed: 0, total: 0,
             message: "Scan cancelled by user" },
         );
       }
@@ -193,13 +188,6 @@ export async function POST(
     }
     clearInterval(cancelPoll);
     endScan(server);
-
-    // Snapshot non-path permission fields so they are never lost
-    // during the YAML round-trip (#193).
-    const preservedCommands = (perms as Record<string, unknown>).commands;
-    const preservedCommandDefault = (perms as Record<string, unknown>).default_command_access;
-    const preservedTools = (perms as Record<string, unknown>).tools;
-    const preservedToolDefault = (perms as Record<string, unknown>).default_tool_access;
 
     // Parse the output — could be a JSON array or an error object
     let parsed: unknown;
@@ -220,7 +208,7 @@ export async function POST(
           scanned: false,
           discovered: 0,
           added: 0,
-          total: existing.length,
+          total: 0,
           error: `Discovery failed: ${errObj.error}`,
         }, { status: 500 });
       }
@@ -238,65 +226,83 @@ export async function POST(
     }
 
     const discovered: string[] = parsed;
-
-    // Remove cancelled sentinel
     const cancelled = discovered.includes("__CANCELLED__");
     const folders = discovered.filter(
       (f: string) => f !== "__CANCELLED__",
     );
 
-    // If scan found nothing, return 0 without modifying the config
     if (folders.length === 0) {
       return NextResponse.json({
         scanned: true,
         discovered: 0,
         added: 0,
         removed: 0,
-        total: existing.length,
+        total: 0,
         message: "No folders found — check connection or vault path.",
       });
     }
 
-    // Build a map of existing path → access so we preserve user overrides
-    const existingAccess: Record<string, string> = {};
-    for (const p of existing) {
-      if (p.path) existingAccess[p.path] = p.access;
-    }
+    let lastAddedCount = 0;
+    let lastTotalCount = 0;
 
-    // Replace ALL existing paths with freshly discovered ones.
-    // Preserves access levels the user set via bulk-set or manual edits.
-    const newPaths: Array<Record<string, unknown>> = [];
-    const seen = new Set<string>();
-    for (const folder of folders) {
-      if (seen.has(folder)) continue;
-      seen.add(folder);
-      const name = folder.split("/").filter(Boolean).pop() || folder;
-      if (isExcluded(name)) continue;
-      const access = existingAccess[folder] || "read";
-      newPaths.push({
-        id: `path_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-        path: folder,
-        access,
-        description: access !== "read"
-          ? `Auto-discovered folder: ${name} (access: ${access})`
-          : `Auto-discovered folder: ${name}`,
-      });
-    }
-    (perms as Record<string, unknown>).paths = newPaths;
-    // Restore non-path permission fields (#193)
-    if (preservedCommands !== undefined) { (perms as Record<string, unknown>).commands = preservedCommands; }
-    if (preservedCommandDefault !== undefined) { (perms as Record<string, unknown>).default_command_access = preservedCommandDefault; }
-    if (preservedTools !== undefined) { (perms as Record<string, unknown>).tools = preservedTools; }
-    if (preservedToolDefault !== undefined) { (perms as Record<string, unknown>).default_tool_access = preservedToolDefault; }
+    // Apply discovered folders to all targeted user configs
+    for (const filePath of targetFilePaths) {
+      try {
+        const raw = await fs.readFile(filePath, "utf-8");
+        const config = yaml.load(raw) as Record<string, unknown>;
+        const perms = (config.permissions || {}) as Record<string, unknown>;
+        const existing = (perms.paths || []) as Array<{
+          path: string;
+          access: string;
+          description?: string;
+        }>;
 
-    await fs.writeFile(filePath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
+        const preservedCommands = perms.commands;
+        const preservedCommandDefault = perms.default_command_access;
+        const preservedTools = perms.tools;
+        const preservedToolDefault = perms.default_tool_access;
+
+        const existingAccess: Record<string, string> = {};
+        for (const p of existing) {
+          if (p.path) existingAccess[p.path] = p.access;
+        }
+
+        const newPaths: Array<Record<string, unknown>> = [];
+        const seen = new Set<string>();
+        for (const folder of folders) {
+          if (seen.has(folder)) continue;
+          seen.add(folder);
+          const name = folder.split("/").filter(Boolean).pop() || folder;
+          if (isExcluded(name)) continue;
+          const access = existingAccess[folder] || "read";
+          newPaths.push({
+            id: `path_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+            path: folder,
+            access,
+            description: access !== "read"
+              ? `Auto-discovered folder: ${name} (access: ${access})`
+              : `Auto-discovered folder: ${name}`,
+          });
+        }
+        perms.paths = newPaths;
+        if (preservedCommands !== undefined) { perms.commands = preservedCommands; }
+        if (preservedCommandDefault !== undefined) { perms.default_command_access = preservedCommandDefault; }
+        if (preservedTools !== undefined) { perms.tools = preservedTools; }
+        if (preservedToolDefault !== undefined) { perms.default_tool_access = preservedToolDefault; }
+
+        config.permissions = perms;
+        await fs.writeFile(filePath, yaml.dump(config, { noRefs: true, lineWidth: -1 }), "utf-8");
+        lastAddedCount = newPaths.length;
+        lastTotalCount = newPaths.length;
+      } catch { /* file error skip */ }
+    }
 
     return NextResponse.json({
       scanned: true,
       discovered: folders.length,
-      added: newPaths.length,
-      removed: existing.length,
-      total: newPaths.length,
+      added: lastAddedCount,
+      removed: 0,
+      total: lastTotalCount,
       ...(cancelled ? { message: "Scan was cancelled before completing" } : {}),
     });
   } catch (err) {
