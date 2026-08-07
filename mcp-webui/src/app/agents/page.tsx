@@ -12,11 +12,7 @@ import EmptyState from "@/components/EmptyState";
 import DataTable from "@/components/DataTable";
 import type { Column } from "@/components/DataTable";
 
-const MODES = [
-  { value: "open", label: "Open", desc: "Everyone can use tools — disable specific users" },
-  { value: "allowlist", label: "Allowlist", desc: "Only listed users can use tools" },
-  { value: "blocklist", label: "Blocklist", desc: "Everyone except disabled users" },
-] as const;
+
 
 function relativeTime(ts: string | null | undefined): string {
   if (!ts) return "Never";
@@ -130,7 +126,7 @@ export default function AgentsPage() {
     setUserSecrets((prev) => ({ ...prev, [id]: secret }));
     setNewUserName("");
     setShowAdd(false);
-    toast.success("User added — click Save to persist");
+    toast.success("User added: click Save to persist");
 
     // Automatically trigger auto-discovery scan for all servers for the new user
     getServers().then((svrs) => {
@@ -149,7 +145,7 @@ export default function AgentsPage() {
       ...data,
       users: data.users.filter((u) => u.id !== userId),
     });
-    toast.success("User removed — click Save to persist");
+    toast.success("User removed: click Save to persist");
   }
 
   function getMcpJsonSnippet(userId: string, secretKey: string) {
@@ -262,27 +258,6 @@ export default function AgentsPage() {
           </button>
         }
       />
-
-      {/* Mode selector */}
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-3">Access Mode</h2>
-        <div className="grid grid-cols-3 gap-3">
-          {MODES.map((m) => (
-            <button
-              key={m.value}
-              onClick={() => setData({ ...data, mode: m.value })}
-              className={`p-3 rounded-lg border text-left transition-colors ${
-                data.mode === m.value
-                  ? "border-blue-500 bg-blue-900/30 text-blue-300"
-                  : "border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-600"
-              }`}
-            >
-              <div className="font-medium text-sm">{m.label}</div>
-              <div className="text-xs mt-0.5 opacity-70">{m.desc}</div>
-            </button>
-          ))}
-        </div>
-      </section>
 
       {/* User table */}
       <section>

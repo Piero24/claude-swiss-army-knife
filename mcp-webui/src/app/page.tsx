@@ -35,7 +35,7 @@ export default function DashboardPage() {
   const [scanServer, setScanServer] = useState("");
   const [activeScanningServers, setActiveScanningServers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<Array<{id: string; name: string}>>([]);
+  const [users, setUsers] = useState<Array<{id: string; name: string; enabled?: boolean}>>([]);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const router = useRouter();
 
@@ -98,9 +98,15 @@ export default function DashboardPage() {
   async function loadUsers() {
     try {
       const data = await getAgents();
-      return (data?.users || []).map((u: { id: string; name: string }) => ({ id: u.id, name: u.name }));
+      return (data?.users || []).map((u: { id: string; name: string; enabled?: boolean }) => ({
+        id: u.id,
+        name: u.name,
+        enabled: u.enabled !== false,
+      }));
     } catch { return []; }
   }
+
+
   async function loadConfigs(names: string[], userId?: string | null) {
     const r: Record<string, ServerConfig> = {};
     for (const s of names) { try { r[s] = await getConfig(s, userId || undefined); } catch { /* */ } }
@@ -196,8 +202,10 @@ export default function DashboardPage() {
               onChange={(e) => handleUserChange(e.target.value)}
               className="rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.name || u.id}</option>
+              {users.map((u: { id: string; name: string; enabled?: boolean }) => (
+                <option key={u.id} value={u.id}>
+                  {u.name || u.id} {u.enabled === false ? "(Disabled)" : ""}
+                </option>
               ))}
             </select>
           )}
@@ -229,18 +237,20 @@ export default function DashboardPage() {
         {servers.map((srv) => {
           const config = configs[srv.name];
           const h = health[srv.name];
+          const currentUser = users.find((u) => u.id === effectiveUser);
+          const isUserAccountEnabled = !currentUser || currentUser.enabled !== false;
           const isGlobalEnabled = !serverStatus[srv.name] || serverStatus[srv.name].enabled !== false;
           const isUserEnabled = config?.enabled !== false;
-          const enabled = hasUsers && isGlobalEnabled && isUserEnabled;
+          const enabled = hasUsers && isUserAccountEnabled && isGlobalEnabled && isUserEnabled;
           const cardContent = (
             <div className={`rounded-lg border p-5 transition-colors h-full flex flex-col ${enabled ? "border-gray-800 bg-gray-900 hover:border-gray-600" : "border-gray-800/50 bg-gray-900/50 opacity-50"}`}>
               <div className="flex items-start justify-between mb-2">
                 <ServerIcon icon={srv.icon} className="w-8 h-8 flex items-center justify-center shrink-0 mb-1" />
                 <Toggle
-                  checked={hasUsers && isUserEnabled && isGlobalEnabled}
-                  disabled={!hasUsers || !isGlobalEnabled}
+                  checked={hasUsers && isUserAccountEnabled && isUserEnabled && isGlobalEnabled}
+                  disabled={!hasUsers || !isUserAccountEnabled || !isGlobalEnabled}
                   onChange={(checked) => handleToggleServer(srv.name, checked)}
-                  label={!hasUsers ? "No users configured" : (!isGlobalEnabled ? "Disabled globally in Settings" : (isUserEnabled ? "Deactivate for user" : "Activate for user"))}
+                  label={!hasUsers ? "No users configured" : (!isUserAccountEnabled ? "User account disabled" : (!isGlobalEnabled ? "Disabled globally in Settings" : (isUserEnabled ? "Deactivate for user" : "Activate for user")))}
                 />
               </div>
               <h2 className="font-semibold mb-1">{srv.label}</h2>
@@ -284,10 +294,10 @@ export default function DashboardPage() {
 
       <div className="rounded-lg border border-gray-800 bg-gray-900 p-4 text-xs text-gray-400 space-y-1">
         <p className="font-semibold text-gray-300 mb-2">Status legend</p>
-        <p>🟢 <span className="text-green-400">Connected</span> — container running + recent activity</p>
-        <p>🟡 <span className="text-yellow-400">Idle</span> — container running, waiting for first request</p>
-        <p>🟠 <span className="text-orange-400">Unconfigured</span> — container running but credentials appear to be defaults (check .env)</p>
-        <p>🔴 <span className="text-red-400">Stopped</span> — container not running</p>
+        <p>🟢 <span className="text-green-400">Connected</span>: container running + recent activity</p>
+        <p>🟡 <span className="text-yellow-400">Idle</span>: container running, waiting for first request</p>
+        <p>🟠 <span className="text-orange-400">Unconfigured</span>: container running but credentials appear to be defaults (check .env)</p>
+        <p>🔴 <span className="text-red-400">Stopped</span>: container not running</p>
         <p className="mt-2 text-gray-500">MCP servers communicate over stdio via SSH. Connect Claude Code to start using them.</p>
       </div>
     </div>

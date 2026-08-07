@@ -268,7 +268,7 @@ export default function ServerDetailPage() {
       } else if (res.message) {
         toast.info(res.message);
       } else {
-        toast.success(`Scan complete — ${res.total} folders (${dur})`);
+        toast.success(`Scan complete: ${res.total} folders (${dur})`);
       }
       // Always reload data after a successful scan so the UI shows fresh paths
       await loadData();
@@ -899,7 +899,7 @@ export default function ServerDetailPage() {
 
           {/* Footer with pagination */}
           <div className="flex items-center justify-between px-3 py-2 border-t border-gray-800 bg-gray-900 text-xs text-gray-400 rounded-b-lg">
-            <span>{auditTotal.toLocaleString()} entries — page {auditPage + 1} of {totalAuditPages}</span>
+            <span>{auditTotal.toLocaleString()} entries (page {auditPage + 1} of {totalAuditPages})</span>
             <div className="flex gap-1">
               <button
                 onClick={() => loadAuditPage(auditPage - 1)}
