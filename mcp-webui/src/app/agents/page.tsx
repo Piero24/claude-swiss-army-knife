@@ -189,27 +189,63 @@ export default function AgentsPage() {
 
   // ── Column definitions for user table ──
   const userColumns: Column<UserConfig>[] = [
-    { key: "name", header: "Name", render: (u) => <span className="font-medium text-gray-200">{u.name}</span> },
-    { key: "id", header: "User ID", cellClassName: "font-mono text-xs text-blue-400", render: (u) => u.id },
-    { key: "lastSeen", header: "Last seen", headerClassName: "w-[90px]", render: (u) => (
-      <span className="text-xs text-gray-500">{relativeTime(u.lastSeen)}</span>
-    )},
-    { key: "status", header: "Status", headerClassName: "w-[80px]", render: (u) => (
-      <Toggle checked={u.enabled} onChange={() => handleToggleUser(u)} label={`Toggle ${u.name}`} />
-    )},
-    { key: "actions", header: "Config", headerClassName: "w-[120px]", cellClassName: "text-center", render: (u) => (
-      <button
-        onClick={() => setJsonModalUser({ id: u.id, name: u.name, secret: userSecrets[u.id] || "" })}
-        className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/60 transition-colors"
-      >
-        <Code size={12} /> Generate JSON
-      </button>
-    )},
-    { key: "remove", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (u) => (
-      <button onClick={() => handleRemoveUser(u.id)} className="text-gray-600 hover:text-red-400">
-        <X size={14} />
-      </button>
-    )},
+    {
+      key: "name",
+      header: "Name",
+      headerClassName: "w-1/4",
+      render: (u) => <span className="font-medium text-gray-200">{u.name}</span>,
+    },
+    {
+      key: "id",
+      header: "User ID",
+      headerClassName: "w-1/5",
+      cellClassName: "font-mono text-xs text-blue-400",
+      render: (u) => u.id,
+    },
+    {
+      key: "lastSeen",
+      header: "Last seen",
+      headerClassName: "w-36",
+      render: (u) => (
+        <span className="text-xs text-gray-400">{relativeTime(u.lastSeen)}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      headerClassName: "w-28 text-center",
+      cellClassName: "text-center",
+      render: (u) => (
+        <div className="flex justify-center">
+          <Toggle checked={u.enabled} onChange={() => handleToggleUser(u)} label={`Toggle ${u.name}`} />
+        </div>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Config",
+      headerClassName: "w-40 text-center",
+      cellClassName: "text-center",
+      render: (u) => (
+        <button
+          onClick={() => setJsonModalUser({ id: u.id, name: u.name, secret: userSecrets[u.id] || "" })}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-800/60 transition-colors"
+        >
+          <Code size={13} /> Generate JSON
+        </button>
+      ),
+    },
+    {
+      key: "remove",
+      header: "",
+      headerClassName: "w-12 text-right pr-4",
+      cellClassName: "text-right pr-4",
+      render: (u) => (
+        <button onClick={() => handleRemoveUser(u.id)} className="text-gray-500 hover:text-red-400 transition-colors p-1">
+          <X size={15} />
+        </button>
+      ),
+    },
   ];
 
   return (
