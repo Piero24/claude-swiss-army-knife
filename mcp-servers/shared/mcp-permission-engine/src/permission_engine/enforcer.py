@@ -1,5 +1,7 @@
 """Permission enforcer — validates file and command access, prevents path traversal and command injection."""
 
+from __future__ import annotations
+
 import contextvars
 import fnmatch
 import json
@@ -176,38 +178,27 @@ class PermissionEnforcer:
         from .users import load_users
 
         users = load_users(str(self._config_path.parent / "users.yaml"))
-        mode = users.mode
 
-        # Find the user in the list (None if not listed)
+        # Step 1: Check user existence
+        if not users.users:
+            raise ForbiddenError("No users configured — access denied")
+
         user = next((u for u in users.users if u.id == user_id), None)
+        if user is None:
+            raise ForbiddenError(f"User '{user_id}' does not exist")
 
-        if mode == "open":
-            # Require at least one enabled user when using open mode
-            if not users.users:
-                raise ForbiddenError(
-                    "No users configured — cannot use open mode without at least one user"
-                )
-            if user and not user.enabled:
-                raise ForbiddenError(f"User '{user_id}' is disabled")
-            return True
+        # Step 2: Check user active state & server enablement
+        if not user.enabled:
+            raise ForbiddenError(f"User '{user_id}' is disabled")
 
-        if mode == "allowlist":
-            if user is None:
-                raise ForbiddenError(
-                    f"Agent '{user_id}' is not in the allowlist"
-                )
-            if not user.enabled:
-                raise ForbiddenError(f"User '{user_id}' is disabled")
-            if not _tool_allowed(user, tool_name):
-                raise ForbiddenError(
-                    f"Tool '{tool_name}' not allowed for user '{user_id}'"
-                )
-            return True
+        if not self.is_server_enabled():
+            raise ForbiddenError("MCP server is disabled")
 
-        if mode == "blocklist":
-            if user and not user.enabled:
-                raise ForbiddenError(f"User '{user_id}' is blocked")
-            return True
+        # Step 4: Check tool permissions
+        if tool_name and not _tool_allowed(user, tool_name):
+            raise ForbiddenError(
+                f"Tool '{tool_name}' not allowed for user '{user_id}'"
+            )
 
         return True
 

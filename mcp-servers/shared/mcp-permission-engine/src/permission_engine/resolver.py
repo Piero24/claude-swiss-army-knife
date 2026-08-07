@@ -1,5 +1,7 @@
 """Path resolver with glob matching, longest-match precedence, and explicit-deny override."""
 
+from __future__ import annotations
+
 from collections import OrderedDict
 
 from .models import AccessLevel, PathRule

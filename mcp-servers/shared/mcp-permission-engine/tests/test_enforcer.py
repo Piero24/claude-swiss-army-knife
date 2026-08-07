@@ -283,22 +283,7 @@ def _write_users_yaml(dir_path: str, content: str):
 class TestCheckToolAccess:
     """Tests for check_tool_access() access control."""
 
-    OPEN_USERS = """mode: open
-users:
-  - id: "alice"
-    key: "sha256$abc"
-    name: "Alice"
-    enabled: true
-    tools: ["*"]
-  - id: "bob"
-    key: "sha256$def"
-    name: "Bob"
-    enabled: false
-    tools: ["ubuntu_read_file"]
-"""
-
-    ALLOWLIST_USERS = """mode: allowlist
-users:
+    SAMPLE_USERS = """users:
   - id: "alice"
     key: "sha256$abc"
     name: "Alice"
@@ -309,132 +294,53 @@ users:
     name: "Bob"
     enabled: true
     tools: ["ubuntu_read_file", "ubuntu_list_dir"]
-"""
-
-    BLOCKLIST_USERS = """mode: blocklist
-users:
-  - id: "alice"
-    key: "sha256$abc"
-    name: "Alice"
-    enabled: true
-    tools: ["*"]
-  - id: "bob"
-    key: "sha256$def"
-    name: "Bob"
+  - id: "charlie"
+    key: "sha256$ghi"
+    name: "Charlie"
     enabled: false
-    tools: ["ubuntu_read_file"]
+    tools: ["*"]
 """
 
-    # ── Open mode ──
-
-    def test_open_mode_listed_enabled_passes(self, enforcer_with_users):
+    def test_user_enabled_passes(self, enforcer_with_users):
         _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.OPEN_USERS
+            enforcer_with_users._config_path.parent, self.SAMPLE_USERS
         )
         assert (
             enforcer_with_users.check_tool_access("alice", "ubuntu_read_file")
             is True
         )
 
-    def test_open_mode_listed_disabled_blocked(self, enforcer_with_users):
+    def test_user_disabled_blocked(self, enforcer_with_users):
         _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.OPEN_USERS
+            enforcer_with_users._config_path.parent, self.SAMPLE_USERS
         )
         with pytest.raises(ForbiddenError, match="disabled"):
+            enforcer_with_users.check_tool_access("charlie", "ubuntu_read_file")
+
+    def test_restricted_tool_allowed(self, enforcer_with_users):
+        _write_users_yaml(
+            enforcer_with_users._config_path.parent, self.SAMPLE_USERS
+        )
+        assert (
             enforcer_with_users.check_tool_access("bob", "ubuntu_read_file")
-
-    def test_open_mode_unlisted_passes(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.OPEN_USERS
-        )
-        assert (
-            enforcer_with_users.check_tool_access("stranger", "any_tool")
             is True
         )
 
-    def test_open_mode_default_user_passes(self, enforcer_with_users):
+    def test_restricted_tool_blocked(self, enforcer_with_users):
         _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.OPEN_USERS
-        )
-        assert (
-            enforcer_with_users.check_tool_access("default", "any_tool") is True
-        )
-
-    # ── Allowlist mode ──
-
-    def test_allowlist_listed_enabled_passes(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
-        )
-        assert (
-            enforcer_with_users.check_tool_access("alice", "ubuntu_read_file")
-            is True
-        )
-
-    def test_allowlist_restricted_tool_blocked(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
+            enforcer_with_users._config_path.parent, self.SAMPLE_USERS
         )
         with pytest.raises(ForbiddenError, match="not allowed"):
             enforcer_with_users.check_tool_access("bob", "ubuntu_write_file")
 
-    def test_allowlist_restricted_tool_allowed(self, enforcer_with_users):
+    def test_nonexistent_user_blocked(self, enforcer_with_users):
         _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
+            enforcer_with_users._config_path.parent, self.SAMPLE_USERS
         )
-        assert (
-            enforcer_with_users.check_tool_access("bob", "ubuntu_read_file")
-            is True
-        )
-
-    def test_allowlist_unlisted_blocked(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
-        )
-        with pytest.raises(ForbiddenError, match="not in the allowlist"):
+        with pytest.raises(ForbiddenError, match="does not exist"):
             enforcer_with_users.check_tool_access("stranger", "any_tool")
 
-    def test_allowlist_default_blocked(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.ALLOWLIST_USERS
-        )
-        with pytest.raises(ForbiddenError, match="not in the allowlist"):
-            enforcer_with_users.check_tool_access("default", "any_tool")
 
-    # ── Blocklist mode ──
-
-    def test_blocklist_enabled_passes(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.BLOCKLIST_USERS
-        )
-        assert (
-            enforcer_with_users.check_tool_access("alice", "ubuntu_read_file")
-            is True
-        )
-
-    def test_blocklist_disabled_blocked(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.BLOCKLIST_USERS
-        )
-        with pytest.raises(ForbiddenError, match="blocked"):
-            enforcer_with_users.check_tool_access("bob", "ubuntu_read_file")
-
-    def test_blocklist_unlisted_passes(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.BLOCKLIST_USERS
-        )
-        assert (
-            enforcer_with_users.check_tool_access("stranger", "any_tool")
-            is True
-        )
-
-    def test_blocklist_default_passes(self, enforcer_with_users):
-        _write_users_yaml(
-            enforcer_with_users._config_path.parent, self.BLOCKLIST_USERS
-        )
-        assert (
-            enforcer_with_users.check_tool_access("default", "any_tool") is True
-        )
 
 
 CONFIG_WITH_TOOLS = """

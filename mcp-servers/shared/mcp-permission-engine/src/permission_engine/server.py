@@ -1,5 +1,7 @@
 """Base MCP Server class for standardizing permission checks and error handling."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
