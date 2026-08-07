@@ -33,4 +33,4 @@ All MCP servers run in Docker containers on your Ubuntu server. Claude Code conn
 
 ## Next Steps
 
-Read the [Getting Started guide](/getting-started/installation) to set up your own instance.
+Read the [Getting Started guide](/user/getting-started/installation) to set up your own instance.
