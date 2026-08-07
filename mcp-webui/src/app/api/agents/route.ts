@@ -90,8 +90,18 @@ const DENY_ALL_TEMPLATE: Record<string, unknown> = {
   },
 };
 
+const KNOWN_SERVERS = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp", "link-manager"];
+
 async function discoverServerDirs(): Promise<string[]> {
-  const dirs: string[] = [];
+  const set = new Set<string>(KNOWN_SERVERS);
+  try {
+    const entries = await fs.readdir(CONFIGS_PATH, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.isDirectory() && e.name !== "templates") {
+        set.add(e.name);
+      }
+    }
+  } catch { /* ok */ }
   try {
     let templateDir = "/app/templates";
     try {
@@ -106,13 +116,12 @@ async function discoverServerDirs(): Promise<string[]> {
     }
     const entries = await fs.readdir(templateDir, { withFileTypes: true });
     for (const e of entries) {
-      if (!e.isFile()) continue;
-      if (!e.name.endsWith(".yaml")) continue;
-      if (e.name === "users.yaml") continue;
-      dirs.push(e.name.replace(".yaml", ""));
+      if (e.isFile() && e.name.endsWith(".yaml") && e.name !== "users.yaml") {
+        set.add(e.name.replace(".yaml", ""));
+      }
     }
   } catch { /* template dir missing */ }
-  return dirs;
+  return Array.from(set);
 }
 
 async function generateUserConfigs(userId: string, serverName: string) {
@@ -123,7 +132,7 @@ async function generateUserConfigs(userId: string, serverName: string) {
     await fs.access(filePath);
     return; // already exists
   } catch {
-    let templateConfig = {};
+    let templateConfig: Record<string, unknown> = {};
     try {
       let templateDir = "/app/templates";
       try {
@@ -138,13 +147,20 @@ async function generateUserConfigs(userId: string, serverName: string) {
       }
       const templatePath = path.join(templateDir, `${serverName}.yaml`);
       const raw = await fs.readFile(templatePath, "utf-8");
-      templateConfig = yaml.load(raw) as Record<string, unknown>;
+      templateConfig = (yaml.load(raw) as Record<string, unknown>) || {};
     } catch {
       templateConfig = {
+        enabled: true,
         server: { name: serverName, log_level: "INFO", audit_log: "/var/log/mcp/audit.log" },
-        ...DENY_ALL_TEMPLATE,
+        permissions: {
+          default_access: "none",
+          paths: [],
+          commands: [],
+          default_command_access: "none",
+        },
       };
     }
+    templateConfig.enabled = true;
     await fs.writeFile(filePath, yaml.dump(templateConfig, { noRefs: true, lineWidth: -1 }), "utf-8");
   }
 }

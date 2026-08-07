@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { X, Shield } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import Toggle from "@/components/Toggle";
+import { ServerIcon } from "@/components/ServerIcon";
 
 interface ServerSections {
   paths: boolean;
@@ -296,7 +297,7 @@ export default function SettingsPage() {
             return (
               <div key={srv.name} className="rounded-lg border border-gray-800 bg-gray-900 p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">{srv.icon}</span>
+                  <ServerIcon icon={srv.icon} className="w-5 h-5 flex items-center justify-center shrink-0" />
                   <span className="font-medium text-sm">{srv.label}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -348,7 +349,7 @@ export default function SettingsPage() {
             return (
               <div key={srv.name} className="flex items-center justify-between p-2.5 rounded bg-gray-900 border border-gray-800">
                 <div className="flex items-center gap-2">
-                  <span>{srv.icon}</span>
+                  <ServerIcon icon={srv.icon} className="w-5 h-5 flex items-center justify-center shrink-0" />
                   <span className="text-sm font-medium text-gray-300">{srv.label}</span>
                 </div>
                 <Toggle

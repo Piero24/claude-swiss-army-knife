@@ -13,6 +13,7 @@ import { LogOut, Settings, Shield, AlertTriangle, User } from "lucide-react";
 import Toggle from "@/components/Toggle";
 import Badge from "@/components/Badge";
 import StatsCards from "@/components/StatsCards";
+import { ServerIcon } from "@/components/ServerIcon";
 import type { ServerMeta } from "@/lib/servers";
 import { getServers } from "@/lib/servers";
 
@@ -230,17 +231,16 @@ export default function DashboardPage() {
           const h = health[srv.name];
           const isGlobalEnabled = !serverStatus[srv.name] || serverStatus[srv.name].enabled !== false;
           const isUserEnabled = config?.enabled !== false;
-          const enabled = isGlobalEnabled && isUserEnabled;
-          const isServerScanning = activeScanningServers.includes(srv.name);
+          const enabled = hasUsers && isGlobalEnabled && isUserEnabled;
           const cardContent = (
             <div className={`rounded-lg border p-5 transition-colors h-full flex flex-col ${enabled ? "border-gray-800 bg-gray-900 hover:border-gray-600" : "border-gray-800/50 bg-gray-900/50 opacity-50"}`}>
               <div className="flex items-start justify-between mb-2">
-                <div className="text-3xl">{srv.icon}</div>
+                <ServerIcon icon={srv.icon} className="w-8 h-8 flex items-center justify-center shrink-0 mb-1" />
                 <Toggle
-                  checked={isUserEnabled && isGlobalEnabled}
-                  disabled={!isGlobalEnabled}
+                  checked={hasUsers && isUserEnabled && isGlobalEnabled}
+                  disabled={!hasUsers || !isGlobalEnabled}
                   onChange={(checked) => handleToggleServer(srv.name, checked)}
-                  label={!isGlobalEnabled ? "Disabled globally in Settings" : (isUserEnabled ? "Deactivate for user" : "Activate for user")}
+                  label={!hasUsers ? "No users configured" : (!isGlobalEnabled ? "Disabled globally in Settings" : (isUserEnabled ? "Deactivate for user" : "Activate for user"))}
                 />
               </div>
               <h2 className="font-semibold mb-1">{srv.label}</h2>
@@ -267,13 +267,6 @@ export default function DashboardPage() {
                 {enabled && h && (
                   <span className="inline-block ml-1">
                     <Badge variant="health" value={h.status} label={HEALTH_LABELS[h.status]} showIcon />
-                  </span>
-                )}
-                {isServerScanning && (
-                  <span className="inline-block ml-1">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded text-blue-300 bg-blue-950/80 border border-blue-700 animate-pulse">
-                      🔄 Scanning...
-                    </span>
                   </span>
                 )}
               </div>
