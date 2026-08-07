@@ -176,13 +176,14 @@ export async function PUT(request: Request) {
     const yamlStr = yaml.dump(validated, { noRefs: true, lineWidth: -1 });
     await fs.writeFile(USERS_PATH, yamlStr, "utf-8");
 
-    // Auto-generate configs for new users
+    // Auto-generate configs for new users and trigger scan
     const newUsers = validated.users.filter((u) => !oldUserIds.includes(u.id));
     if (newUsers.length > 0) {
       const servers = await discoverServerDirs();
       for (const user of newUsers) {
         for (const server of servers) {
           await generateUserConfigs(user.id, server);
+          fetch(`http://localhost:${process.env.PORT || 3000}/api/scan/${server}?user=${user.id}`, { method: "POST" }).catch(() => {});
         }
       }
     }

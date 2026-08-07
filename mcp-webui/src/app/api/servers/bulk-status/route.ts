@@ -13,7 +13,7 @@ const bodySchema = z.object({
   enabled: z.boolean(),
 });
 
-const ALL_SERVERS = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp", "link-manager-mcp"];
+const ALL_SERVERS = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp", "link-manager", "link-manager-mcp"];
 
 export async function POST(request: Request) {
   try {

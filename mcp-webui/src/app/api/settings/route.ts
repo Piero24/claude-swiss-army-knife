@@ -81,22 +81,6 @@ async function seedDefaultTemplates(configsDir: string): Promise<void> {
         await fs.writeFile(settingsFile, JSON.stringify(DEFAULTS, null, 2), "utf-8");
       }
     }
-
-
-
-    // Seed mcp-launcher directly into configsDir (/DATA/AppData/mcps-server/settings) (#190)
-    try {
-      const launcherSrc = path.join(templateDir, "mcp-launcher.sh");
-      const launcherDst = path.join(configsDir, "mcp-launcher");
-      try {
-        await fs.access(launcherSrc);
-        await fs.copyFile(launcherSrc, launcherDst);
-        await fs.chmod(launcherDst, 0o755);
-      } catch { /* ok */ }
-
-    } catch {
-      /* launcher creation failed */
-    }
   } catch {
     /* configsDir creation failed */
   }

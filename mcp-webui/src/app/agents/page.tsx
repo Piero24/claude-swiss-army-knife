@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAgents, updateAgentsSettings, updateAgent } from "@/lib/api";
+import { getAgents, updateAgentsSettings, updateAgent, scanServer } from "@/lib/api";
 import type { UserConfig, UsersConfig } from "@/lib/types";
+import { getServers } from "@/lib/servers";
 import { toast } from "sonner";
 import { Plus, Shield, X, Code, Copy, Check } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
@@ -83,33 +84,11 @@ export default function AgentsPage() {
     }
   }
 
-  async function handleToolsChange(user: UserConfig, toolsStr: string) {
-    if (!data) return;
-    const tools = toolsStr
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (tools.length === 0) return;
-
-    setData({
-      ...data,
-      users: data.users.map((u) =>
-        u.id === user.id ? { ...u, tools } : u
-      ),
-    });
-    try {
-      await updateAgent(user.id, { tools });
-      toast.success("Tools updated");
-    } catch {
-      toast.error("Failed to update tools");
-    }
-  }
-
   async function handleAddUser() {
     if (!data || !newUserName.trim()) return;
     const name = newUserName.trim();
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "user";
-    const id = `${slug}_${Math.random().toString(36).slice(2, 6)}`;
+    // Pure 10-digit numeric ID
+    const id = String(Math.floor(1000000000 + Math.random() * 9000000000));
 
     // Generate 32-character secret
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -153,6 +132,13 @@ export default function AgentsPage() {
     setShowAdd(false);
     toast.success("User added — click Save to persist");
 
+    // Automatically trigger auto-discovery scan for all servers for the new user
+    getServers().then((svrs) => {
+      for (const s of svrs) {
+        scanServer(s.name, id).catch(() => {});
+      }
+    });
+
     // Auto open MCP JSON template modal
     setJsonModalUser({ id, name, secret });
   }
@@ -168,7 +154,7 @@ export default function AgentsPage() {
 
   function getMcpJsonSnippet(userId: string, secretKey: string) {
     const keyVal = secretKey || "<YOUR_MCP_USER_KEY>";
-    const serversList = ["ubuntu-server", "synology-nas", "obsidian", "github-mcp", "link-manager-mcp"];
+    const serversList = ["ubuntu-server", "synology-nas", "obsidian", "github-mcp", "link-manager"];
     const mcpServersObj: Record<string, unknown> = {};
 
     for (const srv of serversList) {
@@ -178,7 +164,7 @@ export default function AgentsPage() {
           "user@<YOUR_SERVER_IP>",
           `MCP_USER_ID=${userId}`,
           `MCP_USER_KEY=${keyVal}`,
-          "/DATA/AppData/mcps-server/settings/mcp-launcher",
+          "mcp-launcher",
           srv,
         ],
       };
@@ -205,16 +191,6 @@ export default function AgentsPage() {
   const userColumns: Column<UserConfig>[] = [
     { key: "name", header: "Name", render: (u) => <span className="font-medium text-gray-200">{u.name}</span> },
     { key: "id", header: "User ID", cellClassName: "font-mono text-xs text-blue-400", render: (u) => u.id },
-    { key: "tools", header: "Tools", render: (u) => (
-      <input
-        type="text"
-        defaultValue={u.tools.includes("*") ? "*" : u.tools.join(", ")}
-        onBlur={(e) => handleToolsChange(u, e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") handleToolsChange(u, e.currentTarget.value); }}
-        className="w-full rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-        placeholder="*"
-      />
-    )},
     { key: "lastSeen", header: "Last seen", headerClassName: "w-[90px]", render: (u) => (
       <span className="text-xs text-gray-500">{relativeTime(u.lastSeen)}</span>
     )},

@@ -42,6 +42,10 @@ export async function PATCH(
     }
     const servers = settings.servers as Record<string, unknown>;
     servers[server] = { ...(servers[server] as Record<string, unknown> || {}), enabled };
+    if (server === "link-manager" || server === "link-manager-mcp") {
+      servers["link-manager"] = { ...(servers["link-manager"] as Record<string, unknown> || {}), enabled };
+      servers["link-manager-mcp"] = { ...(servers["link-manager-mcp"] as Record<string, unknown> || {}), enabled };
+    }
 
     await fs.mkdir(path.dirname(SETTINGS_PATH), { recursive: true });
     await fs.writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2), "utf-8");
