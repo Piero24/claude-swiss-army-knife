@@ -157,6 +157,7 @@ export default function AgentsPage() {
 
     for (const srv of serversList) {
       mcpServersObj[srv] = {
+        type: "sse",
         url: `http://<YOUR_SERVER_IP>:8281/mcp/${srv}/sse`,
         headers: {
           Authorization: `Bearer ${keyVal}`,
@@ -165,9 +166,9 @@ export default function AgentsPage() {
       };
     }
 
-
-    return JSON.stringify({ mcpServers: mcpServersObj }, null, 2);
+    return JSON.stringify(mcpServersObj, null, 2);
   }
+
 
   if (loading)
     return (
