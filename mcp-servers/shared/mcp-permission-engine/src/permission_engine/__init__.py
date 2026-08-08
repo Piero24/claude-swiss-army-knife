@@ -18,6 +18,8 @@ Usage:
 
 from .audit import AuditLogger, read_audit_log
 from .config import ConfigLoader, load_config
+from .config_resolver import create_deny_all, resolve_user_config
+from .config_watcher import watch_config
 from .enforcer import ForbiddenError, PermissionEnforcer, _current_user_id, _observed_subagent_id
 from .models import (
     AccessLevel,
@@ -29,6 +31,7 @@ from .models import (
     ServerInfo,
     ToolRule,
 )
+from .scan_excludes import is_excluded, load_excludes
 from .users import AuthenticationError, UserConfig, UsersConfig, load_users, validate_user
 from .server import BaseMCPServer
 
@@ -43,6 +46,14 @@ __all__ = [
     # Config
     "load_config",
     "ConfigLoader",
+    # Config Resolution
+    "resolve_user_config",
+    "create_deny_all",
+    # Config Watcher
+    "watch_config",
+    # Scan Excludes
+    "load_excludes",
+    "is_excluded",
     # Models
     "AccessLevel",
     "PathRule",

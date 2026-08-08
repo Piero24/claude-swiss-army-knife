@@ -69,4 +69,4 @@ class TestModuleImports:
         import synology_mcp.dsm_client  # noqa: F401
 
     def test_import_config_watcher(self):
-        import synology_mcp.config_watcher  # noqa: F401
+        import permission_engine.config_watcher  # noqa: F401

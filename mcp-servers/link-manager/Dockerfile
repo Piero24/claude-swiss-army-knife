@@ -1,15 +1,14 @@
 FROM python:3.12-alpine AS builder
 
-ARG PERMISSION_ENGINE_PATH=shared/mcp-permission-engine
 WORKDIR /app
 
 # Install shared permission engine
-COPY ${PERMISSION_ENGINE_PATH} /tmp/permission-engine
+COPY mcp-servers/shared/mcp-permission-engine /tmp/permission-engine
 RUN pip install --no-cache-dir /tmp/permission-engine && \
     rm -rf /tmp/permission-engine
 
 # Install link-manager
-COPY . /app
+COPY mcp-servers/link-manager/ /app
 RUN pip install --no-cache-dir .
 
 FROM python:3.12-alpine

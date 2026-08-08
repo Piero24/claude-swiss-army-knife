@@ -1,30 +1,24 @@
-"""Ubuntu Server MCP — stdio server entry point.
-
-Provides tools for managing an Ubuntu server: file I/O, command execution,
-systemd service management, Docker container management, and system monitoring.
-All operations are guarded by the shared permission engine.
-"""
+"""Ubuntu Server MCP — server class and tool dispatcher."""
 
 import argparse
 import asyncio
-import json
 import logging
 import os
-import sys
 from pathlib import Path
 
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 from permission_engine import BaseMCPServer
+from permission_engine.config_resolver import create_deny_all, resolve_user_config
+from permission_engine.config_watcher import watch_config
 
-from .config_watcher import watch_config
 from .host_access import HostAccess, create_host_access
+from .tool_definitions import get_tool_definitions
 from .tools import (
     append_file,
     docker_mgmt,
     execute,
     file_delete,
+    journalctl,
     list_dir,
     read_file,
     service,
@@ -34,264 +28,25 @@ from .tools import (
 
 logger = logging.getLogger("ubuntu-mcp")
 
+# Ubuntu-specific deny-all extends the base with connection config
 DENY_ALL_UBUNTU = {
-    "server": {
-        "name": "ubuntu-server",
-        "log_level": "INFO",
-        "audit_log": "/var/log/mcp/audit.log",
-    },
+    **create_deny_all("ubuntu-server"),
     "connection": {"mode": "local", "local": {"mount_prefix": "/mnt/host"}},
-    "permissions": {
-        "default_access": "none",
-        "paths": [],
-        "commands": [],
-        "default_command_access": "none",
-        "tools": [],
-        "default_tool_access": "none",
-    },
 }
-
-
-def _resolve_config(config_dir: str) -> dict:
-    import yaml as _yaml
-
-    user_id = os.environ.get("MCP_USER_ID", "")
-    if not user_id or user_id == "default":
-        return dict(DENY_ALL_UBUNTU)
-    user_config = Path(config_dir) / f"{user_id}.yaml"
-    if user_config.exists():
-        with open(user_config, "r") as f:
-            return _yaml.safe_load(f) or dict(DENY_ALL_UBUNTU)
-    return dict(DENY_ALL_UBUNTU)
 
 
 class UbuntuServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
-        config = _resolve_config(config_dir)
-        import tempfile, yaml as _yaml
-
-        self._tmp_config = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        )
-        _yaml.dump(config, self._tmp_config)
-        self._tmp_config.flush()
-        super().__init__("ubuntu-mcp", self._tmp_config.name)
+        tmp_path, config = resolve_user_config(config_dir, DENY_ALL_UBUNTU)
+        super().__init__("ubuntu-mcp", tmp_path)
         self.host: HostAccess = create_host_access(config)
         self.setup()
 
     def setup(self):
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
-            return [
-                Tool(
-                    name="ubuntu_read_file",
-                    description="Read a file from the Ubuntu server filesystem.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Absolute path to the file on the host.",
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_write_file",
-                    description="Write content to a file on the Ubuntu server (overwrites if exists).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Absolute path to the file on the host.",
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "Content to write to the file.",
-                            },
-                        },
-                        "required": ["path", "content"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_append_file",
-                    description="Append content to a file on the Ubuntu server.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Absolute path to the file on the host.",
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "Content to append.",
-                            },
-                        },
-                        "required": ["path", "content"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_file_delete",
-                    description="Delete a file on the Ubuntu server.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Absolute path to the file to delete.",
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_list_dir",
-                    description="List the contents of a directory on the Ubuntu server.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Absolute path to the directory.",
-                            },
-                            "recursive": {
-                                "type": "boolean",
-                                "description": "Whether to list recursively (default: false).",
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_exec",
-                    description="Execute a shell command on the Ubuntu server (subject to command allowlist).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "command": {
-                                "type": "string",
-                                "description": "The shell command to execute.",
-                            },
-                            "timeout": {
-                                "type": "integer",
-                                "description": "Timeout in seconds (default: 30).",
-                            },
-                        },
-                        "required": ["command"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_system_info",
-                    description="Get system information: CPU, RAM, disk, load average, uptime.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                    },
-                ),
-                Tool(
-                    name="ubuntu_service_status",
-                    description="Check the status of a systemd service.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "service": {
-                                "type": "string",
-                                "description": "Name of the systemd service.",
-                            },
-                        },
-                        "required": ["service"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_service_manage",
-                    description="Manage a systemd service (start, stop, restart, reload).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "service": {
-                                "type": "string",
-                                "description": "Name of the systemd service.",
-                            },
-                            "action": {
-                                "type": "string",
-                                "enum": ["start", "stop", "restart", "reload"],
-                                "description": "Action to perform.",
-                            },
-                        },
-                        "required": ["service", "action"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_docker_ps",
-                    description="List Docker containers and their status.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "all": {
-                                "type": "boolean",
-                                "description": "Show all containers including stopped (default: false).",
-                            },
-                        },
-                    },
-                ),
-                Tool(
-                    name="ubuntu_docker_logs",
-                    description="Get logs from a Docker container.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "container": {
-                                "type": "string",
-                                "description": "Name of the container.",
-                            },
-                            "tail": {
-                                "type": "integer",
-                                "description": "Number of lines to retrieve (default: 100).",
-                            },
-                        },
-                        "required": ["container"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_docker_restart",
-                    description="Restart a Docker container.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "container": {
-                                "type": "string",
-                                "description": "Name of the container to restart.",
-                            },
-                        },
-                        "required": ["container"],
-                    },
-                ),
-                Tool(
-                    name="ubuntu_journalctl",
-                    description="Query the systemd journal.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "unit": {
-                                "type": "string",
-                                "description": "Filter by systemd unit name.",
-                            },
-                            "lines": {
-                                "type": "integer",
-                                "description": "Number of lines (default: 50).",
-                            },
-                            "since": {
-                                "type": "string",
-                                "description": "Show entries since (e.g., '1 hour ago', 'today').",
-                            },
-                        },
-                    },
-                ),
-            ]
+            return get_tool_definitions()
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -346,39 +101,11 @@ class UbuntuServer(BaseMCPServer):
                     arguments, self.enforcer, self.host, name
                 )
             case "ubuntu_journalctl":
-                return await self._journalctl(arguments, self.host, name)
+                return await journalctl.journalctl(
+                    arguments, self.enforcer, self.host, name
+                )
             case _:
                 raise ValueError(f"Unknown tool: {name}")
-
-    async def _journalctl(self, args: dict, host, name: str = "") -> dict:
-        """Query systemd journal."""
-        import shlex
-
-        unit = args.get("unit", "")
-        lines = args.get("lines", 50)
-        since = args.get("since", "")
-
-        # Check intent against permission engine without breaking on shell spaces
-        check_str = "journalctl"
-        if unit:
-            check_str += f" -u {unit}"
-        if since:
-            check_str += f" --since {since}"
-        self.enforcer.check_command(check_str, name)
-
-        # Build actual shell command with safe quotes
-        cmd = "journalctl"
-        if unit:
-            cmd += f" -u {shlex.quote(unit)}"
-        if since:
-            cmd += f" --since={shlex.quote(since)}"
-        cmd += f" -n {lines} --no-pager"
-
-        result = await host.run_command(cmd, timeout=15)
-        return {
-            "query": cmd,
-            "output": result.get("stdout", ""),
-        }
 
 
 async def main() -> None:
@@ -408,61 +135,18 @@ async def main() -> None:
 
     app = UbuntuServer(config_dir)
 
-    # Start config file watcher (background task)
     watch_task = asyncio.create_task(
         watch_config(Path(config_dir), app.reload_config)
     )
 
-    if args.transport == "sse":
-        from mcp.server.sse import SseServerTransport
-        from starlette.applications import Starlette
-        from starlette.routing import Route
-        import uvicorn
-
-        sse = SseServerTransport("/messages")
-
-        async def handle_sse(request):
-            async with sse.connect_sses(
-                request.scope, request.receive, request._send
-            ) as streams:
-                await app.server.run(
-                    streams[0],
-                    streams[1],
-                    app.server.create_initialization_options(),
-                )
-
-        async def handle_messages(request):
-            await sse.handle_post_message(
-                request.scope, request.receive, request._send
-            )
-
-        starlette_app = Starlette(
-            routes=[
-                Route("/sse", endpoint=handle_sse),
-                Route("/messages", endpoint=handle_messages, methods=["POST"]),
-            ]
-        )
-        logger.info("Ubuntu MCP running in SSE mode on port %d", args.port)
-        config = uvicorn.Config(
-            starlette_app, host="0.0.0.0", port=args.port, log_level="info"
-        )
-        server = uvicorn.Server(config)
-        await server.serve()
-    else:
-        async with stdio_server() as (read_stream, write_stream):
-            logger.info("Ubuntu MCP server running (stdio mode)")
-            await app.server.run(
-                read_stream,
-                write_stream,
-                app.server.create_initialization_options(),
-            )
-
-    # Cleanup
-    watch_task.cancel()
     try:
-        await watch_task
-    except asyncio.CancelledError:
-        pass
+        await app.run(transport=args.transport, port=args.port)
+    finally:
+        watch_task.cancel()
+        try:
+            await watch_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":

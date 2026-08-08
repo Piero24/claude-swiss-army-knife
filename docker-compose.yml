@@ -3,7 +3,6 @@
 # Usage:
 #   cp .env.example .env
 #   bash scripts/generate-api-key.sh
-#   bash scripts/setup-build.sh
 #   docker compose up -d --build
 
 services:
@@ -13,8 +12,8 @@ services:
 
   mcp-gateway:
     build:
-      context: ./mcp-servers/shared/mcp-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcp-servers/shared/mcp-gateway/Dockerfile
     image: mcp-gateway:latest
     container_name: mcp-gateway
     ports:
@@ -27,9 +26,8 @@ services:
 
   ubuntu-mcp:
     build:
-      context: ./mcp-servers/ubuntu-server
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+      context: .
+      dockerfile: mcp-servers/ubuntu-server/Dockerfile
     image: ubuntu-mcp:${UBUNTU_MCP_IMAGE_TAG:-latest}
     container_name: ${UBUNTU_MCP_CONTAINER:-ubuntu-mcp}
     volumes:
@@ -56,9 +54,8 @@ services:
 
   obsidian-mcp:
     build:
-      context: ./mcp-servers/obsidian
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+      context: .
+      dockerfile: mcp-servers/obsidian/Dockerfile
     image: obsidian-mcp:${OBSIDIAN_MCP_IMAGE_TAG:-latest}
     container_name: ${OBSIDIAN_MCP_CONTAINER:-obsidian-mcp}
     volumes:
@@ -75,9 +72,8 @@ services:
 
   synology-mcp:
     build:
-      context: ./mcp-servers/synology-nas
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+      context: .
+      dockerfile: mcp-servers/synology-nas/Dockerfile
     image: synology-mcp:${SYNOLOGY_MCP_IMAGE_TAG:-latest}
     container_name: ${SYNOLOGY_MCP_CONTAINER:-synology-mcp}
     volumes:
@@ -127,10 +123,8 @@ services:
 
   github-mcp:
     build:
-      context: ./mcp-servers/github
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-        PROXY_PATH: shared/mcp-proxy
+      context: .
+      dockerfile: mcp-servers/github/Dockerfile
     image: github-mcp:${GITHUB_MCP_IMAGE_TAG:-latest}
     container_name: ${GITHUB_MCP_CONTAINER:-github-mcp}
     volumes:
@@ -150,9 +144,8 @@ services:
 
   link-manager:
     build:
-      context: ./mcp-servers/link-manager
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+      context: .
+      dockerfile: mcp-servers/link-manager/Dockerfile
     image: link-manager-mcp:${LINK_MANAGER_IMAGE_TAG:-latest}
     container_name: ${LINK_MANAGER_CONTAINER:-link-manager}
     volumes:

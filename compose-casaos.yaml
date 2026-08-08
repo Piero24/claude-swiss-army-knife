@@ -42,12 +42,12 @@
 name: mcp-stack
 services:
   # ============================================================
-  # MCP GATEWAY — Containerized SSH Gateway on Port 2222
+  # MCP GATEWAY — Zero-Trust HTTP API Gateway on Port 8280
   # ============================================================
   mcp-gateway:
     build:
-      context: ./mcp-servers/shared/mcp-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcp-servers/shared/mcp-gateway/Dockerfile
     image: ghcr.io/piero24/mcp-gateway:latest
     pull_policy: always
     container_name: mcp-gateway
@@ -72,9 +72,8 @@ services:
   # ============================================================
   ubuntu-mcp:
     build:
-      context: ./mcp-servers/ubuntu-server
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+      context: .
+      dockerfile: mcp-servers/ubuntu-server/Dockerfile
     image: ghcr.io/piero24/ubuntu-mcp:latest
     pull_policy: always
     container_name: ubuntu-mcp
@@ -130,9 +129,8 @@ services:
   # ============================================================
   obsidian-mcp:
     build:
-      context: ./mcp-servers/obsidian
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+      context: .
+      dockerfile: mcp-servers/obsidian/Dockerfile
     image: ghcr.io/piero24/obsidian-mcp:latest
     pull_policy: always
     container_name: obsidian-mcp
@@ -162,9 +160,8 @@ services:
   # ============================================================
   synology-mcp:
     build:
-      context: ./mcp-servers/synology-nas
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+      context: .
+      dockerfile: mcp-servers/synology-nas/Dockerfile
     image: ghcr.io/piero24/synology-mcp:latest
     pull_policy: always
     container_name: synology-mcp
@@ -253,10 +250,8 @@ services:
   # ============================================================
   github-mcp:
     build:
-      context: ./mcp-servers/github
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
-        PROXY_PATH: shared/mcp-proxy
+      context: .
+      dockerfile: mcp-servers/github/Dockerfile
     image: ghcr.io/piero24/github-mcp:latest
     pull_policy: always
     container_name: github-mcp
@@ -284,9 +279,8 @@ services:
   # ============================================================
   link-manager-mcp:
     build:
-      context: ./mcp-servers/link-manager
-      args:
-        PERMISSION_ENGINE_PATH: shared/mcp-permission-engine
+      context: .
+      dockerfile: mcp-servers/link-manager/Dockerfile
     image: ghcr.io/piero24/link-manager-mcp:latest
     pull_policy: always
     container_name: link-manager-mcp

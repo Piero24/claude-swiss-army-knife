@@ -20,6 +20,8 @@ from pathlib import Path
 
 import yaml
 
+from permission_engine.scan_excludes import is_excluded as _is_excluded, load_excludes
+
 from .host_access import create_host_access, HostAccess
 
 CANCEL_FILE = "/tmp/scan-cancel"
@@ -39,38 +41,12 @@ REMOTE_ROOTS = [
     "/etc/nginx",
 ]
 
-
-def load_excludes() -> set[str]:
-    """Load exclude patterns from settings.json if available, else return empty set."""
-    configs_dir = os.environ.get("CONFIGS_PATH", "/app/configs")
-    settings_file = Path(configs_dir) / "settings.json"
-    if settings_file.exists():
-        try:
-            with open(settings_file, "r") as f:
-                data = json.load(f)
-                patterns = data.get("scan", {}).get("excludePatterns", [])
-                if isinstance(patterns, list):
-                    return set(patterns)
-        except Exception:
-            pass
-    return set()
-
-
 EXCLUDES = load_excludes()
-
-
-def _name_from_path(p: str) -> str:
-    return p.split("/").filter(None).pop() or p
 
 
 def is_excluded(name: str) -> bool:
     """Check if a folder name should be excluded. Supports wildcard patterns."""
-    if name in EXCLUDES:
-        return True
-    for pat in EXCLUDES:
-        if pat.startswith("*.") and name.endswith(pat[1:]):
-            return True
-    return False
+    return _is_excluded(name, EXCLUDES)
 
 
 def discover_local(mount_prefix: str, roots: list[str]) -> list[str]:
@@ -133,6 +109,7 @@ def discover_local(mount_prefix: str, roots: list[str]) -> list[str]:
 async def discover_remote(backend: HostAccess, roots: list[str]) -> list[str]:
     """BFS walk of remote server filesystem via SSH — until all folders are traversed."""
     all_folders: list[str] = []
+    depth = 0
 
     async def list_dir_safe(path: str) -> list[dict]:
         try:

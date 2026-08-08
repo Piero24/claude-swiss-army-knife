@@ -13,11 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get update && apt-get install -y --no-install-recommends docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
-# Build arg: relative path to shared permission engine
-ARG PERMISSION_ENGINE_PATH=shared/mcp-permission-engine
-
 # Install shared permission engine
-COPY ${PERMISSION_ENGINE_PATH} /tmp/permission-engine
+COPY mcp-servers/shared/mcp-permission-engine /tmp/permission-engine
 RUN pip install --no-cache-dir /tmp/permission-engine && \
     rm -rf /tmp/permission-engine
 
@@ -27,13 +24,12 @@ WORKDIR /app
 RUN pip install --no-cache-dir psutil
 
 # Copy source
-COPY pyproject.toml .
-COPY src/ ./src/
-COPY templates/ /app/templates/
+COPY mcp-servers/ubuntu-server/pyproject.toml .
+COPY mcp-servers/ubuntu-server/src/ ./src/
 
-# Install the package in development mode so it can be run
+# Install the package in development mode
 RUN pip install --no-cache-dir -e ".[remote]"
 
 # MCP server communicates over stdio — no port needed
 ENTRYPOINT ["python", "-m", "ubuntu_mcp"]
-CMD ["--config", "/app/config.yaml"]
+CMD ["--config-dir", "/app/configs/ubuntu-server"]

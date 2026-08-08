@@ -1,219 +1,46 @@
-"""Obsidian MCP — stdio server entry point."""
+"""Obsidian MCP — server class and tool dispatcher."""
 
 import argparse
 import asyncio
-import json
 import logging
 import os
-import subprocess
 from pathlib import Path
 
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 from permission_engine import BaseMCPServer
+from permission_engine.config_resolver import create_deny_all, resolve_user_config
+from permission_engine.config_watcher import watch_config
 
-from .config_watcher import watch_config
-from .frontmatter import build_frontmatter, get_tags, get_title, parse_frontmatter
+from .frontmatter import build_frontmatter, parse_frontmatter
+from .tool_definitions import get_tool_definitions
+from .tools.search import (
+    get_all_tags,
+    get_all_tags as _get_all_tags,
+    ripgrep_search,
+    ripgrep_search as _ripgrep_search,
+    search_by_tag,
+    search_by_tag as _search_by_tag,
+)
 from .vault_backend import LocalVaultBackend, create_backend
-from .wikilinks import extract_links, find_backlinks
+from .wikilinks import find_backlinks
 
 logger = logging.getLogger("obsidian-mcp")
 
-
-DENY_ALL = {
-    "server": {
-        "name": "obsidian",
-        "log_level": "INFO",
-        "audit_log": "/var/log/mcp/audit.log",
-    },
-    "permissions": {
-        "default_access": "none",
-        "paths": [],
-        "commands": [],
-        "default_command_access": "none",
-        "tools": [],
-        "default_tool_access": "none",
-    },
-}
-
-
-def _resolve_config(config_dir: str) -> dict:
-    """Load per-user config, or return deny-all if no file exists."""
-    import yaml as _yaml
-
-    user_id = os.environ.get("MCP_USER_ID", "")
-    if not user_id or user_id == "default":
-        return dict(DENY_ALL)
-    user_config = Path(config_dir) / f"{user_id}.yaml"
-    if user_config.exists():
-        with open(user_config, "r") as f:
-            return _yaml.safe_load(f) or dict(DENY_ALL)
-    return dict(DENY_ALL)
+DENY_ALL = create_deny_all("obsidian")
 
 
 class ObsidianServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
-        config = _resolve_config(config_dir)
-        # Write resolved config to a temp file for the permission engine
-        import tempfile
-
-        self._tmp_config = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        )
-        import yaml as _yaml
-
-        _yaml.dump(config, self._tmp_config)
-        self._tmp_config.flush()
-        super().__init__("obsidian-mcp", self._tmp_config.name)
+        tmp_path, config = resolve_user_config(config_dir, DENY_ALL)
+        super().__init__("obsidian-mcp", tmp_path)
         self.vault: LocalVaultBackend = create_backend(config)
         self.setup()
 
     def setup(self):
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
-            return [
-                Tool(
-                    name="obsidian_list_vault",
-                    description="List the vault directory structure.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "subfolder": {
-                                "type": "string",
-                                "description": "Subfolder to list (default: root).",
-                            },
-                            "depth": {
-                                "type": "integer",
-                                "description": "Max depth (default: 3).",
-                            },
-                        },
-                    },
-                ),
-                Tool(
-                    name="obsidian_read_note",
-                    description="Read a note's full content with parsed frontmatter.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Path relative to vault root.",
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ),
-                Tool(
-                    name="obsidian_write_note",
-                    description="Create or update a note.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Path relative to vault root.",
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "Markdown content.",
-                            },
-                            "frontmatter": {
-                                "type": "object",
-                                "description": "Optional YAML frontmatter to merge.",
-                            },
-                        },
-                        "required": ["path", "content"],
-                    },
-                ),
-                Tool(
-                    name="obsidian_delete_note",
-                    description="Delete a note (soft-delete to .trash/ by default).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Path relative to vault root.",
-                            },
-                            "permanent": {
-                                "type": "boolean",
-                                "description": "Permanently delete (default: false).",
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ),
-                Tool(
-                    name="obsidian_search_notes",
-                    description="Full-text search across all notes using ripgrep.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "Search query (supports regex).",
-                            },
-                            "max_results": {
-                                "type": "integer",
-                                "description": "Max results (default: 20).",
-                            },
-                            "regex": {
-                                "type": "boolean",
-                                "description": "Treat query as regex (default: false).",
-                            },
-                        },
-                        "required": ["query"],
-                    },
-                ),
-                Tool(
-                    name="obsidian_search_by_tag",
-                    description="Find all notes with a specific frontmatter tag.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "tag": {
-                                "type": "string",
-                                "description": "Tag to search for.",
-                            },
-                        },
-                        "required": ["tag"],
-                    },
-                ),
-                Tool(
-                    name="obsidian_get_backlinks",
-                    description="Find notes that link to a target note via [[wikilinks]].",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Target note path.",
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ),
-                Tool(
-                    name="obsidian_get_tags",
-                    description="List all unique tags used across the vault.",
-                    inputSchema={"type": "object", "properties": {}},
-                ),
-                Tool(
-                    name="obsidian_get_frontmatter",
-                    description="Read only the YAML frontmatter of a note.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "string",
-                                "description": "Path relative to vault root.",
-                            },
-                        },
-                        "required": ["path"],
-                    },
-                ),
-            ]
+            return get_tool_definitions()
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -223,8 +50,6 @@ class ObsidianServer(BaseMCPServer):
         match name:
             case "obsidian_list_vault":
                 subfolder = arguments.get("subfolder", "")
-                # Only check permission for non-root subfolders — the root
-                # is the vault itself, which is always readable.
                 if subfolder:
                     self.enforcer.check("read", subfolder, name)
                 entries = await self.vault.list_vault(
@@ -305,79 +130,6 @@ class ObsidianServer(BaseMCPServer):
                 raise ValueError(f"Unknown tool: {name}")
 
 
-def _ripgrep_search(
-    vault_root: str, query: str, max_results: int = 20, regex: bool = False
-) -> list[dict]:
-    """Search vault with ripgrep."""
-    cmd = [
-        "rg",
-        "--type",
-        "md",
-        "--line-number",
-        "--max-count",
-        str(max_results),
-    ]
-    if not regex:
-        cmd.append("--fixed-strings")
-    cmd.extend(["--", query, vault_root])
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        lines = (
-            result.stdout.strip().split("\n") if result.stdout.strip() else []
-        )
-        return [
-            {
-                "file": parts[0],
-                "line": int(parts[1]),
-                "snippet": ":".join(parts[2:]) if len(parts) > 2 else "",
-            }
-            for line in lines
-            if (parts := line.split(":", 2))
-        ]
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        logger.warning("ripgrep search failed: %s", e)
-        return [{"error": str(e)}]
-
-
-async def _search_by_tag(vault: LocalVaultBackend, tag: str) -> list[dict]:
-    """Find all notes containing a specific tag."""
-    results = []
-    for note_path in await vault.get_all_notes():
-        try:
-            content = note_path.read_text(encoding="utf-8")
-            tags = get_tags(content)
-            if tag in tags:
-                rel_path = str(note_path.relative_to(vault.root))
-                results.append(
-                    {
-                        "path": rel_path,
-                        "title": get_title(content, note_path.stem),
-                        "tags": tags,
-                    }
-                )
-        except Exception:
-            continue
-    return results
-
-
-async def _get_all_tags(vault: LocalVaultBackend) -> list[dict]:
-    """Get all unique tags with counts."""
-    tag_counts: dict[str, int] = {}
-    for note_path in await vault.get_all_notes():
-        try:
-            content = note_path.read_text(encoding="utf-8")
-            tags = get_tags(content)
-            for tag in tags:
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-        except Exception:
-            continue
-    return [
-        {"tag": tag, "count": count}
-        for tag, count in sorted(tag_counts.items(), key=lambda x: -x[1])
-    ]
-
-
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Obsidian MCP")
     parser.add_argument(
@@ -409,55 +161,14 @@ async def main() -> None:
         watch_config(Path(config_dir), app.reload_config)
     )
 
-    if args.transport == "sse":
-        from mcp.server.sse import SseServerTransport
-        from starlette.applications import Starlette
-        from starlette.routing import Route
-        import uvicorn
-
-        sse = SseServerTransport("/messages")
-
-        async def handle_sse(request):
-            async with sse.connect_sses(
-                request.scope, request.receive, request._send
-            ) as streams:
-                await app.server.run(
-                    streams[0],
-                    streams[1],
-                    app.server.create_initialization_options(),
-                )
-
-        async def handle_messages(request):
-            await sse.handle_post_message(
-                request.scope, request.receive, request._send
-            )
-
-        starlette_app = Starlette(
-            routes=[
-                Route("/sse", endpoint=handle_sse),
-                Route("/messages", endpoint=handle_messages, methods=["POST"]),
-            ]
-        )
-        logger.info("Obsidian MCP running in SSE mode on port %d", args.port)
-        config = uvicorn.Config(
-            starlette_app, host="0.0.0.0", port=args.port, log_level="info"
-        )
-        server = uvicorn.Server(config)
-        await server.serve()
-    else:
-        async with stdio_server() as (read_stream, write_stream):
-            logger.info("Obsidian MCP server running (stdio mode)")
-            await app.server.run(
-                read_stream,
-                write_stream,
-                app.server.create_initialization_options(),
-            )
-
-    watch_task.cancel()
     try:
-        await watch_task
-    except asyncio.CancelledError:
-        pass
+        await app.run(transport=args.transport, port=args.port)
+    finally:
+        watch_task.cancel()
+        try:
+            await watch_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":

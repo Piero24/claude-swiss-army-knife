@@ -9,40 +9,20 @@ from pathlib import Path
 from mcp.server.stdio import stdio_server
 from mcp_proxy import ProxyServer
 
+from permission_engine.config_resolver import create_deny_all, resolve_user_config
+
 logger = logging.getLogger("github-mcp")
+
+DENY_ALL_GITHUB = {
+    **create_deny_all("github-mcp"),
+    "proxy": {"command": "true", "args": []},
+}
 
 
 def _resolve_github_config(config_dir: str) -> str:
     """Resolve per-user config path, or return a deny-all temp file."""
-    import tempfile
-
-    import yaml
-
-    user_id = os.environ.get("MCP_USER_ID", "")
-    deny_all = {
-        "server": {
-            "name": "github-mcp",
-            "log_level": "INFO",
-            "audit_log": "/var/log/mcp/audit.log",
-        },
-        "proxy": {"command": "true", "args": []},
-        "permissions": {
-            "default_access": "none",
-            "tools": [],
-            "default_tool_access": "none",
-        },
-    }
-    if not user_id or user_id == "default":
-        config = deny_all
-    else:
-        user_config = Path(config_dir) / f"{user_id}.yaml"
-        if user_config.exists():
-            return str(user_config)
-        config = deny_all
-    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
-    yaml.dump(config, tmp)
-    tmp.flush()
-    return tmp.name
+    path, _ = resolve_user_config(config_dir, DENY_ALL_GITHUB)
+    return path
 
 
 async def main() -> None:

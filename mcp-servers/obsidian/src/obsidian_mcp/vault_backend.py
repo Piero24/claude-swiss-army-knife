@@ -6,7 +6,10 @@ from .vault import Vault
 
 
 class LocalVaultBackend:
-    """Direct filesystem access — wraps the existing Vault class."""
+    """Direct filesystem access — wraps the existing Vault class.
+
+    TODO(refactor): collapse LocalVaultBackend into Vault directly — single backend.
+    """
 
     def __init__(self, vault_path: str):
         self._vault = Vault(vault_path)

@@ -16,24 +16,9 @@ import os
 import sys
 from pathlib import Path
 
+from permission_engine.scan_excludes import is_excluded as _is_excluded, load_excludes
+
 from .dsm_client import DSMClient
-
-
-def load_excludes() -> set[str]:
-    """Load exclude patterns from settings.json if available, else return empty set."""
-    configs_dir = os.environ.get("CONFIGS_PATH", "/app/configs")
-    settings_file = Path(configs_dir) / "settings.json"
-    if settings_file.exists():
-        try:
-            with open(settings_file, "r") as f:
-                data = json.load(f)
-                patterns = data.get("scan", {}).get("excludePatterns", [])
-                if isinstance(patterns, list):
-                    return set(patterns)
-        except Exception:
-            pass
-    return set()
-
 
 DEFAULT_EXCLUDES = load_excludes()
 CANCEL_FILE = "/tmp/scan-cancel"
@@ -44,12 +29,7 @@ SCAN_DELAY_MS = 50
 
 def is_excluded(name: str) -> bool:
     """Check if a folder name should be excluded. Supports wildcards like *.app."""
-    if name in DEFAULT_EXCLUDES:
-        return True
-    for pat in DEFAULT_EXCLUDES:
-        if pat.startswith("*.") and name.endswith(pat[1:]):
-            return True
-    return False
+    return _is_excluded(name, DEFAULT_EXCLUDES)
 
 
 async def discover_folders() -> list[str]:

@@ -87,11 +87,8 @@ class TestModuleImports:
     def test_import_server(self):
         import ubuntu_mcp.server  # noqa: F401
 
-    def test_import_path_mapper(self):
-        import ubuntu_mcp.path_mapper  # noqa: F401
-
     def test_import_config_watcher(self):
-        import ubuntu_mcp.config_watcher  # noqa: F401
+        import permission_engine.config_watcher  # noqa: F401
 
     def test_import_tools_package(self):
         import ubuntu_mcp.tools  # noqa: F401

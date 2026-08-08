@@ -4,45 +4,18 @@ import argparse
 import asyncio
 import logging
 import os
-import re
 from pathlib import Path
 
-import yaml
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 from permission_engine import BaseMCPServer
+from permission_engine.config_resolver import create_deny_all, resolve_user_config
 
 from . import links as link_store
+from .tool_definitions import get_tool_definitions
 
 logger = logging.getLogger("link-manager-mcp")
 
-
-def _load_config(path: str) -> dict:
-    """Load the YAML config with env var substitution."""
-    with open(path, "r") as f:
-        raw = f.read()
-
-    def _sub(m):
-        var, _, default = m.group(1).partition(":-")
-        return os.environ.get(var, default) or default
-
-    raw = re.sub(r"\$\{([^}]+)\}", _sub, raw)
-    return yaml.safe_load(raw) or {}
-
-
-DENY_ALL_LINKS = {
-    "server": {
-        "name": "link-manager",
-        "log_level": "INFO",
-        "audit_log": "/var/log/mcp/audit.log",
-    },
-    "permissions": {
-        "default_access": "none",
-        "paths": [],
-        "tools": [],
-        "default_tool_access": "none",
-    },
-}
+DENY_ALL_LINKS = create_deny_all("link-manager")
 
 
 class LinkManagerServer(BaseMCPServer):
@@ -51,135 +24,29 @@ class LinkManagerServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
         self._config_dir = Path(config_dir)
-        # Resolve per-user config
         user_id = os.environ.get("MCP_USER_ID", "")
-        if not user_id or user_id == "default":
-            self._config_path = None
-            config = dict(DENY_ALL_LINKS)
-        else:
-            user_config = self._config_dir / f"{user_id}.yaml"
-            if user_config.exists():
-                self._config_path = user_config
-                config = _load_config(str(user_config))
-            else:
-                self._config_path = None
-                config = dict(DENY_ALL_LINKS)
-        import tempfile
-
-        self._tmp_config = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
+        self._config_path = (
+            self._config_dir / f"{user_id}.yaml"
+            if user_id and user_id != "default"
+            else None
         )
-        yaml.dump(config, self._tmp_config)
-        self._tmp_config.flush()
-        super().__init__("link-manager", self._tmp_config.name)
+        tmp_path, _ = resolve_user_config(config_dir, DENY_ALL_LINKS)
+        super().__init__("link-manager", tmp_path)
         self.setup()
 
     def _read_config(self) -> dict:
         """Re-read the config from disk."""
         if self._config_path and self._config_path.exists():
-            return _load_config(str(self._config_path))
+            import yaml
+
+            with open(self._config_path, "r") as f:
+                return yaml.safe_load(f) or {}
         return dict(DENY_ALL_LINKS)
 
     def setup(self):
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
-            return [
-                Tool(
-                    name="link_list",
-                    description="List all stored links, optionally filtered by category or tag.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "category": {
-                                "type": "string",
-                                "description": "Filter by category name.",
-                            },
-                            "tag": {
-                                "type": "string",
-                                "description": "Filter by tag.",
-                            },
-                        },
-                    },
-                ),
-                Tool(
-                    name="link_search",
-                    description="Search links by name, description, or URL (case-insensitive).",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "Search term to match against name, description, and URL.",
-                            },
-                        },
-                        "required": ["query"],
-                    },
-                ),
-                Tool(
-                    name="link_get",
-                    description="Get full details of a specific link by exact name.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Exact link name.",
-                            },
-                        },
-                        "required": ["name"],
-                    },
-                ),
-                Tool(
-                    name="link_categories",
-                    description="List all categories with the number of links in each.",
-                    inputSchema={"type": "object", "properties": {}},
-                ),
-                Tool(
-                    name="link_add",
-                    description="Add a new link to the collection. DESTRUCTIVE — enable only for trusted users.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Link name (must be unique).",
-                            },
-                            "url": {
-                                "type": "string",
-                                "description": "The URL.",
-                            },
-                            "description": {
-                                "type": "string",
-                                "description": "Optional description.",
-                            },
-                            "category": {
-                                "type": "string",
-                                "description": "Optional category.",
-                            },
-                            "tags": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Optional list of tags.",
-                            },
-                        },
-                        "required": ["name", "url"],
-                    },
-                ),
-                Tool(
-                    name="link_remove",
-                    description="Remove a link by name. DESTRUCTIVE — enable only for trusted users.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Exact name of the link to remove.",
-                            },
-                        },
-                        "required": ["name"],
-                    },
-                ),
-            ]
+            return get_tool_definitions()
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -190,19 +57,14 @@ class LinkManagerServer(BaseMCPServer):
 
         match name:
             case "link_list":
+                links = link_store.list_links(
+                    config,
+                    category=arguments.get("category"),
+                    tag=arguments.get("tag"),
+                )
                 return {
-                    "links": link_store.list_links(
-                        config,
-                        category=arguments.get("category"),
-                        tag=arguments.get("tag"),
-                    ),
-                    "count": len(
-                        link_store.list_links(
-                            config,
-                            category=arguments.get("category"),
-                            tag=arguments.get("tag"),
-                        )
-                    ),
+                    "links": links,
+                    "count": len(links),
                 }
 
             case "link_search":
@@ -227,7 +89,6 @@ class LinkManagerServer(BaseMCPServer):
                     category=arguments.get("category", ""),
                     tags=arguments.get("tags", []),
                 )
-                # Persist the config
                 self._save_config(config)
                 return {"added": True, "link": link}
 
@@ -268,12 +129,7 @@ async def main() -> None:
     app = LinkManagerServer(config_dir)
     logger.info("Link Manager MCP server starting (stdio mode)")
 
-    async with stdio_server() as (read_stream, write_stream):
-        await app.server.run(
-            read_stream,
-            write_stream,
-            app.server.create_initialization_options(),
-        )
+    await app.run(transport="stdio")
 
 
 if __name__ == "__main__":

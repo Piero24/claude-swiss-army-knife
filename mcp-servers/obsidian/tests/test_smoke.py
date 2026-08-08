@@ -79,4 +79,4 @@ class TestModuleImports:
         import obsidian_mcp.wikilinks  # noqa: F401
 
     def test_import_config_watcher(self):
-        import obsidian_mcp.config_watcher  # noqa: F401
+        import permission_engine.config_watcher  # noqa: F401

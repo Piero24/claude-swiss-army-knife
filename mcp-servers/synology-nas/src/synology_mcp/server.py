@@ -1,4 +1,4 @@
-"""Synology NAS MCP — stdio server entry point."""
+"""Synology NAS MCP — server class and tool dispatcher."""
 
 import argparse
 import asyncio
@@ -6,61 +6,24 @@ import logging
 import os
 from pathlib import Path
 
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 from permission_engine import BaseMCPServer
+from permission_engine.config_resolver import create_deny_all, resolve_user_config
+from permission_engine.config_watcher import watch_config
 
-from .config_watcher import watch_config
 from .dsm_client import DSMClient, _get_synology_setting
+from .tool_definitions import get_tool_definitions
 
 logger = logging.getLogger("synology-mcp")
 
-
-def _resolve_config(config_dir: str) -> dict:
-    """Load per-user config, or return deny-all if no file exists."""
-    import yaml as _yaml
-
-    user_id = os.environ.get("MCP_USER_ID", "")
-    if not user_id or user_id == "default":
-        return dict(DENY_ALL_SYNOLOGY)
-    user_config = Path(config_dir) / f"{user_id}.yaml"
-    if user_config.exists():
-        with open(user_config, "r") as f:
-            return _yaml.safe_load(f) or dict(DENY_ALL_SYNOLOGY)
-    return dict(DENY_ALL_SYNOLOGY)
-
-
-DENY_ALL_SYNOLOGY = {
-    "server": {
-        "name": "synology-nas",
-        "log_level": "INFO",
-        "audit_log": "/var/log/mcp/audit.log",
-    },
-    "permissions": {
-        "default_access": "none",
-        "paths": [],
-        "commands": [],
-        "default_command_access": "none",
-        "tools": [],
-        "default_tool_access": "none",
-    },
-}
+DENY_ALL_SYNOLOGY = create_deny_all("synology-nas")
 
 
 class SynologyServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
-        import yaml as _yaml
-
-        config = _resolve_config(config_dir)
-        import tempfile
-
-        self._tmp_config = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        )
-        _yaml.dump(config, self._tmp_config)
-        self._tmp_config.flush()
-        super().__init__("synology-mcp", self._tmp_config.name)
+        tmp_path, config = resolve_user_config(config_dir, DENY_ALL_SYNOLOGY)
+        super().__init__("synology-mcp", tmp_path)
 
         nas_host = os.environ.get("SYNOLOGY_NAS_HOST", "192.168.1.100")
         nas_port = os.environ.get("SYNOLOGY_NAS_PORT", "5001")
@@ -74,131 +37,7 @@ class SynologyServer(BaseMCPServer):
     def setup(self):
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
-            return [
-                Tool(
-                    name="syno_file_list",
-                    description="List files in a Synology shared folder.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "folder_path": {
-                                "type": "string",
-                                "description": "Path within a shared folder.",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Max entries (default: 500).",
-                            },
-                        },
-                        "required": ["folder_path"],
-                    },
-                ),
-                Tool(
-                    name="syno_file_read",
-                    description="Read a file from the Synology NAS.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "file_path": {
-                                "type": "string",
-                                "description": "Full path to the file.",
-                            },
-                        },
-                        "required": ["file_path"],
-                    },
-                ),
-                Tool(
-                    name="syno_file_write",
-                    description="Write/upload a file to the Synology NAS.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "folder_path": {
-                                "type": "string",
-                                "description": "Parent folder path.",
-                            },
-                            "filename": {
-                                "type": "string",
-                                "description": "Name of the file to create.",
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "File content.",
-                            },
-                        },
-                        "required": ["folder_path", "filename", "content"],
-                    },
-                ),
-                Tool(
-                    name="syno_file_delete",
-                    description="Delete a file or folder on the Synology NAS.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "file_path": {
-                                "type": "string",
-                                "description": "Full path to delete.",
-                            },
-                            "recursive": {
-                                "type": "boolean",
-                                "description": "Recursively delete folders (default: false).",
-                            },
-                        },
-                        "required": ["file_path"],
-                    },
-                ),
-                Tool(
-                    name="syno_file_move",
-                    description="Move/rename a file or folder on the Synology NAS.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "src_path": {
-                                "type": "string",
-                                "description": "Source path.",
-                            },
-                            "dst_path": {
-                                "type": "string",
-                                "description": "Destination path.",
-                            },
-                        },
-                        "required": ["src_path", "dst_path"],
-                    },
-                ),
-                Tool(
-                    name="syno_file_search",
-                    description="Search for files by name on the Synology NAS.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "Search query (name pattern).",
-                            },
-                            "folder_path": {
-                                "type": "string",
-                                "description": "Folder to search within (default: /).",
-                            },
-                        },
-                        "required": ["query"],
-                    },
-                ),
-                Tool(
-                    name="syno_system_info",
-                    description="Get Synology NAS system info: model, DSM version, CPU, RAM.",
-                    inputSchema={"type": "object", "properties": {}},
-                ),
-                Tool(
-                    name="syno_storage_info",
-                    description="Get Synology NAS storage: volumes, usage, disk health.",
-                    inputSchema={"type": "object", "properties": {}},
-                ),
-                Tool(
-                    name="syno_list_shares",
-                    description="List all shared folders on the Synology NAS.",
-                    inputSchema={"type": "object", "properties": {}},
-                ),
-            ]
+            return get_tool_definitions()
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -311,58 +150,17 @@ async def main() -> None:
         watch_config(Path(config_dir), app.reload_config)
     )
 
-    if args.transport == "sse":
-        from mcp.server.sse import SseServerTransport
-        from starlette.applications import Starlette
-        from starlette.routing import Route
-        import uvicorn
-
-        sse = SseServerTransport("/messages")
-
-        async def handle_sse(request):
-            async with sse.connect_sses(
-                request.scope, request.receive, request._send
-            ) as streams:
-                await app.server.run(
-                    streams[0],
-                    streams[1],
-                    app.server.create_initialization_options(),
-                )
-
-        async def handle_messages(request):
-            await sse.handle_post_message(
-                request.scope, request.receive, request._send
-            )
-
-        starlette_app = Starlette(
-            routes=[
-                Route("/sse", endpoint=handle_sse),
-                Route("/messages", endpoint=handle_messages, methods=["POST"]),
-            ]
-        )
-        logger.info("Synology MCP running in SSE mode on port %d", args.port)
-        config = uvicorn.Config(
-            starlette_app, host="0.0.0.0", port=args.port, log_level="info"
-        )
-        server = uvicorn.Server(config)
-        await server.serve()
-    else:
-        async with stdio_server() as (read_stream, write_stream):
-            logger.info("Synology MCP server running (stdio mode)")
-            await app.server.run(
-                read_stream,
-                write_stream,
-                app.server.create_initialization_options(),
-            )
-
-    watch_task.cancel()
     try:
-        await watch_task
-    except asyncio.CancelledError:
-        pass
+        await app.run(transport=args.transport, port=args.port)
+    finally:
+        watch_task.cancel()
+        try:
+            await watch_task
+        except asyncio.CancelledError:
+            pass
 
-    await app.dsm.logout()
-    await app.dsm.close()
+        await app.dsm.logout()
+        await app.dsm.close()
 
 
 if __name__ == "__main__":

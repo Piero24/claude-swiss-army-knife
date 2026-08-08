@@ -298,7 +298,7 @@ export default function DashboardPage() {
         <p>🟡 <span className="text-yellow-400">Idle</span>: container running, waiting for first request</p>
         <p>🟠 <span className="text-orange-400">Unconfigured</span>: container running but credentials appear to be defaults (check .env)</p>
         <p>🔴 <span className="text-red-400">Stopped</span>: container not running</p>
-        <p className="mt-2 text-gray-500">MCP servers communicate over stdio via SSH. Connect Claude Code to start using them.</p>
+        <p className="mt-2 text-gray-500">MCP servers communicate over stdio via the API gateway. Connect Claude Code to start using them.</p>
       </div>
     </div>
   );
