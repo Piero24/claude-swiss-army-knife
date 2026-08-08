@@ -24,22 +24,24 @@ class LinkManagerServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
         self._config_dir = Path(config_dir)
-        user_id = os.environ.get("MCP_USER_ID", "")
-        self._config_path = (
-            self._config_dir / f"{user_id}.yaml"
-            if user_id and user_id != "default"
-            else None
-        )
         tmp_path, _ = resolve_user_config(config_dir, DENY_ALL_LINKS)
         super().__init__("link-manager", tmp_path)
         self.setup()
 
+    def _resolve_config_path(self) -> Path | None:
+        """Resolve the per-user config file using the request-time user ID."""
+        user_id = self._request_user_id_val or os.environ.get("MCP_USER_ID", "")
+        if user_id and user_id != "default":
+            return self._config_dir / f"{user_id}.yaml"
+        return None
+
     def _read_config(self) -> dict:
         """Re-read the config from disk."""
-        if self._config_path and self._config_path.exists():
+        config_path = self._resolve_config_path()
+        if config_path and config_path.exists():
             import yaml
 
-            with open(self._config_path, "r") as f:
+            with open(config_path, "r") as f:
                 return yaml.safe_load(f) or {}
         return dict(DENY_ALL_LINKS)
 
@@ -103,12 +105,13 @@ class LinkManagerServer(BaseMCPServer):
 
     def _save_config(self, config: dict) -> None:
         """Write the config back to disk."""
-        if not self._config_path:
+        config_path = self._resolve_config_path()
+        if not config_path:
             logger.warning("Cannot save config: no per-user config resolved")
             return
         import yaml as yaml_writer
 
-        with open(self._config_path, "w") as f:
+        with open(config_path, "w") as f:
             yaml_writer.dump(
                 config, f, default_flow_style=False, allow_unicode=True
             )
