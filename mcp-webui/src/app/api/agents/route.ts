@@ -169,7 +169,7 @@ export async function PUT(request: Request) {
     const validated = usersSchema.parse(body);
 
     // Load old config to detect new/deleted users and preserve existing keys
-    let oldUserMap: Record<string, { key: string }> = {};
+    const oldUserMap: Record<string, { key: string }> = {};
     try {
       const oldRaw = await fs.readFile(USERS_PATH, "utf-8");
       const oldData = yaml.load(oldRaw) as Record<string, unknown>;
