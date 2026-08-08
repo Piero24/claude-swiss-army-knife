@@ -193,7 +193,6 @@ async def handle_sse(
         )
 
 
-
 @app.post("/mcp/{server_name}/messages")
 async def handle_messages(
     server_name: str,
@@ -251,4 +250,3 @@ async def handle_messages(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to post message to target server '{server_name}' at {url}: {e}",
         )
-
