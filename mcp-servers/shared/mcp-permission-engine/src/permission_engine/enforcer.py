@@ -182,7 +182,12 @@ class PermissionEnforcer:
         from .users import AuthenticationError, load_users, validate_user
 
         if not users_config_path:
-            users_config_path = str(self._config_path.parent / "users.yaml")
+            users_path = self._config_path.parent / "users.yaml"
+            if not users_path.exists():
+                users_path = self._config_path.parent.parent / "users.yaml"
+            if not users_path.exists():
+                users_path = Path("/app/configs/users.yaml")
+            users_config_path = str(users_path)
 
         users = load_users(users_config_path)
         validate_user(users, user_id, user_key)
@@ -207,7 +212,13 @@ class PermissionEnforcer:
         """
         from .users import load_users
 
-        users = load_users(str(self._config_path.parent / "users.yaml"))
+        users_path = self._config_path.parent / "users.yaml"
+        if not users_path.exists():
+            users_path = self._config_path.parent.parent / "users.yaml"
+        if not users_path.exists():
+            users_path = Path("/app/configs/users.yaml")
+
+        users = load_users(str(users_path))
 
         # Step 1: Check user existence
         if not users.users:
