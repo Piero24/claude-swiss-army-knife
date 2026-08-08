@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from .enforcer import PermissionEnforcer, _current_user_id, _observed_subagent_id
@@ -19,6 +21,47 @@ _request_user_key: contextvars.ContextVar[str] = contextvars.ContextVar(
 )
 
 logger = logging.getLogger("mcp-base-server")
+
+_TOP_LEVEL_KEY = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*)$")
+
+
+def extract_server_prompt(yaml_path: Path) -> str | None:
+    """Read ONLY the top-level ``server:`` block; never parse the full file.
+
+    Stops at the next top-level YAML key so that massive ``permissions:``
+    sections (200k+ lines on Synology) are never touched.
+    """
+    try:
+        lines = yaml_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    block: list[str] = []
+    in_server = False
+    for line in lines:
+        m = _TOP_LEVEL_KEY.match(line)
+        if m:
+            if m.group(1) == "server":
+                in_server = True
+                block.append(line)
+                continue
+            if in_server:
+                break
+        elif in_server:
+            block.append(line)
+    if not block:
+        return None
+    try:
+        import yaml
+
+        data = yaml.safe_load("\n".join(block)) or {}
+        prompt = data.get("prompt")
+    except Exception:
+        return None
+    if not isinstance(prompt, str) or not prompt.strip():
+        return None
+    from .config import _resolve_env_vars
+
+    return _resolve_env_vars(prompt)
 
 
 def _import_mcp():
@@ -37,25 +80,61 @@ class BaseMCPServer:
     - Configuration loading and reloading
     """
 
-    def __init__(self, name: str, config_path: str):
+    def __init__(self, name: str, config_path: str, config_dir: str | None = None):
         Server, _ = _import_mcp()
         self.server = Server(name)
         self.config_path = config_path
+        self.config_dir = Path(config_dir) if config_dir else None
         self.enforcer = PermissionEnforcer(config_path)
         # Per-request user info — set by handle_messages before each tool call.
         # Context vars don't propagate across asyncio task boundaries
         # (SSE and /messages are separate HTTP requests → separate tasks).
         self._request_user_id_val: str = ""
         self._request_user_key_val: str = ""
+        self._prompts: dict[str, str] = self._load_prompts()
 
     def reload_config(self) -> None:
-        """Reload the permission enforcer config."""
+        """Reload the permission enforcer config and refresh prompt cache."""
         self.enforcer.reload()
+        self._prompts = self._load_prompts()
         logger.info(
-            "Config reloaded — %d path rules, %d command rules",
+            "Config reloaded — %d path rules, %d command rules, %d prompts",
             len(self.enforcer.config.permissions.paths),
             len(self.enforcer.config.permissions.commands),
+            len(self._prompts),
         )
+
+    def _load_prompts(self) -> dict[str, str]:
+        """Scan config_dir for per-user YAMLs and extract server.prompt from each.
+
+        Only the ``server:`` block is ever parsed — the ``permissions:``
+        section is structurally skipped.
+        """
+        prompts: dict[str, str] = {}
+        if not self.config_dir or not self.config_dir.exists():
+            return prompts
+        for f in sorted(self.config_dir.glob("*.yaml")):
+            if f.name.startswith("."):
+                continue
+            prompt = extract_server_prompt(f)
+            if prompt:
+                prompts[f.stem] = prompt
+        logger.debug("Loaded %d user prompts from %s", len(prompts), self.config_dir)
+        return prompts
+
+    def _current_user_id_for_init(self) -> str:
+        """Return the user ID for the current initialization handshake."""
+        return _request_user_id.get() or os.environ.get("MCP_USER_ID", "")
+
+    def create_initialization_options(self):
+        """Return init options with the connecting user's prompt injected."""
+        opts = dict(self.server.create_initialization_options())
+        user_id = self._current_user_id_for_init()
+        if user_id and user_id != "default":
+            prompt = self._prompts.get(user_id)
+            if prompt:
+                opts["instructions"] = prompt
+        return opts
 
     def _text(self, text: str) -> list:
         """Build a TextContent list from a JSON string."""
@@ -157,7 +236,7 @@ class BaseMCPServer:
                     await self.server.run(
                         streams[0],
                         streams[1],
-                        self.server.create_initialization_options(),
+                        self.create_initialization_options(),
                     )
                 return Response()
 
@@ -196,5 +275,5 @@ class BaseMCPServer:
                 await self.server.run(
                     read_stream,
                     write_stream,
-                    self.server.create_initialization_options(),
+                    self.create_initialization_options(),
                 )

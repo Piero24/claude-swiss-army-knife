@@ -38,6 +38,7 @@ export interface ServerConfig {
     name: string;
     log_level: string;
     audit_log: string;
+    prompt?: string;
   };
   permissions: {
     default_access: AccessLevel;
