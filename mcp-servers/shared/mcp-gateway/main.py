@@ -211,11 +211,27 @@ async def handle_sse(
             content=request.stream(),
         )
         res = await client.send(req, stream=True)
+
+        async def sse_stream():
+            try:
+                async for line in res.aiter_lines():
+                    if line.startswith("data: /messages"):
+                        line = f"data: /mcp/{server_name}" + line[6:]
+                    elif line.startswith("data: messages"):
+                        line = f"data: /mcp/{server_name}/" + line[6:]
+                    yield (line + "\n").encode("utf-8")
+            finally:
+                await res.aclose()
+                await client.aclose()
+
+        response_headers = dict(res.headers)
+        response_headers.pop("content-length", None)
+        response_headers.pop("transfer-encoding", None)
+
         return StreamingResponse(
-            res.aiter_raw(),
+            sse_stream(),
             status_code=res.status_code,
-            headers=dict(res.headers),
-            background=httpx.Response.aclose,
+            headers=response_headers,
         )
     except Exception as e:
         logger.error("Error proxying to target %s: %s", url, e)
