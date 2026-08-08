@@ -313,6 +313,26 @@ export async function updateAgent(
   });
 }
 
+// ── Prompt ────────────────────────────────────────────
+
+export async function getPrompt(
+  server: string,
+  userId: string
+): Promise<{ prompt: string }> {
+  return fetchJSON(`${BASE}/config/${server}/prompt?user=${encodeURIComponent(userId)}`);
+}
+
+export async function updatePrompt(
+  server: string,
+  userId: string,
+  prompt: string
+): Promise<{ saved: boolean }> {
+  return fetchJSON(`${BASE}/config/${server}/prompt?user=${encodeURIComponent(userId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
 // ── Links ───────────────────────────────────────────
 
 export async function addLink(

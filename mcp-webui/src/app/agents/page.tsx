@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAgents, updateAgentsSettings, updateAgent, scanServer } from "@/lib/api";
+import { getAgents, updateAgentsSettings, updateAgent, scanServer, getPrompt, updatePrompt } from "@/lib/api";
 import type { UserConfig, UsersConfig } from "@/lib/types";
-import { getServers } from "@/lib/servers";
+import { getServers, type ServerMeta } from "@/lib/servers";
 import { toast } from "sonner";
 import { Plus, Shield, X, Code, Copy, Check } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
@@ -42,12 +42,38 @@ export default function AgentsPage() {
   const [jsonModalUser, setJsonModalUser] = useState<{ id: string; name: string; secret: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // ── Prompt editor state ──
+  const [promptUser, setPromptUser] = useState<string>("");
+  const [promptServer, setPromptServer] = useState<string>("");
+  const [promptText, setPromptText] = useState<string>("");
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [serversList, setServersList] = useState<ServerMeta[]>([]);
+
   useEffect(() => {
     getAgents()
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  // Load available servers for the prompt dropdown
+  useEffect(() => {
+    getServers().then(setServersList).catch(() => {});
+  }, []);
+
+  // Load prompt when user+server are both selected
+  useEffect(() => {
+    if (!promptUser || !promptServer) {
+      setPromptText("");
+      return;
+    }
+    setPromptLoading(true);
+    getPrompt(promptServer, promptUser)
+      .then((res) => setPromptText(res.prompt || ""))
+      .catch(() => toast.error("Failed to load prompt"))
+      .finally(() => setPromptLoading(false));
+  }, [promptUser, promptServer]);
 
   async function handleSave() {
     if (!data) return;
@@ -147,6 +173,19 @@ export default function AgentsPage() {
       users: data.users.filter((u) => u.id !== userId),
     });
     toast.success("User removed: click Save to persist");
+  }
+
+  async function handleSavePrompt() {
+    if (!promptUser || !promptServer) return;
+    setPromptSaving(true);
+    try {
+      await updatePrompt(promptServer, promptUser, promptText);
+      toast.success("Prompt saved — active on next Claude connection");
+    } catch {
+      toast.error("Failed to save prompt");
+    } finally {
+      setPromptSaving(false);
+    }
   }
 
   function getMcpJsonSnippet(userId: string, secretKey: string) {
@@ -332,6 +371,62 @@ export default function AgentsPage() {
             rowKey={(u) => u.id}
             emptyMessage="No users configured"
           />
+        )}
+      </section>
+
+      {/* ── Prompt editor ── */}
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold mb-1">User MCP Prompts</h2>
+        <p className="text-xs text-gray-400 mb-3">
+          Custom instructions sent to Claude before it calls any tools for this user and MCP server.
+          Changes take effect on the next connection.
+        </p>
+
+        <div className="flex gap-3 mb-3">
+          <select
+            value={promptUser}
+            onChange={(e) => setPromptUser(e.target.value)}
+            className="rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select user…</option>
+            {data.users.filter((u) => u.enabled).map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} ({u.id})
+              </option>
+            ))}
+          </select>
+          <select
+            value={promptServer}
+            onChange={(e) => setPromptServer(e.target.value)}
+            className="rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select MCP server…</option>
+            {serversList.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.label} ({s.name})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {promptUser && promptServer && (
+          <>
+            <textarea
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+              placeholder="e.g. Never run docker compose down. Always check service status after restarting. This is a production server — ask before stopping any container."
+              rows={6}
+              disabled={promptLoading}
+              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            />
+            <button
+              onClick={handleSavePrompt}
+              disabled={promptSaving || promptLoading}
+              className="mt-2 px-4 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 font-medium"
+            >
+              {promptSaving ? "Saving…" : "Save Prompt"}
+            </button>
+          </>
         )}
       </section>
 

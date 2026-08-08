@@ -35,13 +35,18 @@ class ProxyServer(BaseMCPServer):
     directory in each proxy server for examples.
     """
 
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, config_dir: str | None = None):
         self._config_path = Path(config_path).resolve()
         self._raw_config: dict[str, Any] = {}
         self._reload_config()
-        super().__init__(self._raw_config["server"]["name"], config_path)
+        super().__init__(
+            self._raw_config["server"]["name"],
+            config_path,
+            config_dir=config_dir,
+        )
         self._proc: Optional[asyncio.subprocess.Process] = None
         self._tools_cache: list[dict] = []
+        self._init_lock = asyncio.Lock()
         self._request_id = 0
         self._hooks: dict[str, list] = {}
         self._load_custom()
@@ -84,6 +89,23 @@ class ProxyServer(BaseMCPServer):
         with open(self._config_path, "r") as f:
             self._raw_config = yaml.safe_load(f) or {}
 
+    def reload_config(self) -> None:
+        """Reload enforcer, prompts, raw proxy YAML, and tool cache."""
+        super().reload_config()
+        self._reload_config()
+        self._tools_cache = []
+        self.warm_up()
+
+    # ── Tool-name resolution for prompt injection ──────────
+
+    def _get_tool_names(self) -> set[str]:
+        """Return actual tool names from the subprocess cache."""
+        return {
+            t.get("name")
+            for t in self._tools_cache
+            if isinstance(t, dict) and t.get("name")
+        }
+
     def _proxy_config(self) -> ProxyConfig:
         raw = self._raw_config.get("proxy", {})
         return ProxyConfig(**raw)
@@ -124,9 +146,37 @@ class ProxyServer(BaseMCPServer):
             raise RuntimeError("Subprocess closed stdout")
         return json.loads(line.decode())
 
+    def warm_up(self) -> None:
+        """Fire-and-forget tool-cache warm-up so the first connection sees
+        resolved tool names instead of raw glob patterns."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        loop.create_task(self._warm())
+
+    async def _warm(self) -> None:
+        try:
+            await self._initialize_and_cache()
+        except Exception:
+            logger.warning("Tool cache warm-up failed", exc_info=True)
+
     async def _initialize_and_cache(self) -> None:
-        """Initialize the subprocess and cache available tools."""
-        await self._ensure_subprocess()
+        """Initialize the subprocess and cache available tools (idempotent)."""
+        if (
+            self._tools_cache
+            and self._proc is not None
+            and self._proc.returncode is None
+        ):
+            return
+        async with self._init_lock:
+            if (
+                self._tools_cache
+                and self._proc is not None
+                and self._proc.returncode is None
+            ):
+                return
+            await self._ensure_subprocess()
         init = await self._send_request(
             "initialize",
             {

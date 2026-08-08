@@ -100,3 +100,52 @@ YAML was chosen over JSON for configuration because:
 - More readable for nested permission rules
 - Multi-line strings for descriptions
 - Environment variable substitution (`!ENV` tags) for secrets
+
+### Why load configuration at startup instead of per-request?
+
+All per-user YAML configuration is read and cached at server startup — never during
+a request. This is a deliberate trade-off driven by the size of scanned file-system
+data.
+
+A single Synology NAS scan can produce **200,000+ path entries** — one YAML rule per
+file discovered. That file is 50+ MB and would take 1–2 seconds to parse with a
+C-based YAML parser, and far longer with a pure-Python one. Doing that on every
+incoming MCP request would introduce unacceptable latency and CPU churn. Instead,
+the server pays the cost once:
+
+```
+startup (or hot-reload)
+  ├── read each per-user YAML from config_dir
+  │     ├── scan first ~20 lines  → extract server block (name, prompt, …)
+  │     ├── skip to end of file   → extract tools block (active tool patterns)
+  │     └── never touch the paths block in between
+  ├── cache: {user_id → prompt, tool_rules, default_access}
+  └── done in ~35 ms per file
+
+incoming MCP initialize request
+  ├── lookup user_id in cache (dict[].get, O(1))
+  ├── resolve fnmatch patterns against tool catalog
+  └── compose instructions → inject into InitializeResult
+```
+
+This is possible because only two small sections of the YAML are needed at runtime:
+the **`server:`** block (a few lines at the top) and the **`permissions.tools:`**
+block (a few dozen lines at the very end, after the massive paths list). A
+line-scan approach reads those sections without ever parsing the full document —
+`yaml.safe_load` is called only on the extracted fragments, never on the 200k-line
+whole.
+
+The cost is paid in two moments: once at startup, and once on each config reload
+(triggered by the Web UI writing a change). In practice, reloads are infrequent
+(admin edits a user's permissions) and welcome the slight pause for freshness.
+Requests stay fast — a dictionary lookup and a string join.
+
+The same principle extends to **per-user prompts** and **active tool lists**: both
+are extracted during the same single-pass file read, cached alongside the enforcer
+config, and injected into the MCP `InitializeResult.instructions` without touching
+the file again.
+
+This pattern — *parse once, cache, serve from memory* — is the backbone of every
+performance-sensitive path in the permission engine. The hot-reload watcher
+([hot-reload.md](/docs/dev/permission-engine/hot-reload)) keeps the caches fresh
+without restarting the server.

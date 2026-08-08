@@ -90,6 +90,11 @@ class ServerInfo(BaseModel):
     audit_log: str = Field(
         default="/var/log/mcp/audit.log", description="Path to audit log file"
     )
+    prompt: Optional[str] = Field(
+        default=None,
+        description="Instructions sent to Claude before any tool calls "
+        "(returned via InitializeResult.instructions)",
+    )
 
 
 class PermissionsConfig(BaseModel):

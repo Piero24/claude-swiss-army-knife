@@ -9,6 +9,7 @@ from pathlib import Path
 from mcp.types import TextContent, Tool
 from permission_engine import BaseMCPServer
 from permission_engine.config_resolver import create_deny_all, resolve_user_config
+from permission_engine.config_watcher import watch_config
 
 from . import links as link_store
 from .tool_definitions import get_tool_definitions
@@ -25,7 +26,12 @@ class LinkManagerServer(BaseMCPServer):
     def __init__(self, config_dir: str):
         self._config_dir = Path(config_dir)
         tmp_path, _ = resolve_user_config(config_dir, DENY_ALL_LINKS)
-        super().__init__("link-manager", tmp_path)
+        super().__init__(
+            "link-manager",
+            tmp_path,
+            config_dir=config_dir,
+            tool_names=[t.name for t in get_tool_definitions()],
+        )
         self.setup()
 
     def _resolve_config_path(self) -> Path | None:
@@ -144,7 +150,18 @@ async def main() -> None:
     app = LinkManagerServer(config_dir)
     logger.info("Link Manager MCP server starting (%s mode)", args.transport)
 
-    await app.run(transport=args.transport, port=args.port)
+    watch_task = asyncio.create_task(
+        watch_config(Path(config_dir), app.reload_config)
+    )
+
+    try:
+        await app.run(transport=args.transport, port=args.port)
+    finally:
+        watch_task.cancel()
+        try:
+            await watch_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":
