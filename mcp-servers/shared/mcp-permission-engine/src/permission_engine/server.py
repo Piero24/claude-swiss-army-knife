@@ -125,9 +125,10 @@ class BaseMCPServer:
             sse = SseServerTransport("/messages")
 
             async def handle_sse(request):
-                async with sse.connect_sses(
+                async with sse.connect_sse(
                     request.scope, request.receive, request._send
                 ) as streams:
+
                     await self.server.run(
                         streams[0],
                         streams[1],

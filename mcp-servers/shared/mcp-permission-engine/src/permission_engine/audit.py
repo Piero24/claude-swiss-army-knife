@@ -80,16 +80,16 @@ class AuditLogger:
             **fields,
         }
 
-        # Ensure parent directory exists
-        self._log_path.parent.mkdir(parents=True, exist_ok=True)
-
-        line = (
-            json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n"
-        )
-
-        # Append atomically (rename-based would be safer but JSON Lines is append-friendly)
-        with open(self._log_path, "a") as f:
-            f.write(line)
+        try:
+            self._log_path.parent.mkdir(parents=True, exist_ok=True)
+            line = (
+                json.dumps(entry, ensure_ascii=False, separators=(",", ":"))
+                + "\n"
+            )
+            with open(self._log_path, "a") as f:
+                f.write(line)
+        except Exception:
+            pass
 
 
 def read_audit_log(

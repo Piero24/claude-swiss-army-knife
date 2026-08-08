@@ -38,25 +38,53 @@ USERS_FILE = CONFIGS_DIR / "users.yaml"
 
 
 CONTAINER_TARGETS = {
-    "ubuntu-server": "http://ubuntu-mcp:8000",
-    "ubuntu-mcp": "http://ubuntu-mcp:8000",
-    "obsidian": "http://obsidian-mcp:8000",
-    "obsidian-mcp": "http://obsidian-mcp:8000",
-    "synology-nas": "http://synology-mcp:8000",
-    "synology-mcp": "http://synology-mcp:8000",
-    "github": "http://github-mcp:8000",
-    "github-mcp": "http://github-mcp:8000",
-    "link-manager": "http://link-manager-mcp:8000",
-    "link-manager-mcp": "http://link-manager-mcp:8000",
+    "ubuntu-server": [
+        "http://ubuntu-mcp:8000",
+        "http://host.docker.internal:8000",
+        "http://172.17.0.1:8000",
+    ],
+    "ubuntu-mcp": [
+        "http://ubuntu-mcp:8000",
+        "http://host.docker.internal:8000",
+        "http://172.17.0.1:8000",
+    ],
+    "obsidian": ["http://obsidian-mcp:8000"],
+    "obsidian-mcp": ["http://obsidian-mcp:8000"],
+    "synology-nas": ["http://synology-mcp:8000"],
+    "synology-mcp": ["http://synology-mcp:8000"],
+    "github": ["http://github-mcp:8000"],
+    "github-mcp": ["http://github-mcp:8000"],
+    "link-manager": [
+        "http://link-manager-mcp:8000",
+        "http://link-manager:8000",
+    ],
+    "link-manager-mcp": [
+        "http://link-manager-mcp:8000",
+        "http://link-manager:8000",
+    ],
 }
 
 
-def _resolve_target_base(server_name: str) -> str | None:
-    if server_name in CONTAINER_TARGETS:
-        return CONTAINER_TARGETS[server_name]
-    if f"{server_name}-mcp" in CONTAINER_TARGETS:
-        return CONTAINER_TARGETS[f"{server_name}-mcp"]
-    return f"http://{server_name}:8000"
+async def _resolve_target_base(server_name: str) -> str:
+    targets = (
+        CONTAINER_TARGETS.get(server_name)
+        or CONTAINER_TARGETS.get(f"{server_name}-mcp")
+        or [f"http://{server_name}:8000"]
+    )
+    if isinstance(targets, str):
+        targets = [targets]
+
+    if len(targets) == 1:
+        return targets[0]
+
+    for target in targets:
+        try:
+            async with httpx.AsyncClient(timeout=1.5) as client:
+                res = await client.get(target)
+                return target
+        except Exception:
+            continue
+    return targets[0]
 
 
 def _extract_credentials(
@@ -97,17 +125,21 @@ def _verify_and_enforce(
         server_config_file = CONFIGS_DIR / f"{server_name}.yaml"
 
     if server_config_file.exists():
-        enforcer = PermissionEnforcer(str(server_config_file))
-
         try:
-            if tool_name:
-                enforcer.check_tool_access(user_id, tool_name)
+            enforcer = PermissionEnforcer(str(server_config_file))
+            enforcer.check_tool_access(user_id, tool_name or "")
         except ForbiddenError as e:
             logger.warning(
                 "Access denied for user=%s tool=%s: %s", user_id, tool_name, e
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
+            )
+        except Exception as e:
+            logger.error("Enforcer error for user=%s: %s", user_id, e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Enforcer error: {e}",
             )
 
 
@@ -126,7 +158,7 @@ async def handle_sse(
     user_id, user_key = _extract_credentials(authorization, x_mcp_user_id)
     _verify_and_enforce(server_name, user_id, user_key)
 
-    target_base = _resolve_target_base(server_name)
+    target_base = await _resolve_target_base(server_name)
     if not target_base:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -175,7 +207,7 @@ async def handle_messages(
         server_name, user_id, user_key, tool_name=tool_name, tool_args=tool_args
     )
 
-    target_base = _resolve_target_base(server_name)
+    target_base = await _resolve_target_base(server_name)
     if not target_base:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

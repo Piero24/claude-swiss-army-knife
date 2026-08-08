@@ -16,8 +16,11 @@ services:
       dockerfile: mcp-servers/shared/mcp-gateway/Dockerfile
     image: mcp-gateway:latest
     container_name: mcp-gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8281:8280"
+
 
     volumes:
       - ./configs:/app/configs:ro
