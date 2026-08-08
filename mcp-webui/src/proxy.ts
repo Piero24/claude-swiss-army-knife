@@ -1,4 +1,4 @@
-/** Next.js middleware — auth guard for all /api/* routes except /api/auth. */
+/** Next.js proxy — auth guard for all /api/* routes except /api/auth. */
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -6,7 +6,7 @@ import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { sessionOptions } from "@/lib/auth";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow auth endpoint
@@ -14,7 +14,6 @@ export async function middleware(request: NextRequest) {
 
   // Allow health check endpoints
   if (pathname.startsWith("/api/health")) return NextResponse.next();
-
 
   // Protect all other /api/* routes
   if (pathname.startsWith("/api/")) {

@@ -1,25 +1,75 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import type { AccessLevel, CommandAccess, AuditEntry, CommandRule, PathRule, ServerConfig, ServerName, LinkItem } from "@/lib/types";
-import { getConfig, getFolders, getServersStatus, updatePathRule, updateCommandRule, deletePathRule, deleteCommandRule, addPathRule, addCommandRule, getAuditLog, getSettings, bulkSetAccess, bulkUpdatePathRules, cascadePathAccess, scanServer, addToolRule, updateToolRule, deleteToolRule, addLink, deleteLink, getAgents } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import type { AccessLevel, CommandAccess, AuditEntry, ServerConfig } from "@/lib/types";
+import {
+  getConfig,
+  getFolders,
+  getServersStatus,
+  updatePathRule,
+  updateCommandRule,
+  deletePathRule,
+  deleteCommandRule,
+  addPathRule,
+  addCommandRule,
+  getAuditLog,
+  getSettings,
+  bulkSetAccess,
+  cascadePathAccess,
+  scanServer,
+  addToolRule,
+  updateToolRule,
+  deleteToolRule,
+  addLink,
+  deleteLink,
+  getAgents,
+} from "@/lib/api";
 import type { FolderNode } from "@/lib/api";
-import FolderTree from "@/components/FolderTree";
 import PageHeader from "@/components/PageHeader";
-import Modal from "@/components/Modal";
-import Badge from "@/components/Badge";
-import DataTable from "@/components/DataTable";
-import type { Column } from "@/components/DataTable";
-import { AccessToggles, CommandToggles } from "@/components/AccessToggles";
+import UserSelector, { type UserItem } from "@/components/common/UserSelector";
+import { ServerStatsBar } from "@/components/server/ServerStatsBar";
+import { PathRulesSection } from "@/components/server/PathRulesSection";
+import { CommandRulesSection } from "@/components/server/CommandRulesSection";
+import { ToolRulesSection } from "@/components/server/ToolRulesSection";
+import { LinksSection } from "@/components/server/LinksSection";
+import { AuditLogSection } from "@/components/server/AuditLogSection";
+import { AddRuleDialog, AddLinkModal, BulkConfirmModal } from "@/components/server/ServerModals";
 import { toast } from "sonner";
-import { ExternalLink, Folders, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 export default function ServerDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const server = params.server as string;
-  const serverLabel = server.replace(/-server$/, "").replace(/-mcp$/, "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const serverLabel = server
+    .replace(/-server$/, "")
+    .replace(/-mcp$/, "")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const [config, setConfig] = useState<ServerConfig | null>(null);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditPageSize, setAuditPageSize] = useState(50);
+  const [loading, setLoading] = useState(true);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [showAddPath, setShowAddPath] = useState(false);
+  const [showAddCmd, setShowAddCmd] = useState(false);
+  const [showAddTool, setShowAddTool] = useState(false);
+  const [showAddLink, setShowAddLink] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [lastScan, setLastScan] = useState<string | null>(() => {
+    if (typeof window !== "undefined") return localStorage.getItem(`lastScan_${server}`) || null;
+    return null;
+  });
+  const [folders, setFolders] = useState<FolderNode[]>([]);
+  const [serverEnabled, setServerEnabled] = useState(true);
+  const [toggling, setToggling] = useState(false);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+
   function sectionVisible(name: string): boolean {
     if (!config) return true;
     const raw = config as unknown as Record<string, unknown>;
@@ -28,46 +78,14 @@ export default function ServerDetailPage() {
     return sections[name] !== false;
   }
 
-  const [config, setConfig] = useState<ServerConfig | null>(null);
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
-  const [auditTotal, setAuditTotal] = useState(0);
-  const [auditPage, setAuditPage] = useState(0);
-  const [auditPageSize, setAuditPageSize] = useState(50);
-  const [expandedLogIdx, setExpandedLogIdx] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [auditLoading, setAuditLoading] = useState(false);
-  const [showAddPath, setShowAddPath] = useState(false);
-  const [showAddCmd, setShowAddCmd] = useState(false);
-  const [showAddTool, setShowAddTool] = useState(false);
-  const [showAddLink, setShowAddLink] = useState(false);
-  const [newLinkData, setNewLinkData] = useState({ name: "", url: "", description: "", category: "documentation", tags: "" });
-  const [bulkConfirm, setBulkConfirm] = useState<{ access: AccessLevel; type: "paths" | "commands" } | null>(null);
-  const [pathSearch, setPathSearch] = useState("");
-  const [pathAccessFilter, setPathAccessFilter] = useState<AccessLevel | "all">("all");
-  const [logSearch, setLogSearch] = useState("");
-  const [logAccessFilter, setLogAccessFilter] = useState<AccessLevel | "all">("all");
-  const [logResultFilter, setLogResultFilter] = useState<"all" | "allowed" | "denied">("all");
-  const [logDateFilter, setLogDateFilter] = useState<"all" | "hour" | "today" | "week">("all");
-  const [linkSearch, setLinkSearch] = useState("");
-  const [scanning, setScanning] = useState(false);
-  const [lastScan, setLastScan] = useState<string | null>(() => {
-    if (typeof window !== "undefined") return localStorage.getItem(`lastScan_${server}`) || null;
-    return null;
-  });
-  const [folders, setFolders] = useState<FolderNode[]>([]);
-  const [collapseKey, setCollapseKey] = useState(0);
-  const [serverEnabled, setServerEnabled] = useState(true);
-  const [toggling, setToggling] = useState(false);
-  const [users, setUsers] = useState<Array<{id: string; name: string}>>([]);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const toggleAbort = useRef<AbortController | null>(null);
-
   const loadData = useCallback(async () => {
     try {
       const uRes = await getAgents().catch(() => ({ users: [] }));
       setUsers(uRes.users || []);
       const stored = typeof window !== "undefined" ? localStorage.getItem("selectedUser") : null;
-      const effectiveUser = stored && uRes.users.some(u => u.id === stored) ? stored : (uRes.users[0]?.id || null);
+      const effectiveUser = stored && uRes.users.some((u: UserItem) => u.id === stored)
+        ? stored
+        : uRes.users[0]?.id || null;
       setSelectedUser(effectiveUser);
       if (effectiveUser) localStorage.setItem("selectedUser", effectiveUser);
 
@@ -86,12 +104,12 @@ export default function ServerDetailPage() {
       if (settings?.auditPageSize) setAuditPageSize(settings.auditPageSize);
       const srv = st.servers[server];
       setServerEnabled(!srv || srv.enabled !== false);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
-  }, [server]);
+  }, [server, auditPageSize]);
 
   const checkScanStatus = useCallback(async () => {
     try {
@@ -99,7 +117,9 @@ export default function ServerDetailPage() {
       const data = await res.json();
       const active: string[] = data.activeServers || (data.server ? data.server.split(", ").filter(Boolean) : []);
       setScanning(active.includes(server));
-    } catch { /* */ }
+    } catch {
+      /* ignore */
+    }
   }, [server]);
 
   useEffect(() => {
@@ -123,21 +143,32 @@ export default function ServerDetailPage() {
     }
   }
 
+  async function handleUserChange(val: string) {
+    setSelectedUser(val);
+    localStorage.setItem("selectedUser", val);
+    setLoading(true);
+    try {
+      const cfg = await getConfig(server, val);
+      setConfig(cfg);
+    } catch {
+      toast.error("Failed to load user config");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleTogglePath(ruleId: string, access: AccessLevel) {
     if (!config) return;
-    // Optimistic update — immutable to ensure React detects the change
     const prev = structuredClone(config);
     const paths = config.permissions?.paths || [];
     const idx = paths.findIndex((p) => p.id === ruleId);
     if (idx < 0) return;
-    const newPaths = paths.map((p, i) =>
-      i === idx ? { ...p, access } : p
-    );
+    const newPaths = paths.map((p, i) => (i === idx ? { ...p, access } : p));
     setConfig({ ...config, permissions: { ...(config.permissions || {}), paths: newPaths } });
     try {
       await updatePathRule(server, ruleId, access, selectedUser);
       toast.success(`Path access set to ${access}`);
-    } catch (err) {
+    } catch {
       setConfig(prev);
       toast.error("Failed to update");
     }
@@ -151,19 +182,63 @@ export default function ServerDetailPage() {
     try {
       await deletePathRule(server, ruleId, selectedUser);
       toast.success("Path rule removed");
-    } catch (err) {
+    } catch {
       setConfig(prev);
       toast.error("Failed to delete");
     }
   }
 
+  async function handleCascadePathAccess(folderPath: string, access: AccessLevel) {
+    if (toggling || !config) return;
+    const cleanPath = folderPath.replace(/\/\*\*$/, "");
+    const rule = config?.permissions?.paths?.find((r) => r.path.replace(/\/\*\*$/, "") === cleanPath);
+    if (!rule) return;
+
+    const LEVEL_ORDER: Record<string, number> = { none: 0, read: 1, write: 2 };
+    const accessIdx = LEVEL_ORDER[access] ?? 0;
+    const prevConfig = structuredClone(config);
+    const prefix = cleanPath + "/";
+
+    const newPaths = (config.permissions?.paths || []).map((p) => {
+      if (p.id === rule.id) return { ...p, access };
+      const childPath = p.path.replace(/\/\*\*$/, "");
+      if (childPath.startsWith(prefix)) {
+        const childIdx = LEVEL_ORDER[p.access] ?? 0;
+        if (childIdx > accessIdx) return { ...p, access };
+      }
+      return p;
+    });
+    setConfig({ ...config, permissions: { ...(config.permissions || {}), paths: newPaths } });
+
+    setToggling(true);
+    try {
+      const result = await cascadePathAccess(server, rule.id, access, selectedUser);
+      if (result.updated > 1) {
+        toast.success(`Updated ${result.updated} rules`);
+      } else {
+        toast.success(`Access set to ${access}`);
+      }
+      const [fresh, tree] = await Promise.all([
+        getConfig(server, selectedUser || undefined),
+        getFolders(server, selectedUser || undefined).catch(() => ({ folders: [], server: "", count: 0 })),
+      ]);
+      setConfig(fresh);
+      setFolders(tree.folders || []);
+    } catch {
+      setConfig(prevConfig);
+      toast.error("Failed to update");
+    } finally {
+      setToggling(false);
+    }
+  }
+
   async function handleAddPath(data: { path: string; access: AccessLevel; description?: string }) {
     try {
-      const res = await addPathRule(server, data, selectedUser);
+      await addPathRule(server, data, selectedUser);
       toast.success("Path rule added");
       setShowAddPath(false);
       loadData();
-    } catch (err) {
+    } catch {
       toast.error("Failed to add rule");
     }
   }
@@ -174,14 +249,12 @@ export default function ServerDetailPage() {
     const commands = config.permissions?.commands || [];
     const idx = commands.findIndex((c) => c.id === ruleId);
     if (idx < 0) return;
-    const newCommands = commands.map((c, i) =>
-      i === idx ? { ...c, access } : c
-    );
+    const newCommands = commands.map((c, i) => (i === idx ? { ...c, access } : c));
     setConfig({ ...config, permissions: { ...(config.permissions || {}), commands: newCommands } });
     try {
       await updateCommandRule(server, ruleId, access, selectedUser);
       toast.success(`Command access set to ${access}`);
-    } catch (err) {
+    } catch {
       setConfig(prev);
       toast.error("Failed to update");
     }
@@ -195,9 +268,20 @@ export default function ServerDetailPage() {
     try {
       await deleteCommandRule(server, ruleId, selectedUser);
       toast.success("Command rule removed");
-    } catch (err) {
+    } catch {
       setConfig(prev);
       toast.error("Failed to delete");
+    }
+  }
+
+  async function handleAddCommand(data: { pattern: string; access: CommandAccess; description?: string }) {
+    try {
+      await addCommandRule(server, data, selectedUser);
+      toast.success("Command rule added");
+      setShowAddCmd(false);
+      loadData();
+    } catch {
+      toast.error("Failed to add rule");
     }
   }
 
@@ -208,8 +292,10 @@ export default function ServerDetailPage() {
       toast.success(`All ${type} set to ${access}`);
       setBulkConfirm(null);
       loadData();
-      getFolders(server, selectedUser || undefined).then((t) => setFolders(t.folders || [])).catch(() => {});
-    } catch (err) {
+      getFolders(server, selectedUser || undefined)
+        .then((t) => setFolders(t.folders || []))
+        .catch(() => {});
+    } catch {
       toast.error("Failed to update");
     }
   }
@@ -226,7 +312,10 @@ export default function ServerDetailPage() {
         },
       });
       toast.success("Tool rule added");
-    } catch { toast.error("Failed to add"); }
+      setShowAddTool(false);
+    } catch {
+      toast.error("Failed to add tool rule");
+    }
   }
 
   async function handleUpdateTool(ruleId: string, access: "none" | "active") {
@@ -238,7 +327,10 @@ export default function ServerDetailPage() {
     setConfig({ ...config, permissions: { ...config.permissions, tools } });
     try {
       await updateToolRule(server, ruleId, access, selectedUser);
-    } catch { setConfig(prev); toast.error("Failed to update"); }
+    } catch {
+      setConfig(prev);
+      toast.error("Failed to update");
+    }
   }
 
   async function handleDeleteTool(ruleId: string) {
@@ -246,12 +338,18 @@ export default function ServerDetailPage() {
     const prev = structuredClone(config);
     setConfig({
       ...config,
-      permissions: { ...config.permissions, tools: (config.permissions.tools || []).filter((t) => t.id !== ruleId) },
+      permissions: {
+        ...config.permissions,
+        tools: (config.permissions.tools || []).filter((t) => t.id !== ruleId),
+      },
     });
     try {
       await deleteToolRule(server, ruleId, selectedUser);
       toast.success("Tool rule removed");
-    } catch { setConfig(prev); toast.error("Failed to delete"); }
+    } catch {
+      setConfig(prev);
+      toast.error("Failed to delete");
+    }
   }
 
   async function handleScan() {
@@ -260,9 +358,10 @@ export default function ServerDetailPage() {
     try {
       const res = await scanServer(server, selectedUser);
       const elapsed = Date.now() - started;
-      const dur = elapsed < 60000
-        ? `${(elapsed / 1000).toFixed(0)}s`
-        : `${Math.floor(elapsed / 60000)}m ${Math.round((elapsed % 60000) / 1000)}s`;
+      const dur =
+        elapsed < 60000
+          ? `${(elapsed / 1000).toFixed(0)}s`
+          : `${Math.floor(elapsed / 60000)}m ${Math.round((elapsed % 60000) / 1000)}s`;
       if (res.added > 0) {
         toast.success(`Found ${res.added} folder${res.added > 1 ? "s" : ""} in ${dur}`);
       } else if (res.message) {
@@ -270,13 +369,13 @@ export default function ServerDetailPage() {
       } else {
         toast.success(`Scan complete: ${res.total} folders (${dur})`);
       }
-      // Always reload data after a successful scan so the UI shows fresh paths
       await loadData();
       const label = `${new Date().toLocaleTimeString()} (${dur})`;
       setLastScan(label);
       if (typeof window !== "undefined") localStorage.setItem(`lastScan_${server}`, label);
     } catch (err) {
-      if (err instanceof Error && err.message !== "Unauthorized") toast.error(err.message || "Scan failed");
+      if (err instanceof Error && err.message !== "Unauthorized")
+        toast.error(err.message || "Scan failed");
     } finally {
       setScanning(false);
     }
@@ -286,43 +385,30 @@ export default function ServerDetailPage() {
     try {
       await fetch(`/api/scan/${server}/cancel`, { method: "POST" });
       toast.success("Scan cancelled");
-    } catch (err) {
-      // ignore
+    } catch {
+      /* ignore */
     }
   }
 
-  async function handleAddCommand(data: { pattern: string; access: CommandAccess; description?: string }) {
-    try {
-      await addCommandRule(server, data, selectedUser);
-      toast.success("Command rule added");
-      setShowAddCmd(false);
-      loadData();
-    } catch (err) {
-      toast.error("Failed to add rule");
-    }
-  }
-
-  async function handleAddLink(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newLinkData.name || !newLinkData.url) {
+  async function handleAddLinkSubmit(data: { name: string; url: string; category?: string; tags?: string; description?: string }) {
+    if (!data.name || !data.url) {
       toast.error("Name and URL are required");
       return;
     }
     try {
-      const tagsArray = newLinkData.tags
+      const tagsArray = (data.tags || "")
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
       await addLink(server, {
-        name: newLinkData.name,
-        url: newLinkData.url,
-        description: newLinkData.description || undefined,
-        category: newLinkData.category || undefined,
+        name: data.name,
+        url: data.url,
+        description: data.description || undefined,
+        category: data.category || undefined,
         tags: tagsArray.length > 0 ? tagsArray : undefined,
       });
       toast.success("Link added successfully");
       setShowAddLink(false);
-      setNewLinkData({ name: "", url: "", description: "", category: "documentation", tags: "" });
       loadData();
     } catch {
       toast.error("Failed to add link");
@@ -343,76 +429,20 @@ export default function ServerDetailPage() {
     }
   }
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-gray-400">Loading...</p></div>;
-  if (!config) return <div className="flex min-h-screen items-center justify-center"><p className="text-red-400">Failed to load config</p></div>;
-
-  // Recursively filter tree by access level, preserving parent chains of matches
-  function filterTreeByAccess(nodes: FolderNode[], access: string): FolderNode[] {
-    return nodes.reduce((acc, node) => {
-      const filteredChildren = filterTreeByAccess(node.children, access);
-      if (node.access === access || filteredChildren.length > 0) {
-        acc.push({ ...node, children: filteredChildren });
-      }
-      return acc;
-    }, [] as FolderNode[]);
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    );
   }
-
-  // Combine text search + access filter
-  let visibleFolders = folders;
-  if (pathAccessFilter !== "all") {
-    visibleFolders = filterTreeByAccess(visibleFolders, pathAccessFilter);
+  if (!config) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-red-400">Failed to load config</p>
+      </div>
+    );
   }
-  if (pathSearch) {
-    const q = pathSearch.toLowerCase();
-    visibleFolders = visibleFolders.filter((f) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q));
-  }
-
-  // Combine audit log filters: text search + access + result + date range
-  const now = Date.now();
-  const dateThresholds: Record<string, number> = {
-    hour: now - 60 * 60 * 1000,
-    today: new Date(new Date().toDateString()).getTime(),
-    week: now - 7 * 24 * 60 * 60 * 1000,
-  };
-  const visibleAuditLog = auditLog.filter((e) => {
-    if (logAccessFilter !== "all" && e.access !== logAccessFilter) return false;
-    if (logResultFilter !== "all" && e.result !== logResultFilter) return false;
-    if (logDateFilter !== "all") {
-      if (!e.ts) return false;
-      const ts = new Date(e.ts).getTime();
-      if (isNaN(ts) || ts < dateThresholds[logDateFilter]) return false;
-    }
-    if (logSearch) {
-      const q = logSearch.toLowerCase();
-      return (e.target || "").toLowerCase().includes(q)
-        || (e.command || "").toLowerCase().includes(q)
-        || (e.result || "").toLowerCase().includes(q)
-        || (e.reason || "").toLowerCase().includes(q);
-    }
-    return true;
-  });
-
-  const logFiltersActive = logAccessFilter !== "all" || logResultFilter !== "all" || logDateFilter !== "all";
-  const totalAuditPages = Math.max(1, Math.ceil(auditTotal / auditPageSize));
-
-  // ── Column definitions for DataTable ──
-  const pathColumns: Column<PathRule>[] = [
-    { key: "path", header: "Path", headerClassName: "w-[40%]", cellClassName: "font-mono text-xs truncate", render: (r) => r.path },
-    { key: "access", header: "Access", headerClassName: "w-[120px]", render: (r) => <AccessToggles value={r.access} onChange={(a) => handleTogglePath(r.id, a)} /> },
-    { key: "description", header: "Description", headerClassName: "hidden md:table-cell", cellClassName: "text-gray-500 text-xs hidden md:table-cell truncate", render: (r) => r.description || "" },
-    { key: "delete", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (r) => (
-      <button onClick={() => handleDeletePath(r.id)} className="text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
-    )},
-  ];
-
-  const commandColumns: Column<CommandRule>[] = [
-    { key: "pattern", header: "Pattern", headerClassName: "w-[40%]", cellClassName: "font-mono text-xs truncate", render: (r) => r.pattern },
-    { key: "access", header: "Access", headerClassName: "w-[130px]", render: (r) => <CommandToggles value={r.access} onChange={(a) => handleToggleCommand(r.id, a)} /> },
-    { key: "description", header: "Description", headerClassName: "hidden md:table-cell", cellClassName: "text-gray-500 text-xs hidden md:table-cell truncate", render: (r) => r.description || "" },
-    { key: "delete", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (r) => (
-      <button onClick={() => handleDeleteCommand(r.id)} className="text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
-    )},
-  ];
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -421,30 +451,7 @@ export default function ServerDetailPage() {
         backHref="/"
         actions={
           <div className="flex items-center gap-4">
-            {users.length > 0 && (
-              <select
-                value={selectedUser || ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedUser(val);
-                  localStorage.setItem("selectedUser", val);
-                  // Quick reload for the newly selected user without spinning whole page
-                  setLoading(true);
-                  getConfig(server, val).then(cfg => {
-                    setConfig(cfg);
-                    setLoading(false);
-                  }).catch(() => {
-                    toast.error("Failed to load user config");
-                    setLoading(false);
-                  });
-                }}
-                className="rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name || u.id}</option>
-                ))}
-              </select>
-            )}
+            <UserSelector users={users} selectedUser={selectedUser} onChange={handleUserChange} />
             {["synology-nas", "obsidian", "ubuntu-server"].includes(server) && (
               <>
                 <button
@@ -472,749 +479,118 @@ export default function ServerDetailPage() {
           <span className="text-yellow-400 text-lg">⏸</span>
           <div>
             <p className="text-yellow-300 font-semibold text-sm">Server Deactivated</p>
-            <p className="text-yellow-500 text-xs">This server is currently disabled. Tools are unavailable until reactivated from the dashboard.</p>
+            <p className="text-yellow-500 text-xs">
+              This server is currently disabled. Tools are unavailable until reactivated from the dashboard.
+            </p>
           </div>
         </div>
       )}
 
-
-      {/* Server stats bar */}
       <ServerStatsBar server={server} />
 
-      {/* Path Permissions — Tree View */}
-      {sectionVisible("paths") && <section className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Path Permissions</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 mr-1">Set all:</span>
-            {(["none", "read", "write"] as AccessLevel[]).map((level) => (
-              <button
-                key={level}
-                onClick={() => setBulkConfirm({ access: level, type: "paths" })}
-                className="px-2 py-0.5 text-xs rounded border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-white transition-colors"
-              >
-                {level}
-              </button>
-            ))}
-            <button onClick={() => setShowAddPath(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 ml-3">
-              <Plus size={16} /> Add
-            </button>
-            <button onClick={() => setCollapseKey((k) => k + 1)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white ml-2" title="Collapse all folders">
-              <Folders size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 mb-2">
-          <input
-            type="text"
-            placeholder="Filter folders…"
-            value={pathSearch}
-            onChange={(e) => setPathSearch(e.target.value)}
-            className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
-            {(["all", "none", "read", "write"] as const).map((level) => {
-              const active = pathAccessFilter === level;
-              const colors: Record<string, string> = {
-                all: "bg-gray-700 text-gray-300",
-                none: "bg-gray-600 text-gray-300",
-                read: "bg-blue-600 text-white",
-                write: "bg-green-600 text-white",
-              };
-              return (
-                <button
-                  key={level}
-                  onClick={() => setPathAccessFilter(level)}
-                  className={`px-2 py-1 text-xs font-medium transition-colors
-                    ${active ? colors[level] : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
-                >
-                  {level.charAt(0).toUpperCase() + level.slice(1)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        {folders.length > 0 ? (
-          <FolderTree
-            key={collapseKey}
-            folders={visibleFolders}
-            disabled={toggling}
-            onToggle={async (folderPath, access) => {
-              if (toggling) return;
-              // Find matching rule
-              const cleanPath = folderPath.replace(/\/\*\*$/, "");
-              const rule = config?.permissions?.paths?.find(
-                (r) => r.path.replace(/\/\*\*$/, "") === cleanPath
-              );
-              if (!rule) return;
-
-              // ── Optimistic UI: apply parent + cascade immediately ──
-              const LEVEL_ORDER: Record<string, number> = { none: 0, read: 1, write: 2 };
-              const accessIdx = LEVEL_ORDER[access] ?? 0;
-              const prevConfig = structuredClone(config!);
-              const prefix = cleanPath + "/";
-
-              const newPaths = (config!.permissions?.paths || []).map((p) => {
-                if (p.id === rule.id) return { ...p, access };
-                const childPath = p.path.replace(/\/\*\*$/, "");
-                if (childPath.startsWith(prefix)) {
-                  const childIdx = LEVEL_ORDER[p.access] ?? 0;
-                  if (childIdx > accessIdx) return { ...p, access };
-                }
-                return p;
-              });
-              setConfig({ ...config!, permissions: { ...(config!.permissions || {}), paths: newPaths } });
-
-              // ── Single atomic API call ──
-              setToggling(true);
-              try {
-                const result = await cascadePathAccess(server, rule.id, access, selectedUser);
-                if (result.updated > 1) {
-                  toast.success(`Updated ${result.updated} rules`);
-                } else {
-                  toast.success(`Access set to ${access}`);
-                }
-                // Single reload after the atomic operation
-                const [fresh, tree] = await Promise.all([
-                  getConfig(server, selectedUser || undefined),
-                  getFolders(server, selectedUser || undefined).catch(() => ({ folders: [], server: "", count: 0 })),
-                ]);
-                setConfig(fresh);
-                setFolders(tree.folders || []);
-              } catch {
-                setConfig(prevConfig);
-                toast.error("Failed to update");
-              } finally {
-                setToggling(false);
-              }
-            }}
-          />
-        ) : (
-          <DataTable
-            columns={pathColumns}
-            data={(config.permissions?.paths || []).filter((r) => !pathSearch || r.path.toLowerCase().includes(pathSearch.toLowerCase()))}
-            rowKey={(r) => r.id}
-            emptyMessage={`No path rules. Default: ${config.permissions?.default_access || "none"}`}
-          />
-        )}
-      </section>}
-
-      {/* Command Rules */}
-      {sectionVisible("commands") && <section className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">Command Permissions</h2>
-            <button onClick={() => setShowAddCmd(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
-              <Plus size={16} /> Add Command
-            </button>
-          </div>
-          <DataTable
-            columns={commandColumns}
-            data={config.permissions?.commands || []}
-            rowKey={(r) => r.id}
-            emptyMessage="No command rules."
-          />
-        </section>}
-
-      {/* Tool Permissions (proxy servers) */}
-      {sectionVisible("tools") && <section className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Tool Permissions</h2>
-          <button onClick={() => setShowAddTool(true)} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
-            <Plus size={16} /> Add Tool
-          </button>
-        </div>
-        <DataTable
-          columns={[
-            { key: "pattern", header: "Pattern", render: (r) => <span className="font-mono text-xs">{r.pattern}</span> },
-            { key: "access", header: "Access", headerClassName: "w-[120px]", render: (r) => (
-              <div className="flex rounded overflow-hidden border border-gray-700 shrink-0">
-                {(["none","active"] as const).map((a) => (
-                  <button
-                    key={a}
-                    onClick={(e) => { e.stopPropagation(); handleUpdateTool(r.id, a); }}
-                    className={`px-3 py-0.5 text-xs font-medium ${r.access === a ? (a === "active" ? "bg-green-600 text-white" : "bg-gray-700 text-gray-400") : "bg-gray-800 text-gray-500 hover:bg-gray-700"}`}
-                  >{a}</button>
-                ))}
-              </div>
-            )},
-            { key: "description", header: "Description", headerClassName: "hidden md:table-cell", cellClassName: "text-gray-500 text-xs hidden md:table-cell truncate", render: (r) => r.description || "" },
-            { key: "delete", header: "", headerClassName: "w-10", cellClassName: "text-center", render: (r) => (
-              <button onClick={() => handleDeleteTool(r.id)} className="text-gray-600 hover:text-red-400"><Trash2 size={14} /></button>
-            )},
-          ]}
-          data={config?.permissions?.tools || []}
-          rowKey={(r) => r.id}
-          emptyMessage="No tool rules. Default: deny all."
+      {sectionVisible("paths") && (
+        <PathRulesSection
+          config={config}
+          folders={folders}
+          toggling={toggling}
+          onTogglePath={handleTogglePath}
+          onDeletePath={handleDeletePath}
+          onCascadePathAccess={handleCascadePathAccess}
+          onOpenAddPathModal={() => setShowAddPath(true)}
+          onOpenBulkConfirm={(access) => setBulkConfirm({ access, type: "paths" })}
         />
-      </section>}
-
-      {/* Managed Links (strictly for Link Manager MCP) */}
-      {(server === "link-manager" || server === "link-manager-mcp") && (
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">Managed Links ({(config?.links || []).length})</h2>
-            <button
-              onClick={() => setShowAddLink(true)}
-              className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 font-medium"
-            >
-              <Plus size={16} /> Add Link
-            </button>
-          </div>
-          <div className="mb-3">
-            <input
-              type="text"
-              placeholder="Search links by name, URL, category, or tag…"
-              value={linkSearch}
-              onChange={(e) => setLinkSearch(e.target.value)}
-              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <DataTable
-            columns={[
-              {
-                key: "name",
-                header: "Name",
-                headerClassName: "w-[25%]",
-                cellClassName: "font-semibold text-xs text-white",
-                render: (r: LinkItem) => r.name,
-              },
-              {
-                key: "url",
-                header: "URL",
-                headerClassName: "w-[30%]",
-                render: (r: LinkItem) => (
-                  <a
-                    href={r.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-400 hover:text-blue-300 hover:underline font-mono text-xs flex items-center gap-1 truncate max-w-[280px]"
-                  >
-                    {r.url} <ExternalLink size={12} className="shrink-0" />
-                  </a>
-                ),
-              },
-              {
-                key: "category",
-                header: "Category",
-                headerClassName: "w-[15%]",
-                render: (r: LinkItem) => (
-                  r.category ? (
-                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-gray-800 text-gray-300 border border-gray-700">
-                      {r.category}
-                    </span>
-                  ) : null
-                ),
-              },
-              {
-                key: "tags",
-                header: "Tags",
-                headerClassName: "hidden md:table-cell w-[15%]",
-                cellClassName: "hidden md:table-cell",
-                render: (r: LinkItem) => (
-                  <div className="flex flex-wrap gap-1">
-                    {(r.tags || []).map((tag) => (
-                      <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] bg-blue-950 text-blue-300 border border-blue-800">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                ),
-              },
-              {
-                key: "description",
-                header: "Description",
-                headerClassName: "hidden lg:table-cell",
-                cellClassName: "text-gray-400 text-xs hidden lg:table-cell truncate",
-                render: (r: LinkItem) => r.description || "",
-              },
-              {
-                key: "delete",
-                header: "",
-                headerClassName: "w-10",
-                cellClassName: "text-center",
-                render: (r: LinkItem) => (
-                  <button onClick={() => handleDeleteLink(r.name)} className="text-gray-600 hover:text-red-400" title="Delete link">
-                    <Trash2 size={14} />
-                  </button>
-                ),
-              },
-            ]}
-            data={(config?.links || []).filter((l) => {
-              if (!linkSearch) return true;
-              const q = linkSearch.toLowerCase();
-              return (
-                l.name.toLowerCase().includes(q) ||
-                l.url.toLowerCase().includes(q) ||
-                (l.category && l.category.toLowerCase().includes(q)) ||
-                (l.description && l.description.toLowerCase().includes(q)) ||
-                (l.tags && l.tags.some((t) => t.toLowerCase().includes(q)))
-              );
-            })}
-            rowKey={(r: LinkItem) => r.url || r.name}
-            emptyMessage="No links available. Click '+ Add Link' above to add one."
-          />
-        </section>
       )}
 
-      {/* Custom sections from proxy hooks */}
-      {(() => {
-        const raw = config as unknown as Record<string, unknown> | null;
-        const sections = (raw?.custom_sections || []) as Array<{ key: string; title: string; data: Record<string, unknown> }>;
-        if (!sections.length) return null;
-        return sections.map((s) => (
-          <section key={s.key} className="mb-8">
-            <h2 className="text-lg font-semibold mb-3">{s.title}</h2>
-            <DataTable
-              columns={[
-                { key: "key", header: "Name", render: (r) => <span className="font-mono text-xs">{r.key}</span> },
-                { key: "value", header: "Access", headerClassName: "w-[140px]", render: (r) => (
-                  <select
-                    value={String(r.value)}
-                    onChange={(e) => {
-                      if (!config) return;
-                      const newData = { ...s.data, [r.key]: e.target.value };
-                      const newSections = sections.map((sec) =>
-                        sec.key === s.key ? { ...sec, data: newData } : sec
-                      );
-                      setConfig({ ...config, custom_sections: newSections } as unknown as ServerConfig);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {["read", "write", "none"].map((a) => (
-                      <option key={a} value={a}>{a}</option>
-                    ))}
-                  </select>
-                )},
-              ]}
-              data={Object.entries(s.data).map(([k, v]) => ({ key: k, value: String(v) }))}
-              rowKey={(r) => r.key}
-              emptyMessage="No entries"
-            />
-          </section>
-        ));
-      })()}
+      {sectionVisible("commands") && (
+        <CommandRulesSection
+          config={config}
+          onToggleCommand={handleToggleCommand}
+          onDeleteCommand={handleDeleteCommand}
+          onOpenAddCommandModal={() => setShowAddCmd(true)}
+        />
+      )}
 
-      {/* Audit Log */}
-      {sectionVisible("audit") && <section>
-        <h2 className="text-lg font-semibold mb-3">Audit Log</h2>
+      {sectionVisible("tools") && (
+        <ToolRulesSection
+          config={config}
+          onUpdateTool={handleUpdateTool}
+          onDeleteTool={handleDeleteTool}
+          onOpenAddToolModal={() => setShowAddTool(true)}
+        />
+      )}
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 mb-2">
-          <input
-            type="text"
-            placeholder="Filter log…"
-            value={logSearch}
-            onChange={(e) => setLogSearch(e.target.value)}
-            className="flex-1 min-w-[140px] rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={logAccessFilter}
-            onChange={(e) => setLogAccessFilter(e.target.value as AccessLevel | "all")}
-            className="rounded border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All access</option>
-            <option value="read">Read</option>
-            <option value="write">Write</option>
-            <option value="none">None</option>
-          </select>
-          <select
-            value={logResultFilter}
-            onChange={(e) => setLogResultFilter(e.target.value as "all" | "allowed" | "denied")}
-            className="rounded border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All results</option>
-            <option value="allowed">Allowed</option>
-            <option value="denied">Denied</option>
-          </select>
-          <select
-            value={logDateFilter}
-            onChange={(e) => setLogDateFilter(e.target.value as "all" | "hour" | "today" | "week")}
-            className="rounded border border-gray-700 bg-gray-800 px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All time</option>
-            <option value="hour">Last hour</option>
-            <option value="today">Today</option>
-            <option value="week">This week</option>
-          </select>
-          {logFiltersActive && (
-            <button
-              onClick={() => { setLogAccessFilter("all"); setLogResultFilter("all"); setLogDateFilter("all"); }}
-              className="px-2 py-1.5 text-xs rounded border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
+      {(server === "link-manager" || server === "link-manager-mcp") && (
+        <LinksSection
+          config={config}
+          onDeleteLink={handleDeleteLink}
+          onOpenAddLinkModal={() => setShowAddLink(true)}
+        />
+      )}
 
-        {/* Table — audit log stays specialized (fixed header + scrollable body) */}
-        <div className="rounded-lg border border-gray-800">
-          {/* Fixed header */}
-          <table className="w-full text-xs table-fixed">
-            <thead>
-              <tr className="bg-gray-900 text-gray-400 text-left">
-                <th className="px-2 py-2 w-14 rounded-tl-lg">Time</th>
-                <th className="px-2 py-2 w-[13%]">Target</th>
-                <th className="px-2 py-2 w-[62px]">Access</th>
-                <th className="px-2 py-2 w-[62px]">Result</th>
-                <th className="px-2 py-2 w-[35%] hidden md:table-cell">Reason</th>
-                <th className="px-2 py-2 w-[80px] hidden md:table-cell">User</th>
-                <th className="px-2 py-2 w-[90px] hidden md:table-cell">Sub-agent</th>
-              </tr>
-            </thead>
-          </table>
-          {/* Scrollable body */}
-          <div className="max-h-[60vh] overflow-y-auto border-t border-gray-800">
-            <table className="w-full text-xs table-fixed">
-              <tbody>
-                {auditLoading && (
-                  <tr><td colSpan={7} className="px-4 py-4 text-gray-500 text-center">Loading…</td></tr>
-                )}
-                {!auditLoading && visibleAuditLog.map((entry, i) => (
-                  <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer" onClick={() => setExpandedLogIdx(expandedLogIdx === i ? null : i)}>
-                    <td className="px-2 py-1.5 text-gray-500 whitespace-nowrap w-14" title={entry.ts || undefined}>{entry.ts?.slice(11, 19) || ""}</td>
-                    <td className="px-2 py-1.5 font-mono truncate w-[13%]" title={entry.target || entry.command || ""}>{entry.target || entry.command || entry.target_type || ""}</td>
-                    <td className="px-2 py-1.5 w-[62px]">
-                      {entry.access ? (
-                        <Badge variant="access" value={entry.access} />
-                      ) : <span className="text-gray-600">—</span>}
-                    </td>
-                    <td className="px-2 py-1.5 w-[62px]">
-                      <Badge variant="result" value={entry.result} />
-                    </td>
-                    <td className="px-2 py-1.5 text-gray-600 truncate hidden md:table-cell w-[35%]" title={entry.reason || undefined}>{entry.reason || ""}</td>
-                    <td className="px-2 py-1.5 font-mono text-gray-500 truncate hidden md:table-cell w-[80px]" title={entry.user_id || undefined}>{entry.user_id || "—"}</td>
-                    <td className="px-2 py-1.5 font-mono text-gray-500 truncate hidden md:table-cell w-[90px]" title={entry.subagent_id || undefined}>{entry.subagent_id || "—"}</td>
-                  </tr>
-                ))}
-                {!auditLoading && auditLog.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-4 text-gray-500 text-center">No audit entries yet.</td></tr>
-                )}
-                {!auditLoading && auditLog.length > 0 && visibleAuditLog.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-4 text-gray-500 text-center">No entries match filters.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+      {sectionVisible("audit") && (
+        <AuditLogSection
+          auditLog={auditLog}
+          auditTotal={auditTotal}
+          auditPage={auditPage}
+          auditPageSize={auditPageSize}
+          auditLoading={auditLoading}
+          onLoadAuditPage={loadAuditPage}
+        />
+      )}
 
-          {/* Footer with pagination */}
-          <div className="flex items-center justify-between px-3 py-2 border-t border-gray-800 bg-gray-900 text-xs text-gray-400 rounded-b-lg">
-            <span>{auditTotal.toLocaleString()} entries (page {auditPage + 1} of {totalAuditPages})</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => loadAuditPage(auditPage - 1)}
-                disabled={auditPage <= 0 || auditLoading}
-                className="px-2 py-0.5 rounded border border-gray-700 hover:border-gray-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                ← Prev
-              </button>
-              <button
-                onClick={() => loadAuditPage(auditPage + 1)}
-                disabled={auditPage >= totalAuditPages - 1 || auditLoading}
-                className="px-2 py-0.5 rounded border border-gray-700 hover:border-gray-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                Next →
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Expanded detail panel */}
-        {expandedLogIdx !== null && visibleAuditLog[expandedLogIdx] && (
-          <div className="mt-2 rounded-lg border border-gray-700 bg-gray-900 p-4 text-xs space-y-2">
-            {(() => {
-              const e = visibleAuditLog[expandedLogIdx];
-              return (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div><span className="text-gray-500">Timestamp:</span> <span className="text-gray-300">{e.ts || "—"}</span></div>
-                    <div><span className="text-gray-500">Server:</span> <span className="text-gray-300">{e.server || "—"}</span></div>
-                    <div><span className="text-gray-500">Target type:</span> <span className="text-gray-300">{e.target_type || "—"}</span></div>
-                    <div><span className="text-gray-500">Target:</span> <span className="text-gray-300 font-mono">{e.target || "—"}</span></div>
-                    <div><span className="text-gray-500">Command:</span> <span className="text-gray-300 font-mono">{e.command || "—"}</span></div>
-                    <div><span className="text-gray-500">Access requested:</span> <span className={`font-medium ${e.access === "write" ? "text-green-400" : e.access === "read" ? "text-blue-400" : e.access === "none" ? "text-gray-400" : "text-gray-300"}`}>{e.access || "—"}</span></div>
-                    <div><span className="text-gray-500">Result:</span> <span className={`font-medium ${e.result === "allowed" ? "text-green-400" : "text-red-400"}`}>{e.result}</span></div>
-                    <div><span className="text-gray-500">Reason:</span> <span className="text-gray-300">{e.reason || "—"}</span></div>
-                    {e.user_id && <div><span className="text-gray-500">User:</span> <span className="text-gray-300 font-mono">{e.user_id}</span></div>}
-                    {e.subagent_id && <div><span className="text-gray-500">Sub-agent:</span> <span className="text-gray-400 font-mono text-xs">{e.subagent_id}</span></div>}
-                  </div>
-                  {e.message && (
-                    <div>
-                      <span className="text-gray-500">Message:</span>
-                      <pre className="mt-1 p-2 rounded bg-gray-800 text-gray-300 whitespace-pre-wrap text-[11px] max-h-40 overflow-y-auto">{e.message}</pre>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        )}
-      </section>}
-
-      {/* Add Path Dialog */}
       <AddRuleDialog
         open={showAddPath}
         title="Add Path Rule"
-        fields={[{ name: "path", label: "Path", placeholder: "/var/log/**" }, { name: "description", label: "Description", placeholder: "Optional" }]}
+        fields={[
+          { name: "path", label: "Path", placeholder: "/var/log/**" },
+          { name: "description", label: "Description", placeholder: "Optional" },
+        ]}
         onSave={(data) => handleAddPath(data as { path: string; access: AccessLevel; description?: string })}
         onClose={() => setShowAddPath(false)}
       />
 
-      {/* Add Command Dialog */}
       <AddRuleDialog
         open={showAddCmd}
         title="Add Command Rule"
-        fields={[{ name: "pattern", label: "Pattern", placeholder: "systemctl status *" }, { name: "description", label: "Description", placeholder: "Optional" }]}
+        fields={[
+          { name: "pattern", label: "Pattern", placeholder: "systemctl status *" },
+          { name: "description", label: "Description", placeholder: "Optional" },
+        ]}
         onSave={(data) => handleAddCommand(data as { pattern: string; access: CommandAccess; description?: string })}
         onClose={() => setShowAddCmd(false)}
         commandAccess
       />
 
-      {/* Add Tool Dialog */}
       <AddRuleDialog
         open={showAddTool}
         title="Add Tool Rule"
-        fields={[{ name: "pattern", label: "Pattern", placeholder: "search_*" }, { name: "description", label: "Description", placeholder: "Optional" }]}
+        fields={[
+          { name: "pattern", label: "Pattern", placeholder: "search_*" },
+          { name: "description", label: "Description", placeholder: "Optional" },
+        ]}
         onSave={(data) => handleAddTool(data as { pattern: string; access: "none" | "active"; description?: string })}
         onClose={() => setShowAddTool(false)}
         commandAccess
       />
 
-      {/* Add Link Dialog */}
-      <Modal open={showAddLink} onClose={() => setShowAddLink(false)} title="Add New Link">
-        <form onSubmit={handleAddLink} className="space-y-3">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Name *</label>
-            <input
-              type="text"
-              placeholder="e.g. Claude Docs"
-              required
-              value={newLinkData.name}
-              onChange={(e) => setNewLinkData({ ...newLinkData, name: e.target.value })}
-              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">URL *</label>
-            <input
-              type="url"
-              placeholder="https://docs.anthropic.com"
-              required
-              value={newLinkData.url}
-              onChange={(e) => setNewLinkData({ ...newLinkData, url: e.target.value })}
-              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Category</label>
-            <input
-              type="text"
-              placeholder="e.g. documentation, development, tools"
-              value={newLinkData.category}
-              onChange={(e) => setNewLinkData({ ...newLinkData, category: e.target.value })}
-              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Tags (comma separated)</label>
-            <input
-              type="text"
-              placeholder="e.g. claude, docs, official"
-              value={newLinkData.tags}
-              onChange={(e) => setNewLinkData({ ...newLinkData, tags: e.target.value })}
-              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Description</label>
-            <input
-              type="text"
-              placeholder="Optional description"
-              value={newLinkData.description}
-              onChange={(e) => setNewLinkData({ ...newLinkData, description: e.target.value })}
-              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setShowAddLink(false)}
-              className="px-3 py-1.5 text-xs rounded bg-gray-800 hover:bg-gray-700 text-gray-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
-            >
-              Add Link
-            </button>
-          </div>
-        </form>
-      </Modal>
+      <AddLinkModal
+        open={showAddLink}
+        onClose={() => setShowAddLink(false)}
+        onSubmit={handleAddLinkSubmit}
+      />
 
-      {/* Bulk Confirm Dialog */}
-      <Modal
-        open={bulkConfirm !== null}
+      <BulkConfirmModal
+        bulkConfirm={bulkConfirm}
+        totalItems={
+          bulkConfirm
+            ? bulkConfirm.type === "paths"
+              ? (config.permissions?.paths || []).length
+              : (config.permissions?.commands || []).length
+            : 0
+        }
+        onConfirm={handleBulkSet}
         onClose={() => setBulkConfirm(null)}
-        title={bulkConfirm ? `Set all ${bulkConfirm.type}?` : ""}
-        maxWidth="max-w-sm"
-      >
-        {bulkConfirm && (
-          <>
-            <p className="text-sm text-gray-400 mb-4">
-              This will change{' '}
-              <span className="text-white font-semibold">
-                {bulkConfirm.type === "paths" ? (config!.permissions?.paths || []).length : (config!.permissions?.commands || []).length}
-              </span>{' '}
-              {bulkConfirm.type} to{' '}
-              <span className="text-white font-semibold">{bulkConfirm.access}</span>.
-              This cannot be undone in one click.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setBulkConfirm(null)} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700">
-                Cancel
-              </button>
-              <button
-                onClick={() => handleBulkSet(bulkConfirm.access, bulkConfirm.type)}
-                className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500"
-              >
-                Yes, set all
-              </button>
-            </div>
-          </>
-        )}
-      </Modal>
-    </div>
-  );
-}
-
-/* ── Add Rule Dialog ─────────────────────────────────── */
-
-function AddRuleDialog({
-  open,
-  title,
-  fields,
-  onSave,
-  onClose,
-  commandAccess,
-}: {
-  open: boolean;
-  title: string;
-  fields: { name: string; label: string; placeholder: string }[];
-  onSave: (data: Record<string, string>) => void;
-  onClose: () => void;
-  commandAccess?: boolean;
-}) {
-  const [formData, setFormData] = useState<Record<string, string>>({ access: commandAccess ? "active" : "read" });
-  const [saving, setSaving] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    await onSave(formData);
-    setSaving(false);
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title={title}>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        {fields.map((f) => (
-          <div key={f.name}>
-            <label className="block text-xs text-gray-400 mb-1">{f.label}</label>
-            <input
-              type="text"
-              placeholder={f.placeholder}
-              required={f.name !== "description"}
-              value={formData[f.name] || ""}
-              onChange={(e) => setFormData({ ...formData, [f.name]: e.target.value })}
-              className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        ))}
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Access Level</label>
-          {commandAccess ? (
-            <CommandToggles value={(formData.access as CommandAccess) || "active"} onChange={(a) => setFormData({ ...formData, access: a })} />
-          ) : (
-            <AccessToggles value={(formData.access as AccessLevel) || "read"} onChange={(a) => setFormData({ ...formData, access: a })} />
-          )}
-        </div>
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded bg-gray-800 hover:bg-gray-700">Cancel</button>
-          <button type="submit" disabled={saving} className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50">
-            {saving ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-function ServerStatsBar({ server }: { server: string }) {
-  const [stats, setStats] = useState<{
-    total: number; today: number; thisWeek: number;
-    allowed: number; denied: number;
-    topTools: Array<{ name: string; count: number }>;
-    byUser: Array<{ user_id: string; count: number }>;
-  } | null>(null);
-
-  useEffect(() => {
-    fetch(`/api/stats?server=${encodeURIComponent(server)}`)
-      .then((r) => r.json())
-      .then((data) => setStats({
-        total: data.totals?.all_time || 0,
-        today: data.totals?.today || 0,
-        thisWeek: data.totals?.this_week || 0,
-        allowed: data.result_ratio?.allowed || 0,
-        denied: data.result_ratio?.denied || 0,
-        topTools: (data.by_tool || []).slice(0, 5),
-        byUser: (data.by_user || []).slice(0, 5),
-      }))
-      .catch(() => {});
-  }, [server]);
-
-  if (!stats || stats.total === 0) return null;
-
-  return (
-    <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900/70 p-3">
-      <div className="flex items-center gap-6 flex-wrap">
-        <MiniStat label="Requests" value={stats.total.toLocaleString()} />
-        <MiniStat label="Today" value={stats.today.toLocaleString()} />
-        <MiniStat label="7 days" value={stats.thisWeek.toLocaleString()} />
-        <MiniStat label="Allowed" value={stats.allowed.toLocaleString()} cls="text-green-400" />
-        <MiniStat label="Denied" value={stats.denied.toLocaleString()} cls="text-red-400" />
-        {stats.topTools.length > 0 && (
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span>Top tools:</span>
-            {stats.topTools.slice(0, 3).map((t) => (
-              <span key={t.name} className="text-gray-400 font-mono text-[11px]" title={t.name}>
-                {t.name.length > 30 ? t.name.slice(0, 27) + "…" : t.name}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-      {stats.byUser.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-gray-800 flex items-center gap-4 text-xs">
-          <span className="text-gray-500">By user:</span>
-          {stats.byUser.map((u) => (
-            <span key={u.user_id} className="text-gray-400">
-              <span className="text-gray-300 font-medium">{u.user_id}</span>
-              <span className="text-gray-600 ml-1">({u.count})</span>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MiniStat({ label, value, cls = "" }: { label: string; value: string; cls?: string }) {
-  return (
-    <div>
-      <span className="text-[10px] text-gray-500">{label}</span>
-      <span className={`text-sm font-semibold ml-1.5 ${cls || "text-gray-200"}`}>{value}</span>
+      />
     </div>
   );
 }

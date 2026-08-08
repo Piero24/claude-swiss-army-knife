@@ -149,22 +149,22 @@ jobs:
       matrix:
         service:
           - name: ubuntu-mcp
-            context: ./mcp-servers/ubuntu-server
+            context: .
             dockerfile: ./mcp-servers/ubuntu-server/Dockerfile
           - name: obsidian-mcp
-            context: ./mcp-servers/obsidian
+            context: .
             dockerfile: ./mcp-servers/obsidian/Dockerfile
           - name: synology-mcp
-            context: ./mcp-servers/synology-nas
+            context: .
             dockerfile: ./mcp-servers/synology-nas/Dockerfile
           - name: github-mcp
-            context: ./mcp-servers/github
+            context: .
             dockerfile: ./mcp-servers/github/Dockerfile
           - name: link-manager-mcp
-            context: ./mcp-servers/link-manager
+            context: .
             dockerfile: ./mcp-servers/link-manager/Dockerfile
           - name: mcp-gateway
-            context: ./mcp-servers/shared/mcp-gateway
+            context: .
             dockerfile: ./mcp-servers/shared/mcp-gateway/Dockerfile
           - name: mcp-webui
             context: ./mcp-webui
@@ -176,16 +176,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Copy shared deps and templates
+      - name: Copy templates for mcp-webui
         run: |
-          mkdir -p ${{ matrix.service.context }}/templates
-          cp -r ./configs/templates/* ${{ matrix.service.context }}/templates/
-          if [ "${{ matrix.service.name }}" != "mcp-webui" ]; then
-            mkdir -p ${{ matrix.service.context }}/shared
-            cp -r ./mcp-servers/shared/mcp-permission-engine ${{ matrix.service.context }}/shared/mcp-permission-engine
-            if [ -d ./mcp-servers/shared/mcp-proxy ]; then
-              cp -r ./mcp-servers/shared/mcp-proxy ${{ matrix.service.context }}/shared/mcp-proxy
-            fi
+          if [ "${{ matrix.service.name }}" = "mcp-webui" ]; then
+            mkdir -p ./mcp-webui/templates
+            cp -r ./configs/templates/* ./mcp-webui/templates/
           fi
 
       - name: Build ${{ matrix.service.name }} image
@@ -214,22 +209,22 @@ jobs:
       matrix:
         service:
           - name: ubuntu-mcp
-            context: ./mcp-servers/ubuntu-server
+            context: .
             dockerfile: ./mcp-servers/ubuntu-server/Dockerfile
           - name: obsidian-mcp
-            context: ./mcp-servers/obsidian
+            context: .
             dockerfile: ./mcp-servers/obsidian/Dockerfile
           - name: synology-mcp
-            context: ./mcp-servers/synology-nas
+            context: .
             dockerfile: ./mcp-servers/synology-nas/Dockerfile
           - name: github-mcp
-            context: ./mcp-servers/github
+            context: .
             dockerfile: ./mcp-servers/github/Dockerfile
           - name: link-manager-mcp
-            context: ./mcp-servers/link-manager
+            context: .
             dockerfile: ./mcp-servers/link-manager/Dockerfile
           - name: mcp-gateway
-            context: ./mcp-servers/shared/mcp-gateway
+            context: .
             dockerfile: ./mcp-servers/shared/mcp-gateway/Dockerfile
           - name: mcp-webui
             context: ./mcp-webui
@@ -252,16 +247,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Copy shared deps and templates
+      - name: Copy templates for mcp-webui
         run: |
-          mkdir -p ${{ matrix.service.context }}/templates
-          cp -r ./configs/templates/* ${{ matrix.service.context }}/templates/
-          if [ "${{ matrix.service.name }}" != "mcp-webui" ]; then
-            mkdir -p ${{ matrix.service.context }}/shared
-            cp -r ./mcp-servers/shared/mcp-permission-engine ${{ matrix.service.context }}/shared/mcp-permission-engine
-            if [ -d ./mcp-servers/shared/mcp-proxy ]; then
-              cp -r ./mcp-servers/shared/mcp-proxy ${{ matrix.service.context }}/shared/mcp-proxy
-            fi
+          if [ "${{ matrix.service.name }}" = "mcp-webui" ]; then
+            mkdir -p ./mcp-webui/templates
+            cp -r ./configs/templates/* ./mcp-webui/templates/
           fi
 
       - name: Build and push ${{ matrix.service.name }}
@@ -276,3 +266,4 @@ jobs:
             ghcr.io/${{ steps.repo_owner.outputs.owner }}/${{ matrix.service.name }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
+

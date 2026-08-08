@@ -3,7 +3,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { readServerConfig, writeServerConfig } from "@/lib/yaml-config";
-import { apiHandler, withValidation } from "@/lib/api-helpers";
+import { apiHandler } from "@/lib/api-helpers";
+
 
 export const dynamic = "force-dynamic";
 

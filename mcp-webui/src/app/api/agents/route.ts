@@ -79,18 +79,8 @@ export async function GET() {
   }
 }
 
-const DENY_ALL_TEMPLATE: Record<string, unknown> = {
-  permissions: {
-    default_access: "none",
-    paths: [],
-    commands: [],
-    default_command_access: "none",
-    tools: [],
-    default_tool_access: "none",
-  },
-};
-
 const KNOWN_SERVERS = ["ubuntu-server", "obsidian", "synology-nas", "github-mcp", "link-manager"];
+
 
 async function discoverServerDirs(): Promise<string[]> {
   const set = new Set<string>(KNOWN_SERVERS);

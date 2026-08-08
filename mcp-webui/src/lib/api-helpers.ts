@@ -12,13 +12,16 @@ export function handleApiError(err: unknown): NextResponse {
       { status: 400 }
     );
   }
-  
+
   if (err instanceof Error) {
-    // We could add custom error classes here for 401, 403, 404
     if (err.message === "Rule not found" || err.message === "Not found") {
       return NextResponse.json({ error: err.message }, { status: 404 });
     }
-    if (err.message === "Provide `access` or `updates`" || err.message === "No paths configured" || err.message === "No commands configured") {
+    if (
+      err.message === "Provide `access` or `updates`" ||
+      err.message === "No paths configured" ||
+      err.message === "No commands configured"
+    ) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
   }
@@ -34,7 +37,7 @@ export async function withValidation<T>(schema: z.ZodSchema<T>, request: Request
   return schema.parse(body);
 }
 
-export type RouteHandler<P = any> = (
+export type RouteHandler<P = Record<string, string>> = (
   request: Request,
   context: { params: Promise<P> }
 ) => Promise<NextResponse> | NextResponse;
@@ -42,7 +45,7 @@ export type RouteHandler<P = any> = (
 /**
  * Wraps a route handler with standardized try/catch error handling.
  */
-export function apiHandler<P = any>(fn: RouteHandler<P>): RouteHandler<P> {
+export function apiHandler<P = Record<string, string>>(fn: RouteHandler<P>): RouteHandler<P> {
   return async (request, context) => {
     try {
       return await fn(request, context);
