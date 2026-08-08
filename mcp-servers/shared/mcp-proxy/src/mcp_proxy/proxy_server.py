@@ -35,11 +35,15 @@ class ProxyServer(BaseMCPServer):
     directory in each proxy server for examples.
     """
 
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, config_dir: str | None = None):
         self._config_path = Path(config_path).resolve()
         self._raw_config: dict[str, Any] = {}
         self._reload_config()
-        super().__init__(self._raw_config["server"]["name"], config_path)
+        super().__init__(
+            self._raw_config["server"]["name"],
+            config_path,
+            config_dir=config_dir,
+        )
         self._proc: Optional[asyncio.subprocess.Process] = None
         self._tools_cache: list[dict] = []
         self._request_id = 0
@@ -83,6 +87,13 @@ class ProxyServer(BaseMCPServer):
     def _reload_config(self) -> None:
         with open(self._config_path, "r") as f:
             self._raw_config = yaml.safe_load(f) or {}
+
+    def reload_config(self) -> None:
+        """Reload enforcer, prompts, and raw proxy YAML config."""
+        super().reload_config()
+        self._reload_config()
+        # Clear tool cache so the next list_tools re-initializes the subprocess
+        self._tools_cache = []
 
     def _proxy_config(self) -> ProxyConfig:
         raw = self._raw_config.get("proxy", {})

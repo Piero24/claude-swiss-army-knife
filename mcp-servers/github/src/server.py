@@ -8,6 +8,7 @@ from pathlib import Path
 
 from mcp_proxy import ProxyServer
 from permission_engine.config_resolver import create_deny_all, resolve_user_config
+from permission_engine.config_watcher import watch_config
 
 logger = logging.getLogger("github-mcp")
 
@@ -44,12 +45,25 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    config_path = _resolve_github_config(args.config_dir)
-    proxy = ProxyServer(config_path)
+    config_dir = str(Path(args.config_dir).resolve())
+    config_path = _resolve_github_config(config_dir)
+    proxy = ProxyServer(config_path, config_dir=config_dir)
     proxy.setup()
 
     logger.info("GitHub MCP proxy running (%s mode)", args.transport)
-    await proxy.run(transport=args.transport, port=args.port)
+
+    watch_task = asyncio.create_task(
+        watch_config(Path(config_dir), proxy.reload_config)
+    )
+
+    try:
+        await proxy.run(transport=args.transport, port=args.port)
+    finally:
+        watch_task.cancel()
+        try:
+            await watch_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":

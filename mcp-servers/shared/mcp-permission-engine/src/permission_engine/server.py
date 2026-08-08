@@ -35,25 +35,26 @@ def extract_server_prompt(yaml_path: Path) -> str | None:
         lines = yaml_path.read_text(encoding="utf-8").splitlines()
     except OSError:
         return None
-    block: list[str] = []
     in_server = False
+    block_lines: list[str] = []
     for line in lines:
         m = _TOP_LEVEL_KEY.match(line)
         if m:
             if m.group(1) == "server":
                 in_server = True
-                block.append(line)
-                continue
+                continue  # skip "server:" itself — parse only its value block
             if in_server:
                 break
         elif in_server:
-            block.append(line)
-    if not block:
+            block_lines.append(line)
+    if not block_lines:
         return None
     try:
         import yaml
 
-        data = yaml.safe_load("\n".join(block)) or {}
+        # block_lines are the indented children of "server:" —
+        # yaml.safe_load parses them as a flat mapping: {"name": ..., "prompt": ...}
+        data = yaml.safe_load("\n".join(block_lines)) or {}
         prompt = data.get("prompt")
     except Exception:
         return None
@@ -80,7 +81,9 @@ class BaseMCPServer:
     - Configuration loading and reloading
     """
 
-    def __init__(self, name: str, config_path: str, config_dir: str | None = None):
+    def __init__(
+        self, name: str, config_path: str, config_dir: str | None = None
+    ):
         Server, _ = _import_mcp()
         self.server = Server(name)
         self.config_path = config_path
@@ -119,7 +122,9 @@ class BaseMCPServer:
             prompt = extract_server_prompt(f)
             if prompt:
                 prompts[f.stem] = prompt
-        logger.debug("Loaded %d user prompts from %s", len(prompts), self.config_dir)
+        logger.debug(
+            "Loaded %d user prompts from %s", len(prompts), self.config_dir
+        )
         return prompts
 
     def _current_user_id_for_init(self) -> str:

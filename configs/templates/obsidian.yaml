@@ -3,6 +3,7 @@ server:
   name: obsidian
   log_level: INFO
   audit_log: /var/log/mcp/audit.log
+  # prompt: ""           # <-- optional per-user instructions sent to Claude
 
 ui:
   label: Obsidian
