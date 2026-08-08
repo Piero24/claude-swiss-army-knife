@@ -8,8 +8,22 @@
 
 services:
   # ============================================================
-  # MCP Servers (Python 3.12)
+  # MCP Gateway & Servers
   # ============================================================
+
+  mcp-gateway:
+    build:
+      context: ./mcp-servers/shared/mcp-gateway
+      dockerfile: Dockerfile
+    image: mcp-gateway:latest
+    container_name: mcp-gateway
+    ports:
+      - "2222:2222"
+    volumes:
+      - ./configs:/app/configs:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${MCP_LOG_DIR:-/var/log/mcp}:/var/log/mcp
+    restart: unless-stopped
 
   ubuntu-mcp:
     build:

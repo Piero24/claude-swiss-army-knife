@@ -150,14 +150,16 @@ export default function AgentsPage() {
 
   function getMcpJsonSnippet(userId: string, secretKey: string) {
     const keyVal = secretKey || "<YOUR_MCP_USER_KEY>";
-    const serversList = ["ubuntu-server", "synology-nas", "obsidian", "github-mcp", "link-manager"];
+    const serversList = ["ubuntu-server", "obsidian", "synology-nas", "github", "link-manager"];
     const mcpServersObj: Record<string, unknown> = {};
 
     for (const srv of serversList) {
       mcpServersObj[srv] = {
         command: "ssh",
         args: [
-          "user@<YOUR_SERVER_IP>",
+          "-p",
+          "2222",
+          "mcpuser@<YOUR_SERVER_IP>",
           `MCP_USER_ID=${userId}`,
           `MCP_USER_KEY=${keyVal}`,
           "mcp-launcher",

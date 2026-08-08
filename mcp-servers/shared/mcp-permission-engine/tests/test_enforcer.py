@@ -341,8 +341,6 @@ class TestCheckToolAccess:
             enforcer_with_users.check_tool_access("stranger", "any_tool")
 
 
-
-
 CONFIG_WITH_TOOLS = """
 server:
   name: test-mcp

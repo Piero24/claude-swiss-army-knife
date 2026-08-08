@@ -53,9 +53,9 @@ Host my-mcp-server
 
 Add MCP server definitions to `~/.claude.json` on your local machine.
 
-### Simplified Setup (mcp-launcher)
+### Secure Setup (mcp-gateway Container on Port 2222)
 
-The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simplified format:
+The stack runs a containerized SSH Gateway (`mcp-gateway`) on port 2222. Connections land inside an unprivileged Docker container sandbox without host OS shell access:
 
 ```json
 {
@@ -64,10 +64,12 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
       "description": "Ubuntu Server — manage the CasaOS host. Read/write files, run docker commands, control systemd services, check system health, view logs.",
       "command": "ssh",
       "args": [
-        "server@<YOUR_IP_ADDRESS>",
+        "-p",
+        "2222",
+        "mcpuser@<YOUR_IP_ADDRESS>",
         "MCP_USER_ID=4923472957",
         "MCP_USER_KEY=K7mX-p3vN-change-me",
-        "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
+        "mcp-launcher",
         "ubuntu-mcp"
       ]
     },
@@ -75,10 +77,12 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
       "description": "Obsidian — personal knowledge base vault. Read notes, search by tag or full-text, get backlinks, list the vault structure.",
       "command": "ssh",
       "args": [
-        "server@<YOUR_IP_ADDRESS>",
+        "-p",
+        "2222",
+        "mcpuser@<YOUR_IP_ADDRESS>",
         "MCP_USER_ID=4923472957",
         "MCP_USER_KEY=K7mX-p3vN-change-me",
-        "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
+        "mcp-launcher",
         "obsidian-mcp"
       ]
     },
@@ -86,10 +90,12 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
       "description": "Synology NAS — main file storage. Browse shared folders, read files, search by name, check storage health and system info.",
       "command": "ssh",
       "args": [
-        "server@<YOUR_IP_ADDRESS>",
+        "-p",
+        "2222",
+        "mcpuser@<YOUR_IP_ADDRESS>",
         "MCP_USER_ID=4923472957",
         "MCP_USER_KEY=K7mX-p3vN-change-me",
-        "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
+        "mcp-launcher",
         "synology-mcp"
       ]
     },
@@ -97,10 +103,12 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
       "description": "GitHub — search repos, code, issues and PRs. Read/create issues, get file contents.",
       "command": "ssh",
       "args": [
-        "server@<YOUR_IP_ADDRESS>",
+        "-p",
+        "2222",
+        "mcpuser@<YOUR_IP_ADDRESS>",
         "MCP_USER_ID=4923472957",
         "MCP_USER_KEY=K7mX-p3vN-change-me",
-        "/DATA/AppData/mcps-server/bin/mcp-launcher.sh",
+        "mcp-launcher",
         "github-mcp"
       ]
     }
@@ -112,44 +120,16 @@ The web UI automatically deploys `mcp-launcher.sh` to your server. Use this simp
 
 | Arg | Purpose |
 |-----|---------|
-| `server@<YOUR_IP_ADDRESS>` | SSH connection to your server |
-| `MCP_USER_ID=...` | Your user ID (from Web UI → Agents → Generate) |
+| `-p 2222` | Connects to containerized SSH gateway port |
+| `mcpuser@<YOUR_IP_ADDRESS>` | Isolated container user |
+| `MCP_USER_ID=...` | Your user ID (from Web UI → Settings → Add User) |
 | `MCP_USER_KEY=...` | Your plaintext key (**not** the sha256 hash) |
-| `/DATA/.../mcp-launcher.sh` | Server-side dispatcher script |
-| `ubuntu-mcp` | Container name to launch |
+| `mcp-launcher` | Containerized stdio dispatcher |
+| `ubuntu-mcp` | Target container name |
 
-No `docker exec`, `python -m`, or `--config` needed — the launcher handles all of that server-side.
+No `docker exec`, `python -m`, or `--config` needed — the containerized gateway handles all of that server-side.
 
-Get your `MCP_USER_ID` and `MCP_USER_KEY` from the Web UI: **Agents → Add User → Generate**.
-
-### Manual Setup (without launcher)
-
-If the launcher isn't deployed yet, use the full format:
-
-```json
-{
-  "mcpServers": {
-    "ubuntu-server": {
-      "command": "ssh",
-      "args": [
-        "my-mcp-server",
-        "docker", "exec", "-i",
-        "-e", "MCP_USER_ID=4923472957",
-        "-e", "MCP_USER_KEY=K7mX-p3vN-change-me",
-        "ubuntu-mcp",
-        "python", "-m", "ubuntu_mcp",
-        "--config", "/app/configs/ubuntu-server.yaml"
-      ]
-    }
-  }
-}
-```
-
-## User Identity
-
-`MCP_USER_ID` and `MCP_USER_KEY` identify you to the permission engine. Get them from the Web UI (Agents page). If omitted, the user defaults to `"default"` with no authentication.
-
-Claude Code also sets `CLAUDE_AGENT_ID` automatically when using sub-agents, which appears in audit logs but is not used for access control decisions.
+Get your `MCP_USER_ID` and `MCP_USER_KEY` from the Web UI: **Settings → Add User → Generate**.
 
 ## Test the Connection
 
@@ -162,8 +142,8 @@ Claude should list all 12 Ubuntu MCP tools.
 You can also test manually from your terminal:
 
 ```bash
-# Test Ubuntu MCP via the launcher
-ssh server@<YOUR_IP_ADDRESS> /DATA/AppData/mcps-server/bin/mcp-launcher.sh ubuntu-mcp
+# Test connection via containerized SSH gateway on port 2222
+ssh -p 2222 mcpuser@<YOUR_IP_ADDRESS> MCP_USER_ID=<YOUR_ID> MCP_USER_KEY=<YOUR_KEY> mcp-launcher ubuntu-mcp
 ```
 
 A successful response will show the full tool list as JSON.

@@ -1,0 +1,17 @@
+Port 2222
+Protocol 2
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+PermitRootLogin no
+PasswordAuthentication yes
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+X11Forwarding no
+AllowTcpForwarding no
+GatewayPorts no
+
+Match User mcpuser
+    ForceCommand /usr/local/bin/mcp-launcher.sh

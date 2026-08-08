@@ -42,6 +42,32 @@
 name: mcp-stack
 services:
   # ============================================================
+  # MCP GATEWAY — Containerized SSH Gateway on Port 2222
+  # ============================================================
+  mcp-gateway:
+    build:
+      context: ./mcp-servers/shared/mcp-gateway
+      dockerfile: Dockerfile
+    image: ghcr.io/piero24/mcp-gateway:latest
+    pull_policy: always
+    container_name: mcp-gateway
+    restart: unless-stopped
+    ports:
+      - target: 2222
+        published: "2222"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /DATA/AppData/mcps-server/settings
+        target: /app/configs
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: bind
+        source: /DATA/AppData/mcps-server/logs
+        target: /var/log/mcp
+
+  # ============================================================
   # UBUNTU MCP — Remote Linux server management
   # ============================================================
   ubuntu-mcp:

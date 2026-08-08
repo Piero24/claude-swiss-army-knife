@@ -157,6 +157,15 @@ jobs:
           - name: synology-mcp
             context: ./mcp-servers/synology-nas
             dockerfile: ./mcp-servers/synology-nas/Dockerfile
+          - name: github-mcp
+            context: ./mcp-servers/github
+            dockerfile: ./mcp-servers/github/Dockerfile
+          - name: link-manager-mcp
+            context: ./mcp-servers/link-manager
+            dockerfile: ./mcp-servers/link-manager/Dockerfile
+          - name: mcp-gateway
+            context: ./mcp-servers/shared/mcp-gateway
+            dockerfile: ./mcp-servers/shared/mcp-gateway/Dockerfile
           - name: mcp-webui
             context: ./mcp-webui
             dockerfile: ./mcp-webui/Dockerfile
@@ -219,6 +228,9 @@ jobs:
           - name: link-manager-mcp
             context: ./mcp-servers/link-manager
             dockerfile: ./mcp-servers/link-manager/Dockerfile
+          - name: mcp-gateway
+            context: ./mcp-servers/shared/mcp-gateway
+            dockerfile: ./mcp-servers/shared/mcp-gateway/Dockerfile
           - name: mcp-webui
             context: ./mcp-webui
             dockerfile: ./mcp-webui/Dockerfile
