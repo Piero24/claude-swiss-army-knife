@@ -210,7 +210,8 @@ class BaseMCPServer:
                 self._user_enforcers[user_id] = enforcer
                 logger.info(
                     "Created per-user enforcer for '%s' from %s",
-                    user_id, user_config_path,
+                    user_id,
+                    user_config_path,
                 )
                 return enforcer
         logger.debug(
