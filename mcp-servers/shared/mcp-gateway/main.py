@@ -167,19 +167,31 @@ async def handle_sse(
 
     url = f"{target_base}/sse"
     client = httpx.AsyncClient(timeout=None)
-    req = client.build_request(
-        request.method,
-        url,
-        headers=request.headers.raw,
-        content=request.stream(),
-    )
-    res = await client.send(req, stream=True)
-    return StreamingResponse(
-        res.aiter_raw(),
-        status_code=res.status_code,
-        headers=dict(res.headers),
-        background=httpx.Response.aclose,
-    )
+    # Exclude Host header so httpx uses the target host
+    filtered_headers = [
+        (k, v) for k, v in request.headers.raw if k.lower() != b"host"
+    ]
+    try:
+        req = client.build_request(
+            request.method,
+            url,
+            headers=filtered_headers,
+            content=request.stream(),
+        )
+        res = await client.send(req, stream=True)
+        return StreamingResponse(
+            res.aiter_raw(),
+            status_code=res.status_code,
+            headers=dict(res.headers),
+            background=httpx.Response.aclose,
+        )
+    except Exception as e:
+        logger.error("Error proxying to target %s: %s", url, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to connect to target server '{server_name}' at {url}: {e}",
+        )
+
 
 
 @app.post("/mcp/{server_name}/messages")
@@ -215,18 +227,28 @@ async def handle_messages(
         )
 
     headers = dict(request.headers)
+    headers.pop("host", None)
     headers["X-MCP-User-ID"] = user_id
     headers["X-MCP-User-Key"] = user_key
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        res = await client.post(
-            f"{target_base}/messages",
-            content=body_bytes,
-            headers=headers,
-            params=request.query_params,
+    url = f"{target_base}/messages"
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            res = await client.post(
+                url,
+                content=body_bytes,
+                headers=headers,
+                params=request.query_params,
+            )
+            return Response(
+                content=res.content,
+                status_code=res.status_code,
+                headers=dict(res.headers),
+            )
+    except Exception as e:
+        logger.error("Error proxying messages to target %s: %s", url, e)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to post message to target server '{server_name}' at {url}: {e}",
         )
-        return Response(
-            content=res.content,
-            status_code=res.status_code,
-            headers=dict(res.headers),
-        )
+
