@@ -166,8 +166,11 @@ export default function AgentsPage() {
       };
     }
 
-    return JSON.stringify(mcpServersObj, null, 2);
+    const fullJson = JSON.stringify({ mcpServers: mcpServersObj }, null, 2);
+    const lines = fullJson.split("\n");
+    return lines.slice(1, lines.length - 1).map((line) => line.slice(2)).join("\n");
   }
+
 
 
   if (loading)
