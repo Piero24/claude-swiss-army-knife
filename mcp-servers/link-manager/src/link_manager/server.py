@@ -26,7 +26,12 @@ class LinkManagerServer(BaseMCPServer):
     def __init__(self, config_dir: str):
         self._config_dir = Path(config_dir)
         tmp_path, _ = resolve_user_config(config_dir, DENY_ALL_LINKS)
-        super().__init__("link-manager", tmp_path, config_dir=config_dir)
+        super().__init__(
+            "link-manager",
+            tmp_path,
+            config_dir=config_dir,
+            tool_names=[t.name for t in get_tool_definitions()],
+        )
         self.setup()
 
     def _resolve_config_path(self) -> Path | None:

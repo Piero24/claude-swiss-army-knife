@@ -23,7 +23,12 @@ class SynologyServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
         tmp_path, config = resolve_user_config(config_dir, DENY_ALL_SYNOLOGY)
-        super().__init__("synology-mcp", tmp_path, config_dir=config_dir)
+        super().__init__(
+            "synology-mcp",
+            tmp_path,
+            config_dir=config_dir,
+            tool_names=[t.name for t in get_tool_definitions()],
+        )
 
         nas_host = os.environ.get("SYNOLOGY_NAS_HOST", "192.168.1.100")
         nas_port = os.environ.get("SYNOLOGY_NAS_PORT", "5001")

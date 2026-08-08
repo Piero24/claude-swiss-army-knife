@@ -33,7 +33,12 @@ class ObsidianServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
         tmp_path, config = resolve_user_config(config_dir, DENY_ALL)
-        super().__init__("obsidian-mcp", tmp_path, config_dir=config_dir)
+        super().__init__(
+            "obsidian-mcp",
+            tmp_path,
+            config_dir=config_dir,
+            tool_names=[t.name for t in get_tool_definitions()],
+        )
         self.vault: LocalVaultBackend = create_backend(config)
         self.setup()
 

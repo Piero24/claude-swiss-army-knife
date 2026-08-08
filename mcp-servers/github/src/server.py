@@ -49,6 +49,7 @@ async def main() -> None:
     config_path = _resolve_github_config(config_dir)
     proxy = ProxyServer(config_path, config_dir=config_dir)
     proxy.setup()
+    proxy.warm_up()  # pre-fill tool cache so prompts resolve globs on first connect
 
     logger.info("GitHub MCP proxy running (%s mode)", args.transport)
 

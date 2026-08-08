@@ -23,6 +23,9 @@ _request_user_key: contextvars.ContextVar[str] = contextvars.ContextVar(
 logger = logging.getLogger("mcp-base-server")
 
 _TOP_LEVEL_KEY = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*)$")
+_HAS_GLOB = re.compile(r"[*?\[]")
+# 2-space keys inside the "permissions:" block (e.g. "  tools:", "  default_tool_access:")
+_TWO_SPACE_KEY = re.compile(r"^  [A-Za-z_][\w-]*:")
 
 
 def extract_server_prompt(yaml_path: Path) -> str | None:
@@ -65,6 +68,65 @@ def extract_server_prompt(yaml_path: Path) -> str | None:
     return _resolve_env_vars(prompt)
 
 
+def extract_tool_rules(yaml_path: Path) -> tuple[list, str | None]:
+    """Extract ``permissions.tools`` and ``default_tool_access`` without parsing
+    paths/commands — only the *tools* block near the end of the file is touched.
+
+    Returns ``(rules, default_access_string_or_None)``.  *rules* is a list of
+    dicts (raw YAML — not ``ToolRule`` pydantic objects so this module stays
+    importable without the optional YAML dependency at module level).
+    """
+    try:
+        lines = yaml_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return [], None
+    in_permissions = False
+    tool_block: list[str] = []
+    default_access: str | None = None
+    for line in lines:
+        m = _TOP_LEVEL_KEY.match(line)
+        if m:
+            if m.group(1) == "permissions":
+                in_permissions = True
+                continue
+            if in_permissions:
+                # Next top-level key → permissions block ended
+                break
+        if not in_permissions:
+            continue
+        if not tool_block:
+            # Looking for the start of "  tools:"
+            stripped = line.lstrip()
+            if stripped.startswith("tools:"):
+                tool_block.append(line)
+                # Inline "tools: []" or "tools: {}"?
+                tail = stripped[len("tools:") :]
+                if tail.strip():
+                    # Inline value — parse and stop
+                    continue
+        else:
+            # Collecting tool entries — stop at next 2-space key
+            if _TWO_SPACE_KEY.match(line):
+                stripped = line.strip()
+                if stripped.startswith("default_tool_access:"):
+                    val = stripped.split(":", 1)[1].strip()
+                    default_access = val if val else None
+                break
+            tool_block.append(line)
+    if not tool_block:
+        return [], default_access
+    try:
+        import yaml
+
+        data = yaml.safe_load("\n".join(tool_block)) or {}
+    except Exception:
+        return [], default_access
+    tools = data.get("tools")
+    if not isinstance(tools, list):
+        return [], default_access
+    return tools, default_access
+
+
 def _import_mcp():
     """Lazy-import MCP types — only needed at runtime inside a container."""
     from mcp.server import Server
@@ -82,63 +144,166 @@ class BaseMCPServer:
     """
 
     def __init__(
-        self, name: str, config_path: str, config_dir: str | None = None
+        self,
+        name: str,
+        config_path: str,
+        config_dir: str | None = None,
+        tool_names: list[str] | None = None,
     ):
         Server, _ = _import_mcp()
         self.server = Server(name)
         self.config_path = config_path
         self.config_dir = Path(config_dir) if config_dir else None
         self.enforcer = PermissionEnforcer(config_path)
+        self._known_tool_names: set[str] = set(tool_names or [])
         # Per-request user info — set by handle_messages before each tool call.
         # Context vars don't propagate across asyncio task boundaries
         # (SSE and /messages are separate HTTP requests → separate tasks).
         self._request_user_id_val: str = ""
         self._request_user_key_val: str = ""
-        self._prompts: dict[str, str] = self._load_prompts()
+        (
+            self._prompts,
+            self._tool_rules,
+            self._tool_defaults,
+        ) = self._load_user_caches()
 
     def reload_config(self) -> None:
-        """Reload the permission enforcer config and refresh prompt cache."""
+        """Reload the permission enforcer config and refresh caches."""
         self.enforcer.reload()
-        self._prompts = self._load_prompts()
+        (
+            self._prompts,
+            self._tool_rules,
+            self._tool_defaults,
+        ) = self._load_user_caches()
         logger.info(
-            "Config reloaded — %d path rules, %d command rules, %d prompts",
+            "Config reloaded — %d path rules, %d command rules, "
+            "%d prompts, %d tool-rule sets",
             len(self.enforcer.config.permissions.paths),
             len(self.enforcer.config.permissions.commands),
             len(self._prompts),
+            len(self._tool_rules),
         )
 
-    def _load_prompts(self) -> dict[str, str]:
-        """Scan config_dir for per-user YAMLs and extract server.prompt from each.
+    def _load_user_caches(
+        self,
+    ) -> tuple[dict[str, str], dict[str, list], dict[str, str | None]]:
+        """Scan config_dir for per-user YAMLs and extract server.prompt AND
+        permissions.tools from each — one file read per user.
 
-        Only the ``server:`` block is ever parsed — the ``permissions:``
-        section is structurally skipped.
+        Only the ``server:`` and ``tools:`` blocks are ever parsed; the
+        massive ``paths:`` section is skipped.
         """
         prompts: dict[str, str] = {}
+        tool_rules: dict[str, list] = {}
+        tool_defaults: dict[str, str | None] = {}
         if not self.config_dir or not self.config_dir.exists():
-            return prompts
+            return prompts, tool_rules, tool_defaults
         for f in sorted(self.config_dir.glob("*.yaml")):
             if f.name.startswith("."):
                 continue
             prompt = extract_server_prompt(f)
+            rules, default_access = extract_tool_rules(f)
             if prompt:
                 prompts[f.stem] = prompt
+            if rules:
+                tool_rules[f.stem] = rules
+                tool_defaults[f.stem] = default_access
         logger.debug(
-            "Loaded %d user prompts from %s", len(prompts), self.config_dir
+            "Loaded %d user prompts + %d tool-rule sets from %s",
+            len(prompts),
+            len(tool_rules),
+            self.config_dir,
         )
-        return prompts
+        return prompts, tool_rules, tool_defaults
 
     def _current_user_id_for_init(self) -> str:
         """Return the user ID for the current initialization handshake."""
         return _request_user_id.get() or os.environ.get("MCP_USER_ID", "")
 
+    # ── tool-name resolution ────────────────────────────────
+
+    def _get_tool_names(self) -> set[str]:
+        """Catalog of tool names to resolve fnmatch patterns against.
+
+        Subclasses override to provide their actual tool list (static catalog
+        for direct servers, ``_tools_cache`` for proxies).
+        """
+        return self._known_tool_names
+
+    def _resolve_active_tools(self, rules: list) -> list[str]:
+        """Resolve a user's tool-rule patterns against the server's tool catalog.
+
+        Returns a sorted, deduplicated list of tool names that are active for
+        this user.  Glob patterns (``search_*``) are expanded against
+        ``_get_tool_names()`` when available; exact names pass through
+        unconditionally.
+        """
+        import fnmatch
+
+        known = self._get_tool_names()
+        active: list[str] = []
+        for rule in rules:
+            pattern = (
+                rule.get("pattern")
+                if isinstance(rule, dict)
+                else getattr(rule, "pattern", None)
+            )
+            access = (
+                rule.get("access")
+                if isinstance(rule, dict)
+                else getattr(rule, "access", None)
+            )
+            if not pattern or access != "active":
+                continue
+            if _HAS_GLOB.search(pattern):
+                if known:
+                    active.extend(
+                        n for n in sorted(known) if fnmatch.fnmatch(n, pattern)
+                    )
+                else:
+                    # Cold cache fallback (proxy before first list_tools)
+                    active.append(pattern)
+            elif not known or pattern in known:
+                active.append(pattern)
+        return sorted(set(active))
+
+    def _compose_instructions(
+        self,
+        prompt: str | None,
+        active_tools: list[str],
+        default_access: str | None,
+    ) -> str | None:
+        """Build the final ``instructions`` string from the user's custom
+        prompt and their active tool list."""
+        if not prompt and not active_tools:
+            return None
+        lines: list[str] = []
+        if prompt:
+            lines.append(prompt)
+        if active_tools:
+            if prompt:
+                lines += ["", "---"]
+            lines.append("Here are the tools that are active for you:")
+            lines += [f"- {name}" for name in active_tools]
+            if default_access != "active":
+                lines.append("Other tools are disabled.")
+        return "\n".join(lines)
+
     def create_initialization_options(self):
-        """Return init options with the connecting user's prompt injected."""
+        """Return init options with the connecting user's prompt + active
+        tool list injected."""
         opts = dict(self.server.create_initialization_options())
         user_id = self._current_user_id_for_init()
         if user_id and user_id != "default":
             prompt = self._prompts.get(user_id)
-            if prompt:
-                opts["instructions"] = prompt
+            rules = self._tool_rules.get(user_id, [])
+            instructions = self._compose_instructions(
+                prompt,
+                self._resolve_active_tools(rules) if rules else [],
+                self._tool_defaults.get(user_id),
+            )
+            if instructions:
+                opts["instructions"] = instructions
         return opts
 
     def _text(self, text: str) -> list:

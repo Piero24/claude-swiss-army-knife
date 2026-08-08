@@ -39,7 +39,12 @@ class UbuntuServer(BaseMCPServer):
 
     def __init__(self, config_dir: str):
         tmp_path, config = resolve_user_config(config_dir, DENY_ALL_UBUNTU)
-        super().__init__("ubuntu-mcp", tmp_path, config_dir=config_dir)
+        super().__init__(
+            "ubuntu-mcp",
+            tmp_path,
+            config_dir=config_dir,
+            tool_names=[t.name for t in get_tool_definitions()],
+        )
         self.host: HostAccess = create_host_access(config)
         self.setup()
 
