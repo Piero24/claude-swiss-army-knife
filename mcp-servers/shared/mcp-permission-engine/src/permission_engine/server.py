@@ -155,6 +155,11 @@ class BaseMCPServer:
         self.config_path = config_path
         self.config_dir = Path(config_dir) if config_dir else None
         self.enforcer = PermissionEnforcer(config_path)
+        # Keep the default enforcer for reload_config and as fallback.
+        self._default_enforcer = self.enforcer
+        # Per-user enforcer cache: user_id → PermissionEnforcer.
+        # Each user has their own <user_id>.yaml config with isolated permissions.
+        self._user_enforcers: dict[str, PermissionEnforcer] = {}
         self._known_tool_names: set[str] = set(tool_names or [])
         # Per-request user info — set by handle_messages before each tool call.
         # Context vars don't propagate across asyncio task boundaries
@@ -169,7 +174,11 @@ class BaseMCPServer:
 
     def reload_config(self) -> None:
         """Reload the permission enforcer config and refresh caches."""
-        self.enforcer.reload()
+        self._default_enforcer.reload()
+        # Clear per-user enforcer cache so next requests pick up fresh configs.
+        self._user_enforcers.clear()
+        # Restore default enforcer (current request may have swapped it).
+        self.enforcer = self._default_enforcer
         (
             self._prompts,
             self._tool_rules,
@@ -178,11 +187,36 @@ class BaseMCPServer:
         logger.info(
             "Config reloaded — %d path rules, %d command rules, "
             "%d prompts, %d tool-rule sets",
-            len(self.enforcer.config.permissions.paths),
-            len(self.enforcer.config.permissions.commands),
+            len(self._default_enforcer.config.permissions.paths),
+            len(self._default_enforcer.config.permissions.commands),
             len(self._prompts),
             len(self._tool_rules),
         )
+
+    def _get_user_enforcer(self, user_id: str) -> PermissionEnforcer:
+        """Return a PermissionEnforcer for *user_id*, creating and caching one
+        from ``<config_dir>/<user_id>.yaml`` on first access.
+
+        Falls back to the default enforcer when no per-user config exists.
+        """
+        if not user_id or user_id == "default":
+            return self._default_enforcer
+        if user_id in self._user_enforcers:
+            return self._user_enforcers[user_id]
+        if self.config_dir:
+            user_config_path = self.config_dir / f"{user_id}.yaml"
+            if user_config_path.exists():
+                enforcer = PermissionEnforcer(str(user_config_path))
+                self._user_enforcers[user_id] = enforcer
+                logger.info(
+                    "Created per-user enforcer for '%s' from %s",
+                    user_id, user_config_path,
+                )
+                return enforcer
+        logger.debug(
+            "No per-user config for '%s' — using default enforcer", user_id
+        )
+        return self._default_enforcer
 
     def _load_user_caches(
         self,
@@ -343,10 +377,9 @@ class BaseMCPServer:
     ) -> list:
         """Wrap a tool call with permission checks and error handling.
 
-        Args:
-            name: The tool name.
-            arguments: The tool arguments.
-            handler_fn: An async function that takes (name, arguments) and returns the result dict/list.
+        Swaps ``self.enforcer`` to the per-user enforcer so that every
+        downstream permission check (paths, commands, tools) uses the
+        correct user's isolated config, not a single shared config.
         """
         user_id = self._request_user_id_val or os.environ.get(
             "MCP_USER_ID", "default"
@@ -359,6 +392,10 @@ class BaseMCPServer:
         )
 
         logger.debug("Tool call: %s user=%s", name, user_id)
+
+        # Swap to the per-user enforcer so path/command/tool rules come
+        # from this user's own <user_id>.yaml, not a shared global config.
+        self.enforcer = self._get_user_enforcer(user_id)
 
         try:
             self.enforcer.authenticate(user_id, user_key)
