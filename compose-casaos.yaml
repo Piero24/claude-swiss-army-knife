@@ -60,6 +60,8 @@ services:
         published: "8281"
         protocol: tcp
 
+    environment:
+      - SECURITY_WEBHOOK_URL=${SECURITY_WEBHOOK_URL:-}
 
     volumes:
       - type: bind

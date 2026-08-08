@@ -26,6 +26,8 @@ services:
       - ./configs:/app/configs:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ${MCP_LOG_DIR:-/var/log/mcp}:/var/log/mcp
+    environment:
+      - SECURITY_WEBHOOK_URL=${SECURITY_WEBHOOK_URL:-}
     restart: unless-stopped
 
   ubuntu-mcp:

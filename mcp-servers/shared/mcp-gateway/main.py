@@ -1,75 +1,26 @@
 """Zero-Trust HTTP/HTTPS API Gateway for MCP (Model Context Protocol).
 
-Provides a centralized HTTP SSE / REST API proxy gateway enforcing edge authentication,
-tool authorization, and path resolution via permission_engine before forwarding
-payloads to internal MCP container servers.
+Provides a centralized HTTP SSE / REST API proxy gateway enforcing edge
+authentication, tool authorization, and path resolution via permission_engine
+before forwarding payloads to internal MCP container servers.
 """
 
 from __future__ import annotations
 
 import json
-import logging
-import os
-from pathlib import Path
-from typing import Any
 
+import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-import httpx
-from permission_engine import ForbiddenError, PermissionEnforcer
-from permission_engine.users import AuthenticationError, load_users, validate_user
 
-CONTAINER_TARGETS = {
-    "ubuntu-server": [
-        "http://ubuntu-mcp:8000",
-        "http://ubuntu-server:8000",
-        "http://host.docker.internal:8000",
-        "http://172.17.0.1:8000",
-    ],
-    "ubuntu-mcp": [
-        "http://ubuntu-mcp:8000",
-        "http://ubuntu-server:8000",
-        "http://host.docker.internal:8000",
-        "http://172.17.0.1:8000",
-    ],
-    "obsidian": [
-        "http://obsidian-mcp:8000",
-        "http://obsidian:8000",
-    ],
-    "obsidian-mcp": [
-        "http://obsidian-mcp:8000",
-        "http://obsidian:8000",
-    ],
-    "synology-nas": [
-        "http://synology-mcp:8000",
-        "http://synology-nas:8000",
-    ],
-    "synology-mcp": [
-        "http://synology-mcp:8000",
-        "http://synology-nas:8000",
-    ],
-    "github": [
-        "http://github-mcp:8000",
-        "http://github:8000",
-    ],
-    "github-mcp": [
-        "http://github-mcp:8000",
-        "http://github:8000",
-    ],
-    "link-manager": [
-        "http://link-manager-mcp:8000",
-        "http://link-manager:8000",
-    ],
-    "link-manager-mcp": [
-        "http://link-manager-mcp:8000",
-        "http://link-manager:8000",
-    ],
-}
+from auth import extract_credentials, verify_and_enforce
+from config import CONTAINER_TARGETS, logger
+from webhooks import notify_security_event
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("mcp-gateway")
-
+# ---------------------------------------------------------------------------
+# FastAPI application
+# ---------------------------------------------------------------------------
 app = FastAPI(title="Zero-Trust MCP API Gateway", version="2.0.0")
 
 app.add_middleware(
@@ -80,11 +31,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CONFIGS_DIR = Path(os.environ.get("CONFIGS_PATH", "/app/configs"))
-USERS_FILE = CONFIGS_DIR / "users.yaml"
 
-
-async def _resolve_target_base(server_name: str) -> str:
+# ---------------------------------------------------------------------------
+# Target resolution
+# ---------------------------------------------------------------------------
+async def resolve_target_base(server_name: str) -> str:
+    """Find a reachable backend URL for *server_name*, falling back to the
+    last candidate if none respond."""
     targets = (
         CONTAINER_TARGETS.get(server_name)
         or CONTAINER_TARGETS.get(f"{server_name}-mcp")
@@ -103,75 +56,9 @@ async def _resolve_target_base(server_name: str) -> str:
     return targets[0]
 
 
-def _extract_credentials(
-    authorization: str | None, x_mcp_user_id: str | None
-) -> tuple[str, str]:
-    user_id = x_mcp_user_id or ""
-    user_key = ""
-    if authorization and authorization.startswith("Bearer "):
-        user_key = authorization[7:].strip()
-
-    if not user_id or not user_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization Bearer token or X-MCP-User-ID header",
-        )
-    return user_id, user_key
-
-
-def _verify_and_enforce(
-    server_name: str,
-    user_id: str,
-    user_key: str,
-    tool_name: str | None = None,
-    tool_args: dict[str, Any] | None = None,
-):
-    users = load_users(str(USERS_FILE))
-    try:
-        validate_user(users, user_id, user_key)
-    except AuthenticationError as e:
-        logger.warning("Auth failed for user=%s: %s", user_id, e)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)
-        )
-
-    # Skip tool-level enforcement for SSE connections (no tool being called).
-    # SSE handshakes must be fast — PermissionEnforcer loads the full per-user
-    # YAML config (which can be many MB due to auto-discovered paths).
-    # Tool-level checks happen on /messages, not on /sse.
-    if not tool_name:
-        return
-
-    # Initialize enforcer for the specific server config
-    server_config_file = CONFIGS_DIR / server_name / f"{user_id}.yaml"
-    if not server_config_file.exists():
-        server_config_file = (
-            CONFIGS_DIR / f"{server_name}-mcp" / f"{user_id}.yaml"
-        )
-    if not server_config_file.exists():
-        server_config_file = CONFIGS_DIR / f"{server_name}.yaml"
-    if not server_config_file.exists():
-        server_config_file = CONFIGS_DIR / f"{server_name}-mcp.yaml"
-
-    if server_config_file.exists():
-        try:
-            enforcer = PermissionEnforcer(str(server_config_file))
-            enforcer.check_tool_access(user_id, tool_name)
-        except ForbiddenError as e:
-            logger.warning(
-                "Access denied for user=%s tool=%s: %s", user_id, tool_name, e
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
-            )
-        except Exception as e:
-            logger.error("Enforcer error for user=%s: %s", user_id, e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Enforcer error: {e}",
-            )
-
-
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "gateway": "zero-trust-mcp"}
@@ -184,11 +71,22 @@ async def handle_sse(
     authorization: str | None = Header(None),
     x_mcp_user_id: str | None = Header(None, alias="X-MCP-User-ID"),
 ):
-    user_id, user_key = _extract_credentials(authorization, x_mcp_user_id)
-    _verify_and_enforce(server_name, user_id, user_key)
+    user_id, user_key = extract_credentials(
+        authorization, x_mcp_user_id, request
+    )
+    verify_and_enforce(server_name, user_id, user_key, request=request)
 
-    target_base = await _resolve_target_base(server_name)
+    target_base = await resolve_target_base(server_name)
     if not target_base:
+        notify_security_event(
+            event="unknown_server",
+            request=request,
+            http_status=status.HTTP_404_NOT_FOUND,
+            server_name=server_name,
+            user_id=user_id,
+            error_type="UnknownServer",
+            error_reason=f"Unknown MCP server '{server_name}'",
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unknown MCP server '{server_name}'",
@@ -196,7 +94,6 @@ async def handle_sse(
 
     url = f"{target_base}/sse"
     client = httpx.AsyncClient(timeout=None)
-    # Exclude Host header so httpx uses the target host
     filtered_headers = [
         (k, v) for k, v in request.headers.raw if k.lower() != b"host"
     ]
@@ -232,6 +129,15 @@ async def handle_sse(
         )
     except Exception as e:
         logger.error("Error proxying to target %s: %s", url, e)
+        notify_security_event(
+            event="bad_gateway",
+            request=request,
+            http_status=status.HTTP_502_BAD_GATEWAY,
+            server_name=server_name,
+            user_id=user_id,
+            error_type="BadGateway",
+            error_reason=str(e),
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to connect to target server '{server_name}' at {url}: {e}",
@@ -245,7 +151,9 @@ async def handle_messages(
     authorization: str | None = Header(None),
     x_mcp_user_id: str | None = Header(None, alias="X-MCP-User-ID"),
 ):
-    user_id, user_key = _extract_credentials(authorization, x_mcp_user_id)
+    user_id, user_key = extract_credentials(
+        authorization, x_mcp_user_id, request
+    )
     body_bytes = await request.body()
     tool_name = None
     tool_args = None
@@ -259,12 +167,26 @@ async def handle_messages(
     except Exception:
         pass
 
-    _verify_and_enforce(
-        server_name, user_id, user_key, tool_name=tool_name, tool_args=tool_args
+    verify_and_enforce(
+        server_name,
+        user_id,
+        user_key,
+        tool_name=tool_name,
+        tool_args=tool_args,
+        request=request,
     )
 
-    target_base = await _resolve_target_base(server_name)
+    target_base = await resolve_target_base(server_name)
     if not target_base:
+        notify_security_event(
+            event="unknown_server",
+            request=request,
+            http_status=status.HTTP_404_NOT_FOUND,
+            server_name=server_name,
+            user_id=user_id,
+            error_type="UnknownServer",
+            error_reason=f"Unknown MCP server '{server_name}'",
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Unknown MCP server '{server_name}'",
@@ -291,6 +213,15 @@ async def handle_messages(
             )
     except Exception as e:
         logger.error("Error proxying messages to target %s: %s", url, e)
+        notify_security_event(
+            event="bad_gateway",
+            request=request,
+            http_status=status.HTTP_502_BAD_GATEWAY,
+            server_name=server_name,
+            user_id=user_id,
+            error_type="BadGateway",
+            error_reason=str(e),
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to post message to target server '{server_name}' at {url}: {e}",

@@ -50,6 +50,7 @@ const sidebars: SidebarsConfig = {
             "user/security/model",
             "user/security/permissions",
             "user/security/audit-trail",
+            "user/security/webhooks",
             "user/security/hardening",
           ],
         },

@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -e /app/shared/mcp-permission-engine
 RUN pip install --no-cache-dir fastapi uvicorn httpx pyyaml pydantic
 
 # Copy application files
-COPY mcp-servers/shared/mcp-gateway/main.py /app/main.py
+COPY mcp-servers/shared/mcp-gateway/*.py /app/
 
 EXPOSE 8280
 
