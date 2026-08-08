@@ -31,8 +31,8 @@
 # Before starting on the host:
 #        mkdir -p /DATA/AppData/mcps-server/{shared,ubuntu-server,synology-nas,obsidian,github,mcp-webui,settings}
 #        mkdir -p /DATA/AppData/mcps-server/logs/{ubuntu-server,obsidian,synology-nas,github-mcp,link-manager}
-#   3. Copy config templates into settings:
-#        cp configs/templates/users.yaml /DATA/AppData/mcps-server/settings/
+#   3. Copy config templates into settings (FIRST TIME ONLY — skip if users.yaml exists):
+#        [ -f /DATA/AppData/mcps-server/settings/users.yaml ] || cp configs/templates/users.yaml /DATA/AppData/mcps-server/settings/
 #        cp -r configs/templates /DATA/AppData/mcps-server/settings/
 #   4. Fill in env vars in the CasaOS UI or edit them below.
 #   5. Generate API keys for the Web UI:
@@ -51,6 +51,7 @@ services:
     image: ghcr.io/piero24/mcp-gateway:latest
     pull_policy: always
     container_name: mcp-gateway
+    network_mode: mcp-bridge
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -138,6 +139,7 @@ services:
     image: ghcr.io/piero24/obsidian-mcp:latest
     pull_policy: always
     container_name: obsidian-mcp
+    network_mode: mcp-bridge
     stdin_open: true
     restart: unless-stopped
     x-casaos:
@@ -169,6 +171,7 @@ services:
     image: ghcr.io/piero24/synology-mcp:latest
     pull_policy: always
     container_name: synology-mcp
+    network_mode: mcp-bridge
     stdin_open: true
     restart: unless-stopped
     environment:
@@ -213,6 +216,7 @@ services:
     image: ghcr.io/piero24/mcp-webui:latest
     pull_policy: always
     container_name: mcp-webui
+    network_mode: mcp-bridge
     restart: unless-stopped
     environment:
       WEBUI_API_KEY: ""
@@ -259,6 +263,7 @@ services:
     image: ghcr.io/piero24/github-mcp:latest
     pull_policy: always
     container_name: github-mcp
+    network_mode: mcp-bridge
     stdin_open: true
     restart: unless-stopped
     environment:
@@ -288,6 +293,7 @@ services:
     image: ghcr.io/piero24/link-manager-mcp:latest
     pull_policy: always
     container_name: link-manager-mcp
+    network_mode: mcp-bridge
     stdin_open: true
     restart: unless-stopped
     environment:

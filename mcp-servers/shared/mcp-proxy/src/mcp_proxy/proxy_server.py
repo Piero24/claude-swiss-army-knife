@@ -18,8 +18,6 @@ from permission_engine import (
     ServerConfig,
     _current_user_id,
     _observed_subagent_id,
-    _request_user_id,
-    _request_user_key,
 )
 
 logger = logging.getLogger("mcp-proxy")
@@ -156,13 +154,13 @@ class ProxyServer(BaseMCPServer):
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-            user_id = _request_user_id.get() or os.environ.get(
+            user_id = self._request_user_id_val or os.environ.get(
                 "MCP_USER_ID", "default"
             )
             _current_user_id.set(user_id)
             _observed_subagent_id.set(os.environ.get("CLAUDE_AGENT_ID", ""))
 
-            user_key = _request_user_key.get() or os.environ.get(
+            user_key = self._request_user_key_val or os.environ.get(
                 "MCP_USER_KEY", ""
             )
             try:

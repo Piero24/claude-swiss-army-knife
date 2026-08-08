@@ -42,6 +42,11 @@ class BaseMCPServer:
         self.server = Server(name)
         self.config_path = config_path
         self.enforcer = PermissionEnforcer(config_path)
+        # Per-request user info — set by handle_messages before each tool call.
+        # Context vars don't propagate across asyncio task boundaries
+        # (SSE and /messages are separate HTTP requests → separate tasks).
+        self._request_user_id_val: str = ""
+        self._request_user_key_val: str = ""
 
     def reload_config(self) -> None:
         """Reload the permission enforcer config."""
@@ -94,13 +99,13 @@ class BaseMCPServer:
             arguments: The tool arguments.
             handler_fn: An async function that takes (name, arguments) and returns the result dict/list.
         """
-        user_id = _request_user_id.get() or os.environ.get(
+        user_id = self._request_user_id_val or os.environ.get(
             "MCP_USER_ID", "default"
         )
         _current_user_id.set(user_id)
         _observed_subagent_id.set(os.environ.get("CLAUDE_AGENT_ID", ""))
 
-        user_key = _request_user_key.get() or os.environ.get("MCP_USER_KEY", "")
+        user_key = self._request_user_key_val or os.environ.get("MCP_USER_KEY", "")
 
         logger.debug("Tool call: %s user=%s", name, user_id)
 
@@ -157,10 +162,10 @@ class BaseMCPServer:
             async def handle_messages(request):
                 uid = request.headers.get("x-mcp-user-id") or ""
                 ukey = request.headers.get("x-mcp-user-key") or ""
-                if uid:
-                    _request_user_id.set(uid)
-                if ukey:
-                    _request_user_key.set(ukey)
+                # Store on instance — context vars don't propagate across
+                # asyncio task boundaries (SSE vs /messages are separate tasks).
+                self._request_user_id_val = uid
+                self._request_user_key_val = ukey
                 await sse.handle_post_message(
                     request.scope, request.receive, request._send
                 )
