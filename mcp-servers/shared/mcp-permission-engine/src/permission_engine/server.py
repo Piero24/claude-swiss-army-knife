@@ -105,7 +105,9 @@ class BaseMCPServer:
         _current_user_id.set(user_id)
         _observed_subagent_id.set(os.environ.get("CLAUDE_AGENT_ID", ""))
 
-        user_key = self._request_user_key_val or os.environ.get("MCP_USER_KEY", "")
+        user_key = self._request_user_key_val or os.environ.get(
+            "MCP_USER_KEY", ""
+        )
 
         logger.debug("Tool call: %s user=%s", name, user_id)
 
