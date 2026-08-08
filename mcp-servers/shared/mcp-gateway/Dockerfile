@@ -1,18 +1,22 @@
-FROM alpine:3.19
+FROM python:3.12-slim
 
-RUN apk add --no-cache openssh-server bash docker-cli python3 py3-yaml shadow
+WORKDIR /app
 
-# Create unprivileged user mcpuser
-RUN useradd -m -s /bin/bash mcpuser && \
-    echo "mcpuser:mcpuser" | chpasswd
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt-get/lists/*
 
-# Copy configuration and launcher scripts
-COPY sshd_config /etc/ssh/sshd_config
-COPY mcp-launcher.sh /usr/local/bin/mcp-launcher.sh
-COPY entrypoint.sh /entrypoint.sh
+# Copy permission engine
+COPY shared/mcp-permission-engine /app/shared/mcp-permission-engine
+RUN pip install --no-cache-dir -e /app/shared/mcp-permission-engine
 
-RUN chmod +x /usr/local/bin/mcp-launcher.sh /entrypoint.sh
+# Install gateway dependencies
+RUN pip install --no-cache-dir fastapi uvicorn httpx pyyaml pydantic
 
-EXPOSE 2222
+# Copy application files
+COPY main.py /app/main.py
 
-ENTRYPOINT ["/entrypoint.sh"]
+EXPOSE 8280
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8280"]

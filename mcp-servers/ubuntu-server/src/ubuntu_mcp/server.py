@@ -382,12 +382,24 @@ class UbuntuServer(BaseMCPServer):
 
 
 async def main() -> None:
-    """Entry point: parse args, load config, start MCP server with hot-reload."""
+    """Entry point: parse args, load config, start MCP server."""
     parser = argparse.ArgumentParser(description="Ubuntu Server MCP")
     parser.add_argument(
         "--config-dir",
         default="/app/configs/ubuntu-server",
         help="Directory with per-user YAML configs",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "sse"],
+        default=os.environ.get("MCP_TRANSPORT", "sse"),
+        help="Transport mode: sse (default) or stdio",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("MCP_PORT", "8000")),
+        help="Port for SSE transport (default 8000)",
     )
     args = parser.parse_args()
 
@@ -401,14 +413,49 @@ async def main() -> None:
         watch_config(Path(config_dir), app.reload_config)
     )
 
-    # Run MCP server
-    async with stdio_server() as (read_stream, write_stream):
-        logger.info("Ubuntu MCP server running (stdio mode)")
-        await app.server.run(
-            read_stream,
-            write_stream,
-            app.server.create_initialization_options(),
+    if args.transport == "sse":
+        from mcp.server.sse import SseServerTransport
+        from starlette.applications import Starlette
+        from starlette.routing import Route
+        import uvicorn
+
+        sse = SseServerTransport("/messages")
+
+        async def handle_sse(request):
+            async with sse.connect_sses(
+                request.scope, request.receive, request._send
+            ) as streams:
+                await app.server.run(
+                    streams[0],
+                    streams[1],
+                    app.server.create_initialization_options(),
+                )
+
+        async def handle_messages(request):
+            await sse.handle_post_message(
+                request.scope, request.receive, request._send
+            )
+
+        starlette_app = Starlette(
+            routes=[
+                Route("/sse", endpoint=handle_sse),
+                Route("/messages", endpoint=handle_messages, methods=["POST"]),
+            ]
         )
+        logger.info("Ubuntu MCP running in SSE mode on port %d", args.port)
+        config = uvicorn.Config(
+            starlette_app, host="0.0.0.0", port=args.port, log_level="info"
+        )
+        server = uvicorn.Server(config)
+        await server.serve()
+    else:
+        async with stdio_server() as (read_stream, write_stream):
+            logger.info("Ubuntu MCP server running (stdio mode)")
+            await app.server.run(
+                read_stream,
+                write_stream,
+                app.server.create_initialization_options(),
+            )
 
     # Cleanup
     watch_task.cancel()

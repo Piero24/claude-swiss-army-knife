@@ -18,7 +18,7 @@ services:
     image: mcp-gateway:latest
     container_name: mcp-gateway
     ports:
-      - "2222:2222"
+      - "8280:8280"
     volumes:
       - ./configs:/app/configs:ro
       - /var/run/docker.sock:/var/run/docker.sock

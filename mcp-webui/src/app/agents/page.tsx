@@ -155,16 +155,11 @@ export default function AgentsPage() {
 
     for (const srv of serversList) {
       mcpServersObj[srv] = {
-        command: "ssh",
-        args: [
-          "-p",
-          "2222",
-          "mcpuser@<YOUR_SERVER_IP>",
-          `MCP_USER_ID=${userId}`,
-          `MCP_USER_KEY=${keyVal}`,
-          "mcp-launcher",
-          srv,
-        ],
+        url: `http://<YOUR_SERVER_IP>:8280/mcp/${srv}/sse`,
+        headers: {
+          Authorization: `Bearer ${keyVal}`,
+          "X-MCP-User-ID": userId,
+        },
       };
     }
 
