@@ -120,7 +120,6 @@ async def _resolve_target_base(server_name: str) -> str:
     return targets[0]
 
 
-
 def _extract_credentials(
     authorization: str | None, x_mcp_user_id: str | None
 ) -> tuple[str, str]:
