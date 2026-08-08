@@ -130,6 +130,7 @@ class BaseMCPServer:
         if transport == "sse":
             from mcp.server.sse import SseServerTransport
             from starlette.applications import Starlette
+            from starlette.responses import Response
             from starlette.routing import Route
             import uvicorn
 
@@ -151,6 +152,7 @@ class BaseMCPServer:
                         streams[1],
                         self.server.create_initialization_options(),
                     )
+                return Response()
 
             async def handle_messages(request):
                 uid = request.headers.get("x-mcp-user-id") or ""

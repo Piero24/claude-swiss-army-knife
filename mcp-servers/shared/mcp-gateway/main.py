@@ -135,6 +135,13 @@ def _verify_and_enforce(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)
         )
 
+    # Skip tool-level enforcement for SSE connections (no tool being called).
+    # SSE handshakes must be fast — PermissionEnforcer loads the full per-user
+    # YAML config (which can be many MB due to auto-discovered paths).
+    # Tool-level checks happen on /messages, not on /sse.
+    if not tool_name:
+        return
+
     # Initialize enforcer for the specific server config
     server_config_file = CONFIGS_DIR / server_name / f"{user_id}.yaml"
     if not server_config_file.exists():
@@ -149,7 +156,7 @@ def _verify_and_enforce(
     if server_config_file.exists():
         try:
             enforcer = PermissionEnforcer(str(server_config_file))
-            enforcer.check_tool_access(user_id, tool_name or "")
+            enforcer.check_tool_access(user_id, tool_name)
         except ForbiddenError as e:
             logger.warning(
                 "Access denied for user=%s tool=%s: %s", user_id, tool_name, e
