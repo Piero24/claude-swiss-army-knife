@@ -9,6 +9,15 @@ from typing import Any, Awaitable, Callable
 
 from .enforcer import PermissionEnforcer, _current_user_id, _observed_subagent_id
 
+import contextvars
+
+_request_user_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "request_user_id", default=""
+)
+_request_user_key: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "request_user_key", default=""
+)
+
 logger = logging.getLogger("mcp-base-server")
 
 
@@ -85,11 +94,15 @@ class BaseMCPServer:
             arguments: The tool arguments.
             handler_fn: An async function that takes (name, arguments) and returns the result dict/list.
         """
-        user_id = os.environ.get("MCP_USER_ID", "default")
+        user_id = (
+            _request_user_id.get() or os.environ.get("MCP_USER_ID", "default")
+        )
         _current_user_id.set(user_id)
         _observed_subagent_id.set(os.environ.get("CLAUDE_AGENT_ID", ""))
 
-        user_key = os.environ.get("MCP_USER_KEY", "")
+        user_key = (
+            _request_user_key.get() or os.environ.get("MCP_USER_KEY", "")
+        )
 
         logger.debug("Tool call: %s user=%s", name, user_id)
 
@@ -125,6 +138,12 @@ class BaseMCPServer:
             sse = SseServerTransport("/messages")
 
             async def handle_sse(request):
+                uid = request.headers.get("x-mcp-user-id") or ""
+                ukey = request.headers.get("x-mcp-user-key") or ""
+                if uid:
+                    _request_user_id.set(uid)
+                if ukey:
+                    _request_user_key.set(ukey)
                 async with sse.connect_sse(
                     request.scope, request.receive, request._send
                 ) as streams:
@@ -136,6 +155,12 @@ class BaseMCPServer:
                     )
 
             async def handle_messages(request):
+                uid = request.headers.get("x-mcp-user-id") or ""
+                ukey = request.headers.get("x-mcp-user-key") or ""
+                if uid:
+                    _request_user_id.set(uid)
+                if ukey:
+                    _request_user_key.set(ukey)
                 await sse.handle_post_message(
                     request.scope, request.receive, request._send
                 )
