@@ -157,13 +157,14 @@ export default function AgentsPage() {
 
     for (const srv of serversList) {
       mcpServersObj[srv] = {
-        url: `http://<YOUR_SERVER_IP>:8280/mcp/${srv}/sse`,
+        url: `http://<YOUR_SERVER_IP>:8281/mcp/${srv}/sse`,
         headers: {
           Authorization: `Bearer ${keyVal}`,
           "X-MCP-User-ID": userId,
         },
       };
     }
+
 
     return JSON.stringify({ mcpServers: mcpServersObj }, null, 2);
   }

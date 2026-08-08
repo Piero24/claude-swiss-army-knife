@@ -121,15 +121,27 @@ async def main() -> None:
         default="/app/configs/link-manager",
         help="Directory with per-user YAML configs",
     )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "sse"],
+        default=os.environ.get("MCP_TRANSPORT", "sse"),
+        help="Transport mode: sse (default) or stdio",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("MCP_PORT", "8000")),
+        help="Port for SSE transport (default 8000)",
+    )
     args = parser.parse_args()
 
     config_dir = str(Path(args.config_dir).resolve())
     logger.info("Loading config dir: %s", config_dir)
 
     app = LinkManagerServer(config_dir)
-    logger.info("Link Manager MCP server starting (stdio mode)")
+    logger.info("Link Manager MCP server starting (%s mode)", args.transport)
 
-    await app.run(transport="stdio")
+    await app.run(transport=args.transport, port=args.port)
 
 
 if __name__ == "__main__":

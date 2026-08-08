@@ -36,7 +36,7 @@ app.add_middleware(
 CONFIGS_DIR = Path(os.environ.get("CONFIGS_PATH", "/app/configs"))
 USERS_FILE = CONFIGS_DIR / "users.yaml"
 
-# Container internal URLs inside mcp-internal network
+
 CONTAINER_TARGETS = {
     "ubuntu-server": "http://ubuntu-mcp:8000",
     "ubuntu-mcp": "http://ubuntu-mcp:8000",
@@ -49,6 +49,14 @@ CONTAINER_TARGETS = {
     "link-manager": "http://link-manager-mcp:8000",
     "link-manager-mcp": "http://link-manager-mcp:8000",
 }
+
+
+def _resolve_target_base(server_name: str) -> str | None:
+    if server_name in CONTAINER_TARGETS:
+        return CONTAINER_TARGETS[server_name]
+    if f"{server_name}-mcp" in CONTAINER_TARGETS:
+        return CONTAINER_TARGETS[f"{server_name}-mcp"]
+    return f"http://{server_name}:8000"
 
 
 def _extract_credentials(
@@ -89,7 +97,8 @@ def _verify_and_enforce(
         server_config_file = CONFIGS_DIR / f"{server_name}.yaml"
 
     if server_config_file.exists():
-        enforcer = PermissionEnforcer(server_name, str(server_config_file))
+        enforcer = PermissionEnforcer(str(server_config_file))
+
         try:
             if tool_name:
                 enforcer.check_tool_access(user_id, tool_name)
@@ -117,7 +126,7 @@ async def handle_sse(
     user_id, user_key = _extract_credentials(authorization, x_mcp_user_id)
     _verify_and_enforce(server_name, user_id, user_key)
 
-    target_base = CONTAINER_TARGETS.get(server_name)
+    target_base = _resolve_target_base(server_name)
     if not target_base:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -166,7 +175,7 @@ async def handle_messages(
         server_name, user_id, user_key, tool_name=tool_name, tool_args=tool_args
     )
 
-    target_base = CONTAINER_TARGETS.get(server_name)
+    target_base = _resolve_target_base(server_name)
     if not target_base:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

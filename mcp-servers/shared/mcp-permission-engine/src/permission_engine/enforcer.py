@@ -129,7 +129,9 @@ class PermissionEnforcer:
             if settings_dir:
                 candidates.append(Path(settings_dir) / "settings.json")
             if self._config_path:
-                candidates.append(self._config_path.parent.parent / "settings.json")
+                candidates.append(
+                    self._config_path.parent.parent / "settings.json"
+                )
                 candidates.append(self._config_path.parent / "settings.json")
             candidates.append(Path("/app/configs/settings.json"))
             candidates.append(Path("/app/settings.json"))
@@ -159,7 +161,6 @@ class PermissionEnforcer:
         except Exception as e:
             logger.warning("Error checking server enablement: %s", e)
             return True
-
 
     def authenticate(
         self, user_id: str, user_key: str, users_config_path: str = ""
