@@ -147,14 +147,7 @@ export default function ServerDetailPage() {
     setSelectedUser(val);
     localStorage.setItem("selectedUser", val);
     setLoading(true);
-    try {
-      const cfg = await getConfig(server, val);
-      setConfig(cfg);
-    } catch {
-      toast.error("Failed to load user config");
-    } finally {
-      setLoading(false);
-    }
+    await loadData();
   }
 
   async function handleTogglePath(ruleId: string, access: AccessLevel) {

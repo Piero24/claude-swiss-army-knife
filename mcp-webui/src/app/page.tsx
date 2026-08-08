@@ -36,28 +36,6 @@ export default function DashboardPage() {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const router = useRouter();
 
-  const loadConfigsForUser = useCallback(async (userId: string, currentServers: ServerMeta[]) => {
-    const names = currentServers.map((s) => s.name);
-    const r: Record<string, ServerConfig> = {};
-    for (const s of names) {
-      try {
-        r[s] = await getConfig(s, userId);
-      } catch {
-        /* ignore */
-      }
-    }
-    setConfigs(r);
-  }, []);
-
-  const handleUserChange = useCallback(
-    (userId: string) => {
-      setSelectedUser(userId);
-      localStorage.setItem("selectedUser", userId);
-      loadConfigsForUser(userId, servers);
-    },
-    [servers, loadConfigsForUser]
-  );
-
   const loadScanStatus = useCallback(async () => {
     try {
       const res = await fetch("/api/scan-status");
@@ -103,6 +81,14 @@ export default function DashboardPage() {
     loadScanStatus();
     setLoading(false);
   }, [loadScanStatus]);
+
+  const handleUserChange = useCallback(
+    (userId: string) => {
+      setLoading(true);
+      loadAll(userId);
+    },
+    [loadAll]
+  );
 
   useEffect(() => {
     const stored = localStorage.getItem("selectedUser");

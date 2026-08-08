@@ -326,8 +326,13 @@ class BaseMCPServer:
 
     def create_initialization_options(self):
         """Return init options with the connecting user's prompt + active
-        tool list injected."""
-        opts = dict(self.server.create_initialization_options())
+        tool list injected.
+
+        Returns the native ``InitializationOptions`` object (not a dict)
+        so that ``Server.run()`` and ``ServerSession`` receive the correct
+        type regardless of MCP library version.
+        """
+        opts = self.server.create_initialization_options()
         user_id = self._current_user_id_for_init()
         if user_id and user_id != "default":
             prompt = self._prompts.get(user_id)
@@ -338,7 +343,7 @@ class BaseMCPServer:
                 self._tool_defaults.get(user_id),
             )
             if instructions:
-                opts["instructions"] = instructions
+                opts.instructions = instructions
         return opts
 
     def _text(self, text: str) -> list:
