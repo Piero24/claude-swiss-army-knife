@@ -10,7 +10,9 @@ import PageHeader from "@/components/PageHeader";
 import Toggle from "@/components/Toggle";
 import EmptyState from "@/components/EmptyState";
 import DataTable from "@/components/DataTable";
+import { copyToClipboard } from "@/lib/clipboard";
 import type { Column } from "@/components/DataTable";
+
 
 
 
@@ -359,17 +361,23 @@ export default function AgentsPage() {
                 {getMcpJsonSnippet(jsonModalUser.id, jsonModalUser.secret)}
               </pre>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(getMcpJsonSnippet(jsonModalUser.id, jsonModalUser.secret));
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                  toast.success("MCP JSON copied to clipboard");
+                onClick={async () => {
+                  const text = getMcpJsonSnippet(jsonModalUser.id, jsonModalUser.secret);
+                  const success = await copyToClipboard(text);
+                  if (success) {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                    toast.success("MCP JSON copied to clipboard");
+                  } else {
+                    toast.error("Failed to copy to clipboard");
+                  }
                 }}
                 className="absolute top-3 right-3 flex items-center gap-1 px-3 py-1 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white font-medium shadow"
               >
                 {copied ? <Check size={14} /> : <Copy size={14} />}
                 {copied ? "Copied!" : "Copy JSON"}
               </button>
+
             </div>
 
             {!jsonModalUser.secret && (

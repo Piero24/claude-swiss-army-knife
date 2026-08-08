@@ -41,6 +41,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./configs/ubuntu-server:/app/configs/ubuntu-server:ro
       - ./configs/users.yaml:/app/users.yaml:ro
+      - ./configs/settings.json:/app/configs/settings.json:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/ubuntu-server:/var/log/mcp
     command: ["--config-dir", "/app/configs/ubuntu-server"]
     environment:
@@ -64,6 +65,7 @@ services:
       - ${OBSIDIAN_LOCAL_VAULT_PATH:-/DATA/obsidian-vaults}:/data/vaults:rw
       - ./configs/obsidian:/app/configs/obsidian:ro
       - ./configs/users.yaml:/app/users.yaml:ro
+      - ./configs/settings.json:/app/configs/settings.json:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/obsidian:/var/log/mcp
     command: ["--config-dir", "/app/configs/obsidian"]
     environment:
@@ -80,7 +82,7 @@ services:
     volumes:
       - ./configs/synology-nas:/app/configs/synology-nas:ro
       - ./configs/users.yaml:/app/users.yaml:ro
-      - ./configs/settings.json:/app/settings.json:ro
+      - ./configs/settings.json:/app/configs/settings.json:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/synology-nas:/var/log/mcp
     command: ["--config-dir", "/app/configs/synology-nas"]
     environment:
@@ -131,6 +133,7 @@ services:
     volumes:
       - ./configs/github-mcp:/app/configs/github-mcp:ro
       - ./configs/users.yaml:/app/users.yaml:ro
+      - ./configs/settings.json:/app/configs/settings.json:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/github-mcp:/var/log/mcp
     command: ["--config-dir", "/app/configs/github-mcp"]
     environment:
@@ -152,6 +155,7 @@ services:
     volumes:
       - ./configs/link-manager:/app/configs/link-manager:ro
       - ./configs/users.yaml:/app/users.yaml:ro
+      - ./configs/settings.json:/app/configs/settings.json:ro
       - ${MCP_LOG_DIR:-/var/log/mcp}/link-manager:/var/log/mcp
     command: ["--config-dir", "/app/configs/link-manager"]
     environment:

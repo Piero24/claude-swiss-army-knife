@@ -103,12 +103,18 @@ class PermissionEnforcer:
     # Map MCP internal server names → web UI server keys
     _SERVER_KEY_MAP = {
         "ubuntu-mcp": "ubuntu-server",
+        "ubuntu-server": "ubuntu-server",
         "obsidian-mcp": "obsidian",
+        "obsidian": "obsidian",
         "synology-mcp": "synology-nas",
+        "synology-nas": "synology-nas",
         "github-mcp": "github-mcp",
+        "github": "github-mcp",
+        "link-manager": "link-manager",
+        "link-manager-mcp": "link-manager",
     }
 
-    def is_server_enabled(self, settings_dir: str = "/app/configs") -> bool:
+    def is_server_enabled(self, settings_dir: str = "") -> bool:
         """Check if this server is enabled in settings.json.
 
         Args:
@@ -119,18 +125,41 @@ class PermissionEnforcer:
             Defaults to True if settings.json is missing or unreadable.
         """
         try:
-            settings_path = Path(settings_dir) / "settings.json"
-            if not settings_path.exists():
+            candidates: list[Path] = []
+            if settings_dir:
+                candidates.append(Path(settings_dir) / "settings.json")
+            if self._config_path:
+                candidates.append(self._config_path.parent.parent / "settings.json")
+                candidates.append(self._config_path.parent / "settings.json")
+            candidates.append(Path("/app/configs/settings.json"))
+            candidates.append(Path("/app/settings.json"))
+
+            settings_path = None
+            for p in candidates:
+                if p.exists():
+                    settings_path = p
+                    break
+
+            if not settings_path:
                 return True
+
             with open(settings_path, "r") as f:
                 settings = json.load(f)
             servers = settings.get("servers", {})
             mcp_name = self._config.server.name if self._config else ""
-            # Resolve via map, fall back to exact match
             key = self._SERVER_KEY_MAP.get(mcp_name, mcp_name)
-            return servers.get(key, {}).get("enabled", True)
-        except Exception:
-            return True  # can't read settings → assume enabled
+
+            for k in (key, mcp_name, f"{key}-mcp", f"{mcp_name}-mcp"):
+                if k in servers and isinstance(servers[k], dict):
+                    enabled = servers[k].get("enabled")
+                    if enabled is not None:
+                        return bool(enabled)
+
+            return True
+        except Exception as e:
+            logger.warning("Error checking server enablement: %s", e)
+            return True
+
 
     def authenticate(
         self, user_id: str, user_key: str, users_config_path: str = ""
