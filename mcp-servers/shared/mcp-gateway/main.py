@@ -154,7 +154,9 @@ def _verify_and_enforce(
     # Initialize enforcer for the specific server config
     server_config_file = CONFIGS_DIR / server_name / f"{user_id}.yaml"
     if not server_config_file.exists():
-        server_config_file = CONFIGS_DIR / f"{server_name}-mcp" / f"{user_id}.yaml"
+        server_config_file = (
+            CONFIGS_DIR / f"{server_name}-mcp" / f"{user_id}.yaml"
+        )
     if not server_config_file.exists():
         server_config_file = CONFIGS_DIR / f"{server_name}.yaml"
     if not server_config_file.exists():
