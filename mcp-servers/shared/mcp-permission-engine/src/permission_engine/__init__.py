@@ -33,11 +33,13 @@ from .models import (
 )
 from .scan_excludes import is_excluded, load_excludes
 from .users import AuthenticationError, UserConfig, UsersConfig, load_users, validate_user
-from .server import BaseMCPServer
+from .server import BaseMCPServer, _request_user_id, _request_user_key
 
 __all__ = [
     # Server Base
     "BaseMCPServer",
+    "_request_user_id",
+    "_request_user_key",
     # Enforcer
     "PermissionEnforcer",
     "ForbiddenError",
