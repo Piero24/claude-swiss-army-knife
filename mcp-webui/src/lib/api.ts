@@ -296,7 +296,7 @@ export async function getAgents() {
   return fetchJSON<import("./types").UsersConfig>(`${BASE}/agents`);
 }
 
-export async function updateAgentsSettings(data: { mode: string; users: Array<{ id: string; key: string; name: string; enabled: boolean; tools: string[] }> }) {
+export async function updateAgentsSettings(data: { users: Array<{ id: string; key: string; name: string; enabled: boolean; tools: string[] }> }) {
   return fetchJSON<{ saved: boolean }>(`${BASE}/agents`, {
     method: "PUT",
     body: JSON.stringify(data),

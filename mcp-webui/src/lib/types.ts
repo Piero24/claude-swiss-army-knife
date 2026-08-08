@@ -85,6 +85,5 @@ export interface UserConfig {
 }
 
 export interface UsersConfig {
-  mode: "open" | "allowlist" | "blocklist";
   users: UserConfig[];
 }

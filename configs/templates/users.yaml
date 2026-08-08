@@ -5,12 +5,6 @@
 # Key format: "sha256$<salt>$<hash>".
 # Generate keys via the Web UI (Agents → Add User → Generate).
 #
-# mode: "open" (default) | "allowlist" | "blocklist"
-#   - open:       everyone can use tools (users can be disabled individually)
-#   - allowlist:  only listed + enabled users can use tools
-#   - blocklist:  everyone except disabled users can use tools
-#
 # tools: ["*"] = all tools, or list specific tool names per server
 
-mode: allowlist
 users: []

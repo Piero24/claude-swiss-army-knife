@@ -54,7 +54,6 @@ export default function AgentsPage() {
     setSaving(true);
     try {
       await updateAgentsSettings({
-        mode: data.mode,
         users: data.users,
       });
       toast.success("Settings saved");

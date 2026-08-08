@@ -29,10 +29,6 @@ class UserConfig(BaseModel):
 class UsersConfig(BaseModel):
     """Top-level users configuration."""
 
-    mode: str = Field(
-        default="allowlist",
-        description="Access mode: 'open', 'allowlist', or 'blocklist'",
-    )
     users: list[UserConfig] = Field(
         default_factory=list, description="List of configured users"
     )

@@ -19,7 +19,6 @@ const userSchema = z.object({
 });
 
 const usersSchema = z.object({
-  mode: z.enum(["open", "allowlist", "blocklist"]).default("open"),
   users: z.array(userSchema).default([]),
 });
 
@@ -29,7 +28,7 @@ async function load(): Promise<z.infer<typeof usersSchema>> {
     const data = (yaml.load(raw) as Record<string, unknown>) || {};
     return usersSchema.parse(data);
   } catch {
-    return { mode: "open", users: [] };
+    return { users: [] };
   }
 }
 
@@ -66,7 +65,6 @@ export async function GET() {
     const lastSeen = await getLastSeenMap();
     // Strip keys — never expose hashes to the frontend
     const safe = {
-      mode: data.mode,
       users: data.users.map((u) => ({
         ...u,
         key: u.key ? "set" : "",
@@ -170,13 +168,24 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const validated = usersSchema.parse(body);
 
-    // Detect new users before saving
-    let oldUserIds: string[] = [];
+    // Load old config to detect new/deleted users and preserve existing keys
+    let oldUserMap: Record<string, { key: string }> = {};
     try {
       const oldRaw = await fs.readFile(USERS_PATH, "utf-8");
       const oldData = yaml.load(oldRaw) as Record<string, unknown>;
-      oldUserIds = ((oldData?.users as Array<{id: string}>) || []).map((u) => u.id);
+      const oldUsers = (oldData?.users as Array<{ id: string; key: string }>) || [];
+      for (const u of oldUsers) {
+        oldUserMap[u.id] = { key: u.key };
+      }
     } catch { /* no previous users.yaml */ }
+    const oldUserIds = Object.keys(oldUserMap);
+
+    // Preserve existing keys when frontend sends the masked "set" value
+    for (const user of validated.users) {
+      if (user.key === "set" && oldUserMap[user.id]) {
+        user.key = oldUserMap[user.id].key;
+      }
+    }
 
     await fs.mkdir(path.dirname(USERS_PATH), { recursive: true });
     const yamlStr = yaml.dump(validated, { noRefs: true, lineWidth: -1 });
@@ -195,7 +204,7 @@ export async function PUT(request: Request) {
     }
 
     // Purge configs for deleted users
-    const deletedUserIds = oldUserIds.filter((id) => !validated.users.some((u) => u.id === id));
+    const deletedUserIds = Object.keys(oldUserMap).filter((id) => !validated.users.some((u) => u.id === id));
     for (const deletedId of deletedUserIds) {
       await deleteUserConfigs(deletedId);
     }
