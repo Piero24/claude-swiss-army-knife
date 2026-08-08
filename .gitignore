@@ -17,3 +17,4 @@ mcp-servers/*/shared/
 /configs/*
 !/configs/templates/
 compose-casaos-personal.yaml
+.claude
