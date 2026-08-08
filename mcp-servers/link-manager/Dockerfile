@@ -16,8 +16,4 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /app /app
 
-# Create non-root user
-RUN adduser -D -h /app mcp && chown -R mcp:mcp /app
-USER mcp
-
 ENTRYPOINT ["python", "-m", "link_manager"]
