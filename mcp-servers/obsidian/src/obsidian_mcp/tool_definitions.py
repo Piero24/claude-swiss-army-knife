@@ -60,6 +60,24 @@ def get_tool_definitions() -> list[Tool]:
             },
         ),
         Tool(
+            name="obsidian_append_note",
+            description="Append content to the end of an existing note.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path relative to vault root.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Markdown content to append.",
+                    },
+                },
+                "required": ["path", "content"],
+            },
+        ),
+        Tool(
             name="obsidian_delete_note",
             description="Delete a note (soft-delete to .trash/ by default).",
             inputSchema={

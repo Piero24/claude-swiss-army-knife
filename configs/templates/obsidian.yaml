@@ -48,6 +48,12 @@ permissions:
         Create a new note or update an existing one. DESTRUCTIVE — enable only
         when you need to create or edit documents.
       id: tool_2_writenote
+    - pattern: obsidian_append_note
+      access: active
+      description: >-
+        Append content to the end of an existing note without overwriting it.
+        Safer than write_note for adding to documents.
+      id: tool_9_appendnote
     - pattern: obsidian_delete_note
       access: none
       description: >-

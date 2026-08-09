@@ -383,7 +383,7 @@ export default function ServerDetailPage() {
     }
   }
 
-  async function handleAddLinkSubmit(data: { name: string; url: string; category?: string; tags?: string; description?: string }) {
+  async function handleAddLinkSubmit(data: { name: string; url: string; category?: string; tags?: string; description?: string; shareAll: boolean }) {
     if (!data.name || !data.url) {
       toast.error("Name and URL are required");
       return;
@@ -399,7 +399,8 @@ export default function ServerDetailPage() {
         description: data.description || undefined,
         category: data.category || undefined,
         tags: tagsArray.length > 0 ? tagsArray : undefined,
-      });
+        share: data.shareAll,
+      }, selectedUser);
       toast.success("Link added successfully");
       setShowAddLink(false);
       loadData();

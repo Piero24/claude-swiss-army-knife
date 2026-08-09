@@ -75,14 +75,16 @@ export function AddLinkModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { name: string; url: string; category?: string; tags?: string; description?: string }) => void | Promise<void>;
+  onSubmit: (data: { name: string; url: string; category?: string; tags?: string; description?: string; shareAll: boolean }) => void | Promise<void>;
 }) {
   const [formData, setFormData] = useState({ name: "", url: "", description: "", category: "documentation", tags: "" });
+  const [shareAll, setShareAll] = useState(true);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await onSubmit(formData);
+    await onSubmit({ ...formData, shareAll });
     setFormData({ name: "", url: "", description: "", category: "documentation", tags: "" });
+    setShareAll(true);
   }
 
   return (
@@ -140,6 +142,15 @@ export function AddLinkModal({
             className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={shareAll}
+            onChange={(e) => setShareAll(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-xs text-gray-300">Share this link with all users</span>
+        </label>
         <div className="flex justify-end gap-2 pt-2">
           <button
             type="button"

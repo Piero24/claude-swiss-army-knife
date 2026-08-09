@@ -339,7 +339,7 @@ export async function updatePrompt(
 
 export async function addLink(
   server: ServerName,
-  link: { name: string; url: string; description?: string; category?: string; tags?: string[] },
+  link: { name: string; url: string; description?: string; category?: string; tags?: string[]; share?: boolean },
   userId?: string | null
 ): Promise<{ created: boolean; link: import("./types").LinkItem }> {
   return fetchJSON(withUser(`${BASE}/config/${server}/links`, userId), {

@@ -92,6 +92,19 @@ class ObsidianServer(BaseMCPServer):
                     "file": str(filepath),
                 }
 
+            case "obsidian_append_note":
+                self.enforcer.check("write", arguments["path"], name)
+                existing = await self.vault.read_note(arguments["path"])
+                appended = existing + "\n" + arguments["content"]
+                filepath = await self.vault.write_note(
+                    arguments["path"], appended
+                )
+                return {
+                    "appended": True,
+                    "path": arguments["path"],
+                    "file": str(filepath),
+                }
+
             case "obsidian_delete_note":
                 self.enforcer.check("write", arguments["path"], name)
                 result = await self.vault.delete_note(
