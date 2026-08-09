@@ -91,9 +91,22 @@ function hasPlaceholders(envVars: string[], keys: string[]): string[] {
 
 async function getLastAuditActivity(logDir: string): Promise<Date | null> {
   try {
-    const auditFile = path.join(LOGS_PATH, logDir, "audit.log");
-    const stat = await fs.stat(auditFile);
-    return stat.mtime;
+    const dirPath = path.join(LOGS_PATH, logDir);
+    const files = await fs.readdir(dirPath, { withFileTypes: true });
+    const logFiles = files
+      .filter((d) => d.isFile())
+      .map((d) => d.name)
+      .filter((n) => n === "audit.log" || /^audit-\d{4}-\d{2}\.log$/.test(n));
+    if (logFiles.length === 0) return null;
+
+    let latest: Date | null = null;
+    for (const f of logFiles) {
+      try {
+        const stat = await fs.stat(path.join(dirPath, f));
+        if (!latest || stat.mtime > latest) latest = stat.mtime;
+      } catch { continue; }
+    }
+    return latest;
   } catch { return null; }
 }
 

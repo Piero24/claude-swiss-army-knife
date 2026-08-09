@@ -2,11 +2,14 @@
 
 import hashlib
 import hmac
+import logging
 from pathlib import Path
 from typing import Optional
 
 import yaml
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class UserConfig(BaseModel):
@@ -49,10 +52,17 @@ def load_users(path: str) -> UsersConfig:
     """
     p = Path(path)
     if not p.exists():
+        logger.warning("Users file not found: %s", path)
         return UsersConfig(users=[])
     with open(p, "r") as f:
         data = yaml.safe_load(f) or {}
-    return UsersConfig(**data)
+    config = UsersConfig(**data)
+    logger.debug(
+        "Loaded %d users from %s",
+        len(config.users),
+        path,
+    )
+    return config
 
 
 def validate_user(

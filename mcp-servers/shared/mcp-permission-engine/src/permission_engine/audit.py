@@ -1,11 +1,14 @@
 """Structured JSON audit logging for permission decisions."""
 
 import json
+import logging
 import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class AuditLogger:
@@ -89,7 +92,11 @@ class AuditLogger:
             with open(self._log_path, "a") as f:
                 f.write(line)
         except Exception:
-            pass
+            logger.warning(
+                "Failed to write audit entry to %s",
+                self._log_path,
+                exc_info=True,
+            )
 
 
 def read_audit_log(

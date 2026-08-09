@@ -50,9 +50,16 @@ async def resolve_target_base(server_name: str) -> str:
         try:
             async with httpx.AsyncClient(timeout=1.5) as client:
                 await client.get(target)
+                logger.debug("Target resolved: %s → %s", server_name, target)
                 return target
         except Exception:
+            logger.debug("Target unreachable: %s", target)
             continue
+    logger.warning(
+        "All targets unreachable for %s, using %s as fallback",
+        server_name,
+        targets[0],
+    )
     return targets[0]
 
 
@@ -62,6 +69,28 @@ async def resolve_target_base(server_name: str) -> str:
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "gateway": "zero-trust-mcp"}
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log every incoming request with method, path, and client info."""
+    from config import logger
+
+    logger.info(
+        "%s %s from %s",
+        request.method,
+        request.url.path,
+        request.client.host if request.client else "unknown",
+    )
+    response = await call_next(request)
+    if response.status_code >= 400:
+        logger.warning(
+            "%s %s → %d",
+            request.method,
+            request.url.path,
+            response.status_code,
+        )
+    return response
 
 
 @app.api_route("/mcp/{server_name}/sse", methods=["GET", "POST"])
@@ -75,6 +104,7 @@ async def handle_sse(
         authorization, x_mcp_user_id, request
     )
     verify_and_enforce(server_name, user_id, user_key, request=request)
+    logger.info("SSE handshake: server=%s user=%s", server_name, user_id)
 
     target_base = await resolve_target_base(server_name)
     if not target_base:
@@ -128,7 +158,7 @@ async def handle_sse(
             headers=response_headers,
         )
     except Exception as e:
-        logger.error("Error proxying to target %s: %s", url, e)
+        logger.error("Error proxying SSE to target %s: %s", url, e)
         notify_security_event(
             event="bad_gateway",
             request=request,
@@ -164,6 +194,13 @@ async def handle_messages(
             params = payload.get("params", {})
             tool_name = params.get("name")
             tool_args = params.get("arguments", {})
+            logger.debug(
+                "Tool call: server=%s user=%s tool=%s args=%s",
+                server_name,
+                user_id,
+                tool_name,
+                json.dumps(tool_args, default=str)[:200] if tool_args else "{}",
+            )
     except Exception:
         pass
 

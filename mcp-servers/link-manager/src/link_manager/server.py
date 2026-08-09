@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 from pathlib import Path
@@ -61,6 +62,11 @@ class LinkManagerServer(BaseMCPServer):
             return await self.handle_tool_call(name, arguments, self._dispatch)
 
     async def _dispatch(self, name: str, arguments: dict) -> dict | list:
+        logger.debug(
+            "Dispatching tool=%s args=%s",
+            name,
+            json.dumps(arguments, default=str)[:300] if arguments else "{}",
+        )
         config = self._read_config()
 
         match name:
@@ -121,6 +127,7 @@ class LinkManagerServer(BaseMCPServer):
             yaml_writer.dump(
                 config, f, default_flow_style=False, allow_unicode=True
             )
+        logger.debug("Config saved: %s", config_path)
 
 
 async def main() -> None:

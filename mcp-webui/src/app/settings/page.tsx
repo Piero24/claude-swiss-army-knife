@@ -239,17 +239,35 @@ export default function SettingsPage() {
       {/* Audit Log Section */}
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-4">Audit Log</h2>
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">Entries per page</label>
-          <select
-            value={settings.auditPageSize || 50}
-            onChange={(e) => setSettings({ ...settings, auditPageSize: parseInt(e.target.value) as 50 | 100 | 150 })}
-            className="w-32 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-            <option value={150}>150</option>
-          </select>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Entries per page</label>
+            <select
+              value={settings.auditPageSize || 50}
+              onChange={(e) => setSettings({ ...settings, auditPageSize: parseInt(e.target.value) as 50 | 100 | 150 })}
+              className="w-32 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={150}>150</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Log retention (months)</label>
+            <p className="text-xs text-gray-500 mb-1">
+              Rotated audit logs older than this are deleted. Active audit.log is never removed. Range: 1–60 months.
+            </p>
+            <input
+              type="number"
+              min={1} max={60}
+              value={settings.logRetentionMonths ?? 12}
+              onChange={(e) => setSettings({
+                ...settings,
+                logRetentionMonths: Math.max(1, Math.min(60, parseInt(e.target.value) || 12)),
+              })}
+              className="w-32 rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
       </section>
 

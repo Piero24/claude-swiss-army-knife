@@ -5,6 +5,7 @@ import * as fs from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import * as yaml from "js-yaml";
+import { readAllAuditEntries } from "@/lib/audit-log-reader";
 
 const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
 const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
@@ -38,21 +39,19 @@ async function getLastSeenMap(): Promise<Record<string, string>> {
     const dirs = await fs.readdir(LOGS_PATH, { withFileTypes: true });
     for (const dirent of dirs) {
       if (!dirent.isDirectory()) continue;
-      const logFile = path.join(LOGS_PATH, dirent.name, "audit.log");
-      const raw = await fs.readFile(logFile, "utf-8").catch(() => "");
-      if (!raw) continue;
-      const lines = raw.split("\n").filter(Boolean);
-      // Only scan the most recent ~1000 entries per server
-      const recent = lines.slice(-1000);
-      for (const line of recent) {
-        try {
-          const entry = JSON.parse(line);
-          if (entry.user_id && entry.ts) {
-            if (!lastSeen[entry.user_id] || entry.ts > lastSeen[entry.user_id]) {
-              lastSeen[entry.user_id] = entry.ts;
-            }
+      const entries = await readAllAuditEntries(
+        path.join(LOGS_PATH, dirent.name),
+        1000,
+      );
+      for (const entry of entries) {
+        if (entry.user_id && entry.ts) {
+          if (
+            !lastSeen[entry.user_id] ||
+            entry.ts > lastSeen[entry.user_id]
+          ) {
+            lastSeen[entry.user_id] = entry.ts;
           }
-        } catch { /* skip malformed lines */ }
+        }
       }
     }
   } catch { /* log dir may not exist yet */ }

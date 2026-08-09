@@ -27,6 +27,7 @@ const settingsSchema = z.object({
     maxDownloadMb: z.number().min(1).max(10240).default(100),
     defaultSearchPath: z.string().default("/home"),
   }).optional(),
+  logRetentionMonths: z.number().min(1).max(60).default(12),
 });
 
 export type AppSettings = z.infer<typeof settingsSchema>;
@@ -53,6 +54,7 @@ const DEFAULTS: AppSettings = {
     maxDownloadMb: 100,
     defaultSearchPath: "/home",
   },
+  logRetentionMonths: 12,
 };
 
 async function seedDefaultTemplates(configsDir: string): Promise<void> {

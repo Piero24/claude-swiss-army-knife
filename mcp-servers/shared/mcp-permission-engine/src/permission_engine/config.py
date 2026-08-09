@@ -1,5 +1,6 @@
 """YAML config loader with Pydantic schema validation and env var substitution."""
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -9,6 +10,8 @@ import yaml
 from pydantic import ValidationError
 
 from .models import ServerConfig
+
+logger = logging.getLogger(__name__)
 
 
 # Matches ${VAR_NAME} and ${VAR_NAME:-default_value}
@@ -88,8 +91,18 @@ class ConfigLoader:
                     import shutil
 
                     shutil.copy(template_found, config_path)
+                    logger.info(
+                        "Created config from template: %s → %s",
+                        template_found,
+                        config_path,
+                    )
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Failed to copy template %s → %s",
+                        template_found,
+                        config_path,
+                        exc_info=True,
+                    )
 
             if not config_path.exists():
                 try:
@@ -107,7 +120,15 @@ class ConfigLoader:
                     }
                     with open(config_path, "w") as f:
                         yaml.safe_dump(default_data, f)
+                    logger.info(
+                        "Created default config (no template found): %s",
+                        config_path,
+                    )
                 except Exception:
+                    logger.error(
+                        "Cannot create default config: %s",
+                        config_path,
+                    )
                     raise FileNotFoundError(
                         f"Config file not found: {config_path}"
                     )
@@ -122,8 +143,20 @@ class ConfigLoader:
         resolved = _resolve_env_vars_in_obj(raw)
 
         try:
-            return ServerConfig.model_validate(resolved)
+            result = ServerConfig.model_validate(resolved)
+            logger.debug(
+                "Loaded config: %s (%d paths, %d commands)",
+                config_path,
+                len(result.permissions.paths),
+                len(result.permissions.commands),
+            )
+            return result
         except ValidationError:
+            logger.error(
+                "Config validation failed: %s",
+                config_path,
+                exc_info=True,
+            )
             raise
 
     def dump(self, config: ServerConfig, path: Optional[str] = None) -> None:

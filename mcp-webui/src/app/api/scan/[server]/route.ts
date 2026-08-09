@@ -141,6 +141,7 @@ export async function POST(
   const scanCfg = SCAN_CONFIG[server];
 
   if (!scanCfg) {
+    console.warn(`[scan] ${server} — not available for auto-discovery`);
     return NextResponse.json(
       { error: "Auto-discovery not available for this server" },
       { status: 400 },
@@ -151,6 +152,7 @@ export async function POST(
     const targetFilePaths = userId
       ? [getConfigPath(server, userId)]
       : await getAllUserConfigPaths(server);
+    console.info(`[scan] ${server} — starting${userId ? ` (user=${userId})` : ""} (${targetFilePaths.length} config file(s))`);
 
     // Run discovery inside the MCP container ONCE
     startScan(server);
@@ -297,6 +299,10 @@ export async function POST(
       } catch { /* file error skip */ }
     }
 
+    console.info(
+      `[scan] ${server} — done: ${folders.length} discovered, ${lastAddedCount} added` +
+      (cancelled ? " (cancelled)" : ""),
+    );
     return NextResponse.json({
       scanned: true,
       discovered: folders.length,
@@ -307,6 +313,7 @@ export async function POST(
     });
   } catch (err) {
     endScan(server);
+    console.error(`[scan] ${server} — failed:`, err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

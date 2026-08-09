@@ -12,14 +12,17 @@ export async function POST(request: Request) {
   try {
     const { apiKey } = await request.json();
     if (!apiKey || !validateApiKey(apiKey)) {
+      console.warn("[auth] Login failed: invalid API key");
       return NextResponse.json({ success: false, error: "Invalid API key" }, { status: 401 });
     }
     const session = await getSession();
     session.authenticated = true;
     session.loginTime = Date.now();
     await session.save();
+    console.info("[auth] Login successful");
     return NextResponse.json({ success: true });
   } catch {
+    console.error("[auth] Login error: bad request body");
     return NextResponse.json({ success: false, error: "Bad request" }, { status: 400 });
   }
 }

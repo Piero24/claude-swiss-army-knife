@@ -60,5 +60,6 @@
       "enabled": true
     }
   },
-  "auditPageSize": 50
+  "auditPageSize": 50,
+  "logRetentionMonths": 12
 }

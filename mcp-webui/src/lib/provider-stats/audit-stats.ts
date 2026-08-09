@@ -4,6 +4,7 @@
 import * as fs from "fs/promises";
 import path from "path";
 import { normalizeServer } from "./server-labels";
+import { readAllAuditEntries } from "@/lib/audit-log-reader";
 
 const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
 const CONFIGS_PATH = process.env.CONFIGS_PATH || "/app/configs";
@@ -67,57 +68,53 @@ export async function computeAuditStats(
       if (!dirent.isDirectory()) continue;
       // If server filter is set, skip directories that don't match
       if (serverFilter && dirent.name !== serverFilter) continue;
-      const logFile = path.join(LOGS_PATH, dirent.name, "audit.log");
-      const raw = await fs.readFile(logFile, "utf-8").catch(() => "");
-      if (!raw) continue;
+      const logDir = path.join(LOGS_PATH, dirent.name);
+      // Quick existence check before scanning all files
+      try { await fs.access(path.join(logDir, "audit.log")); } catch { continue; }
 
-      const lines = raw.split("\n").filter(Boolean);
-      // Scan last 2000 entries per server for performance
-      const recent = lines.slice(-2000);
-      for (const line of recent) {
-        try {
-          const entry = JSON.parse(line);
-          if (!entry.ts) continue;
+      const entries = await readAllAuditEntries(
+        path.join(LOGS_PATH, dirent.name),
+        2000,
+      );
+      for (const entry of entries) {
+        if (!entry.ts) continue;
 
-          allTime++;
+        allTime++;
 
-          const ts = new Date(entry.ts);
-          if (!isNaN(ts.getTime())) {
-            if (ts >= todayStart) todayCount++;
-            if (ts >= weekStart) thisWeek++;
+        const ts = new Date(entry.ts);
+        if (!isNaN(ts.getTime())) {
+          if (ts >= todayStart) todayCount++;
+          if (ts >= weekStart) thisWeek++;
 
-            const dayKey = ts.toISOString().slice(0, 10);
-            byDay[dayKey] = (byDay[dayKey] || 0) + 1;
-          }
+          const dayKey = ts.toISOString().slice(0, 10);
+          byDay[dayKey] = (byDay[dayKey] || 0) + 1;
+        }
 
-          // By server — normalize to canonical key
-          const rawServer = entry.server || dirent.name;
-          const server = normalizeServer(rawServer);
-          byServer[server] = (byServer[server] || 0) + 1;
+        // By server — normalize to canonical key
+        const rawServer = entry.server || dirent.name;
+        const server = normalizeServer(rawServer);
+        byServer[server] = (byServer[server] || 0) + 1;
 
-          // By tool
-          const tool = entry.target || entry.command || null;
+        // By tool
+        const tool = entry.target || null;
+        if (tool) {
+          byTool[tool] = (byTool[tool] || 0) + 1;
+        }
+
+        // By user — label unauthenticated traffic as "anonymous"
+        const rawUserId = entry.user_id || "default";
+        const userId = rawUserId === "default" ? "anonymous" : rawUserId;
+        byUser[userId] = (byUser[userId] || 0) + 1;
+
+        // Result ratio
+        if (entry.result === "allowed") {
+          resultRatio.allowed++;
+        } else {
+          resultRatio.denied++;
+          // Track denied targets
           if (tool) {
-            byTool[tool] = (byTool[tool] || 0) + 1;
+            byDenied[tool] = (byDenied[tool] || 0) + 1;
           }
-
-          // By user — label unauthenticated traffic as "anonymous"
-          const rawUserId = entry.user_id || "default";
-          const userId = rawUserId === "default" ? "anonymous" : rawUserId;
-          byUser[userId] = (byUser[userId] || 0) + 1;
-
-          // Result ratio
-          if (entry.result === "allowed") {
-            resultRatio.allowed++;
-          } else {
-            resultRatio.denied++;
-            // Track denied targets
-            if (tool) {
-              byDenied[tool] = (byDenied[tool] || 0) + 1;
-            }
-          }
-        } catch {
-          /* skip malformed lines */
         }
       }
     }

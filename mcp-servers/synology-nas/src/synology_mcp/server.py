@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 from pathlib import Path
@@ -49,6 +50,11 @@ class SynologyServer(BaseMCPServer):
             return await self.handle_tool_call(name, arguments, self._dispatch)
 
     async def _dispatch(self, name: str, arguments: dict) -> dict | list:
+        logger.debug(
+            "Dispatching tool=%s args=%s",
+            name,
+            json.dumps(arguments, default=str)[:300] if arguments else "{}",
+        )
         match name:
             case "syno_file_list":
                 self.enforcer.check("read", arguments["folder_path"], name)

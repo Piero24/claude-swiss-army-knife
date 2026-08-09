@@ -1,4 +1,4 @@
-/** Background scheduler — periodic folder scans for all MCP servers. */
+/** Background scheduler — periodic folder scans and log maintenance. */
 import "server-only";
 
 import { isScanning, touchAutoScan } from "@/lib/scan-status";
@@ -11,6 +11,19 @@ const SCAN_SERVERS = ["synology-nas", "obsidian", "ubuntu-server"];
 let _started = false;
 let _intervalMs = 60 * 60 * 1000;
 let _timer: ReturnType<typeof setInterval> | null = null;
+let _logMaintenanceTimer: ReturnType<typeof setInterval> | null = null;
+
+async function runLogMaintenance() {
+  try {
+    if (!(await hasUsers())) return;
+    const { runLogMaintenance: doMaintenance } = await import(
+      "@/lib/log-cleanup"
+    );
+    await doMaintenance();
+  } catch (err) {
+    console.error("[scheduler] Log maintenance failed:", err);
+  }
+}
 
 async function runScanForServer(server: string) {
   if (isScanning(server)) {
@@ -64,9 +77,17 @@ export function startScheduler() {
   _started = true;
   console.log(`[scheduler] Scan every ${_intervalMs / 60000} min`);
   _timer = setInterval(runAllScans, _intervalMs);
+
+  // Log maintenance: once every 24 hours (rotation + cleanup)
+  const MAINTENANCE_MS = 24 * 60 * 60 * 1000;
+  _logMaintenanceTimer = setInterval(runLogMaintenance, MAINTENANCE_MS);
+  console.log("[scheduler] Log maintenance every 24h");
+
   setTimeout(async () => {
     if (await hasUsers()) {
       runAllScans();
+      // Run log maintenance on startup too (with a 60s delay so scans settle)
+      setTimeout(runLogMaintenance, 60_000);
     } else {
       console.log("[scheduler] No users configured — skipping auto-scan");
     }

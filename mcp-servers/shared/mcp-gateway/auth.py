@@ -78,7 +78,15 @@ def verify_and_enforce(
     # YAML config (which can be many MB due to auto-discovered paths).
     # Tool-level checks only run on /messages, not on /sse.
     if not tool_name:
+        logger.debug("Auth OK (SSE): user=%s server=%s", user_id, server_name)
         return
+
+    logger.debug(
+        "Tool auth check: user=%s server=%s tool=%s",
+        user_id,
+        server_name,
+        tool_name,
+    )
 
     # Resolve the server config file (try multiple naming conventions)
     server_config_file = CONFIGS_DIR / server_name / f"{user_id}.yaml"

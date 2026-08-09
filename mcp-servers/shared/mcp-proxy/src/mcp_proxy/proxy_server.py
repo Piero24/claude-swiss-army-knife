@@ -140,11 +140,29 @@ class ProxyServer(BaseMCPServer):
         raw = json.dumps(req) + "\n"
         self._proc.stdin.write(raw.encode())
         await self._proc.stdin.drain()
+        logger.debug(
+            "JSON-RPC → subprocess: id=%d method=%s",
+            self._request_id,
+            method,
+        )
 
         line = await self._proc.stdout.readline()
         if not line:
+            logger.error(
+                "Subprocess closed stdout on request id=%d method=%s",
+                self._request_id,
+                method,
+            )
             raise RuntimeError("Subprocess closed stdout")
-        return json.loads(line.decode())
+        response = json.loads(line.decode())
+        if "error" in response:
+            logger.warning(
+                "JSON-RPC ← error: id=%d method=%s error=%s",
+                self._request_id,
+                method,
+                json.dumps(response["error"], default=str)[:300],
+            )
+        return response
 
     def warm_up(self) -> None:
         """Fire-and-forget tool-cache warm-up so the first connection sees

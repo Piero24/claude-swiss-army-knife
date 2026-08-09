@@ -20,14 +20,17 @@ export async function proxy(request: NextRequest) {
     // Allow internal callers with the API key in a header (scheduler, etc.)
     const apiKey = request.headers.get("x-api-key");
     if (apiKey && apiKey === (process.env.WEBUI_API_KEY || "")) {
+      console.debug(`[proxy] ${request.method} ${pathname} — internal API key`);
       return NextResponse.next();
     }
 
     const cookieStore = await cookies();
     const session = await getIronSession<{ authenticated?: boolean }>(cookieStore, sessionOptions);
     if (!session.authenticated) {
+      console.warn(`[proxy] ${request.method} ${pathname} — 401 Unauthorized`);
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    console.debug(`[proxy] ${request.method} ${pathname} — session OK`);
   }
 
   return NextResponse.next();

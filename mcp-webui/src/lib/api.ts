@@ -23,6 +23,7 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.text();
+    console.error(`[api] ${res.status} on ${url}: ${body.slice(0, 500)}`);
     throw new Error(`API error ${res.status}: ${body}`);
   }
   return res.json();
@@ -150,6 +151,7 @@ export interface AppSettings {
     excludePatterns: string[];
   };
   auditPageSize?: number;
+  logRetentionMonths?: number;
   synology?: {
     maxDownloadMb: number;
     defaultSearchPath: string;

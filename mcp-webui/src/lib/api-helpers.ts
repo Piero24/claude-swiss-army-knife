@@ -7,6 +7,7 @@ import { z } from "zod";
  */
 export function handleApiError(err: unknown): NextResponse {
   if (err instanceof z.ZodError) {
+    console.warn("[api] Validation error:", err.issues);
     return NextResponse.json(
       { error: "Validation failed", details: err.issues },
       { status: 400 }
@@ -15,6 +16,7 @@ export function handleApiError(err: unknown): NextResponse {
 
   if (err instanceof Error) {
     if (err.message === "Rule not found" || err.message === "Not found") {
+      console.warn("[api] Not found:", err.message);
       return NextResponse.json({ error: err.message }, { status: 404 });
     }
     if (
@@ -22,10 +24,12 @@ export function handleApiError(err: unknown): NextResponse {
       err.message === "No paths configured" ||
       err.message === "No commands configured"
     ) {
+      console.warn("[api] Bad request:", err.message);
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
   }
 
+  console.error("[api] Internal error:", err);
   return NextResponse.json({ error: String(err) }, { status: 500 });
 }
 

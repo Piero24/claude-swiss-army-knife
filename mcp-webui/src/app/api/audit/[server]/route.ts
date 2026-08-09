@@ -1,8 +1,8 @@
 /** GET — paginated audit log entries for a server. */
 
 import { NextResponse } from "next/server";
-import * as fs from "fs/promises";
 import * as path from "path";
+import { readAuditLogs } from "@/lib/audit-log-reader";
 
 const LOGS_PATH = process.env.LOGS_PATH || "/var/log/mcp";
 
@@ -20,27 +20,10 @@ export async function GET(
   const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
 
   try {
-    // Derive log directory from server name by stripping known suffixes
     const logDirName = server.replace(/-server$/, "").replace(/-mcp$/, "");
     const logDir = path.join(LOGS_PATH, logDirName);
-    const logFile = path.join(logDir, "audit.log");
-
-    const raw = await fs.readFile(logFile, "utf-8").catch(() => "");
-    if (!raw) return NextResponse.json({ entries: [], total: 0 });
-
-    const entries = raw
-      .split("\n")
-      .filter((line) => line.trim())
-      .map((line) => {
-        try { return JSON.parse(line); } catch { return null; }
-      })
-      .filter(Boolean)
-      .reverse();
-
-    return NextResponse.json({
-      entries: entries.slice(offset, offset + limit),
-      total: entries.length,
-    });
+    const result = await readAuditLogs(logDir, { limit, offset });
+    return NextResponse.json(result);
   } catch {
     return NextResponse.json({ entries: [], total: 0 });
   }

@@ -155,6 +155,7 @@ class DSMClient:
     async def _require_auth(self) -> str:
         """Get the SID, logging in automatically if needed."""
         if not self._sid:
+            logger.debug("No active DSM session — logging in")
             await self.login()
         return self._sid
 

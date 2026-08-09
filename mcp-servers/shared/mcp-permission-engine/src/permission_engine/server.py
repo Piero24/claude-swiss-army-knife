@@ -397,7 +397,12 @@ class BaseMCPServer:
             "MCP_USER_KEY", ""
         )
 
-        logger.debug("Tool call: %s user=%s", name, user_id)
+        logger.debug(
+            "Tool call: %s user=%s args=%s",
+            name,
+            user_id,
+            json.dumps(arguments, default=str)[:300] if arguments else "{}",
+        )
 
         # Swap to the per-user enforcer so path/command/tool rules come
         # from this user's own <user_id>.yaml, not a shared global config.
@@ -405,6 +410,7 @@ class BaseMCPServer:
 
         try:
             self.enforcer.authenticate(user_id, user_key)
+            logger.debug("Auth success for user=%s tool=%s", user_id, name)
         except Exception as e:
             logger.info("Auth failed for user=%s tool=%s: %s", user_id, name, e)
             return self.format_error(e)
@@ -442,6 +448,10 @@ class BaseMCPServer:
                     _request_user_id.set(uid)
                 if ukey:
                     _request_user_key.set(ukey)
+                logger.info(
+                    "SSE connection from user=%s",
+                    uid or "anonymous",
+                )
                 async with sse.connect_sse(
                     request.scope, request.receive, request._send
                 ) as streams:
@@ -451,6 +461,10 @@ class BaseMCPServer:
                         streams[1],
                         self.create_initialization_options(),
                     )
+                logger.info(
+                    "SSE disconnected: user=%s",
+                    uid or "anonymous",
+                )
                 return Response()
 
             async def handle_messages(request):
@@ -460,9 +474,14 @@ class BaseMCPServer:
                 # asyncio task boundaries (SSE vs /messages are separate tasks).
                 self._request_user_id_val = uid
                 self._request_user_key_val = ukey
+                logger.debug(
+                    "Messages request: user=%s",
+                    uid or "anonymous",
+                )
                 await sse.handle_post_message(
                     request.scope, request.receive, request._send
                 )
+                return Response()
 
             starlette_app = Starlette(
                 routes=[
